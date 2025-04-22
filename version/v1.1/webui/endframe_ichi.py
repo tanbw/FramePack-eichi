@@ -3,7 +3,6 @@ from diffusers_helper.hf_login import login
 import os
 import random
 import time
-import subprocess
 # クロスプラットフォーム対応のための条件付きインポート
 try:
     import winsound
@@ -134,119 +133,13 @@ else:
 
 stream = AsyncStream()
 
-# 設定ファイル関連処理のリファクタリング
-def get_settings_file_path():
-    """設定ファイルの絶対パスを取得する"""
-    base_path = os.path.dirname(os.path.abspath(__file__))
-    settings_folder = os.path.join(base_path, 'settings')
-    return os.path.join(settings_folder, 'app_settings.json')
+outputs_folder = './outputs/'
+os.makedirs(outputs_folder, exist_ok=True)
 
-def get_output_folder_path(folder_name=None):
-    """出力フォルダの絶対パスを取得する"""
-    base_path = os.path.dirname(os.path.abspath(__file__))
-    if not folder_name or not folder_name.strip():
-        folder_name = "outputs"
-    return os.path.join(base_path, folder_name)
-
-def initialize_settings():
-    """設定ファイルを初期化する（存在しない場合のみ）"""
-    settings_file = get_settings_file_path()
-    settings_dir = os.path.dirname(settings_file)
-    
-    if not os.path.exists(settings_file):
-        # 初期デフォルト設定
-        default_settings = {'output_folder': 'outputs'}
-        try:
-            os.makedirs(settings_dir, exist_ok=True)
-            with open(settings_file, 'w', encoding='utf-8') as f:
-                json.dump(default_settings, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"設定ファイル初期化エラー: {e}")
-            return False
-    return True
-
-def load_settings():
-    """設定を読み込む関数"""
-    settings_file = get_settings_file_path()
-    default_settings = {'output_folder': 'outputs'}
-    
-    if os.path.exists(settings_file):
-        try:
-            with open(settings_file, 'r', encoding='utf-8') as f:
-                file_content = f.read()
-                if not file_content.strip():
-                    return default_settings
-                settings = json.loads(file_content)
-                
-                # デフォルト値とマージ
-                for key, value in default_settings.items():
-                    if key not in settings:
-                        settings[key] = value
-                return settings
-        except Exception as e:
-            print(f"設定読み込みエラー: {e}")
-    
-    return default_settings
-
-def save_settings(settings):
-    """設定を保存する関数"""
-    settings_file = get_settings_file_path()
-    
-    try:
-        # 保存前にディレクトリが存在するか確認
-        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
-        
-        # JSON書き込み
-        with open(settings_file, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        print(f"設定保存エラー: {e}")
-        return False
-
-def open_output_folder(folder_path):
-    """指定されたフォルダをOSに依存せず開く"""
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path, exist_ok=True)
-    
-    try:
-        if os.name == 'nt':  # Windows
-            subprocess.Popen(['explorer', folder_path])
-        elif os.name == 'posix':  # Linux/Mac
-            try:
-                subprocess.Popen(['xdg-open', folder_path])
-            except:
-                subprocess.Popen(['open', folder_path])
-        print(f"フォルダを開きました: {folder_path}")
-        return True
-    except Exception as e:
-        print(f"フォルダを開く際にエラーが発生しました: {e}")
-        return False
-
-# フォルダ構造を先に定義
+# プリセット保存用フォルダの設定
 webui_folder = os.path.dirname(os.path.abspath(__file__))
 presets_folder = os.path.join(webui_folder, 'presets')
 os.makedirs(presets_folder, exist_ok=True)
-
-# 設定保存用フォルダの設定
-settings_folder = os.path.join(webui_folder, 'settings')
-os.makedirs(settings_folder, exist_ok=True)
-
-# 設定ファイル初期化
-initialize_settings()
-
-# ベースパスを定義
-base_path = os.path.dirname(os.path.abspath(__file__))
-
-# 設定から出力フォルダを取得
-app_settings = load_settings()
-output_folder_name = app_settings.get('output_folder', 'outputs')
-print(f"設定から出力フォルダを読み込み: {output_folder_name}")
-
-# 出力フォルダのフルパスを生成
-outputs_folder = get_output_folder_path(output_folder_name)
-os.makedirs(outputs_folder, exist_ok=True)
 
 # 統一的なキーフレーム処理関数群
 
@@ -383,9 +276,6 @@ def unified_input_image_change_handler(img, mode, length, enable_copy=True):
         elif length == "16(4x4)秒":
             # 16(4x4)秒の場合は10～12にコピー (インデックス9-11)
             copy_targets = [9, 10, 11]
-        elif length == "20(4x5)秒":
-            # 20(4x5)秒の場合は13～15にコピー (インデックス12-14)
-            copy_targets = [12, 13, 14]
         else:
             # 通常の動画長の場合は最初のいくつかのキーフレームにコピー
             if length == "6秒":
@@ -433,29 +323,7 @@ def print_keyframe_debug_info():
 
 
 @torch.no_grad()
-def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, output_dir=None, section_settings=None):
-    # 出力フォルダの設定
-    global outputs_folder
-    global output_folder_name
-    if output_dir and output_dir.strip():
-        # 出力フォルダパスを取得
-        outputs_folder = get_output_folder_path(output_dir)
-        print(f"出力フォルダを設定: {outputs_folder}")
-        
-        # フォルダ名が現在の設定と異なる場合は設定ファイルを更新
-        if output_dir != output_folder_name:
-            settings = load_settings()
-            settings['output_folder'] = output_dir
-            if save_settings(settings):
-                output_folder_name = output_dir
-                print(f"出力フォルダ設定を保存しました: {output_dir}")
-    else:
-        # デフォルト設定を使用
-        outputs_folder = get_output_folder_path(output_folder_name)
-        print(f"デフォルト出力フォルダを使用: {outputs_folder}")
-    
-    # フォルダが存在しない場合は作成
-    os.makedirs(outputs_folder, exist_ok=True)
+def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, section_settings=None):
     # 処理時間計測の開始
     process_start_time = time.time()
     
@@ -520,60 +388,6 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     img, prm = section_map[sec]
                     return sec, img, prm
             return None, None, None
-        
-        # セクション固有のプロンプト処理を行う関数
-        def process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask):
-            """セクションに固有のプロンプトがあればエンコードして返す
-            なければメインプロンプトのエンコード結果を返す
-            返り値: (llama_vec, clip_l_pooler, llama_attention_mask)
-            """
-            if not isinstance(llama_vec, torch.Tensor) or not isinstance(llama_attention_mask, torch.Tensor):
-                print("[ERROR] メインプロンプトのエンコード結果またはマスクが不正です")
-                return llama_vec, clip_l_pooler, llama_attention_mask
-
-            # セクション固有のプロンプトがあるか確認
-            section_info = None
-            if section_map:
-                valid_section_nums = [k for k in section_map.keys() if k >= i_section]
-                if valid_section_nums:
-                    section_num = min(valid_section_nums)
-                    section_info = section_map[section_num]
-            
-            # セクション固有のプロンプトがあれば使用
-            if section_info and len(section_info) > 1:
-                _, section_prompt = section_info
-                if section_prompt and section_prompt.strip():
-                    print(f"[section_prompt] セクション{i_section}の専用プロンプトを処理: {section_prompt[:30]}...")
-                    
-                    try:
-                        # プロンプト処理
-                        section_llama_vec, section_clip_l_pooler = encode_prompt_conds(
-                            section_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2
-                        )
-                        
-                        # マスクの作成
-                        section_llama_vec, section_llama_attention_mask = crop_or_pad_yield_mask(
-                            section_llama_vec, length=512
-                        )
-                        
-                        # データ型を明示的にメインプロンプトと合わせる
-                        section_llama_vec = section_llama_vec.to(
-                            dtype=llama_vec.dtype, device=llama_vec.device
-                        )
-                        section_clip_l_pooler = section_clip_l_pooler.to(
-                            dtype=clip_l_pooler.dtype, device=clip_l_pooler.device
-                        )
-                        section_llama_attention_mask = section_llama_attention_mask.to(
-                            device=llama_attention_mask.device
-                        )
-                        
-                        return section_llama_vec, section_clip_l_pooler, section_llama_attention_mask
-                    except Exception as e:
-                        print(f"[ERROR] セクションプロンプト処理エラー: {e}")
-            
-            # 共通プロンプトを使用
-            print(f"[section_prompt] セクション{i_section}は共通プロンプトを使用します")
-            return llama_vec, clip_l_pooler, llama_attention_mask
 
         # Clean GPU
         if not high_vram:
@@ -716,9 +530,6 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 stream.output_queue.push(('end', None))
                 return
 
-            # セクション固有のプロンプトがあれば使用する
-            current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask)
-            
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
 
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
@@ -773,9 +584,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 # shift=3.0,
                 num_inference_steps=steps,
                 generator=rnd,
-                prompt_embeds=current_llama_vec,  # セクションごとのプロンプトを使用
-                prompt_embeds_mask=current_llama_attention_mask,  # セクションごとのマスクを使用
-                prompt_poolers=current_clip_l_pooler,  # セクションごとのプロンプトを使用
+                prompt_embeds=llama_vec,
+                prompt_embeds_mask=llama_attention_mask,
+                prompt_poolers=clip_l_pooler,
                 negative_prompt_embeds=llama_vec_n,
                 negative_prompt_embeds_mask=llama_attention_mask_n,
                 negative_prompt_poolers=clip_l_pooler_n,
@@ -915,7 +726,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     return
 
 
-def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings):
+def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, section_settings):
     global stream
     assert input_image is not None, 'No input image!'
     
@@ -957,13 +768,8 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     # GPUメモリの設定値をデバッグ出力し、正しい型に変換
     gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
     print(f'Using GPU memory preservation setting: {gpu_memory_value} GB')
-    
-    # 出力フォルダが空の場合はデフォルト値を使用
-    if not output_dir or not output_dir.strip():
-        output_dir = "outputs"
-    print(f'Output directory: {output_dir}')
 
-    async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings)
+    async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, section_settings)
 
     output_filename = None
 
@@ -1375,59 +1181,6 @@ with block:
                 
                 # キーフレームコピー機能のオンオフ切り替え
                 enable_keyframe_copy = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=True, info="オフにするとキーフレーム間の自動コピーが行われなくなります")
-                
-                # 出力フォルダ設定
-                gr.Markdown("※ 出力先は `webui` 配下に限定されます")
-                with gr.Row(equal_height=True):
-                    with gr.Column(scale=4):
-                        # フォルダ名だけを入力欄に設定
-                        output_dir = gr.Textbox(
-                            label="出力フォルダ名", 
-                            value=output_folder_name,  # 設定から読み込んだ値を使用
-                            info="動画やキーフレーム画像の保存先フォルダ名",
-                            placeholder="outputs"
-                        )
-                    with gr.Column(scale=1, min_width=100):
-                        open_folder_btn = gr.Button(value="📂 保存および出力フォルダを開く", size="sm")
-                
-                # 実際の出力パスを表示
-                with gr.Row(visible=False):
-                    path_display = gr.Textbox(
-                        label="出力フォルダの完全パス",
-                        value=os.path.join(base_path, output_folder_name),
-                        interactive=False
-                    )
-                
-                # フォルダを開くボタンのイベント
-                def handle_open_folder_btn(folder_name):
-                    """フォルダ名を保存し、そのフォルダを開く"""
-                    if not folder_name or not folder_name.strip():
-                        folder_name = "outputs"
-                    
-                    # フォルダパスを取得
-                    folder_path = get_output_folder_path(folder_name)
-                    
-                    # 設定を更新して保存
-                    settings = load_settings()
-                    old_folder_name = settings.get('output_folder')
-                    
-                    if old_folder_name != folder_name:
-                        settings['output_folder'] = folder_name
-                        save_result = save_settings(settings)
-                        if save_result:
-                            # グローバル変数も更新
-                            global output_folder_name, outputs_folder
-                            output_folder_name = folder_name
-                            outputs_folder = folder_path
-                        print(f"出力フォルダ設定を保存しました: {folder_name}")
-                    
-                    # フォルダを開く
-                    open_output_folder(folder_path)
-                    
-                    # 出力ディレクトリ入力欄とパス表示を更新
-                    return gr.update(value=folder_name), gr.update(value=folder_path)
-                
-                open_folder_btn.click(fn=handle_open_folder_btn, inputs=[output_dir], outputs=[output_dir, path_display])
 
                 # セクション設定（DataFrameをやめて個別入力欄に変更）
                 # 設定から最大キーフレーム数を取得
@@ -1436,22 +1189,15 @@ with block:
                 # セクション設定の入力欄を動的に生成
                 section_number_inputs = []
                 section_image_inputs = []
-                section_prompt_inputs = []  # プロンプト入力欄用のリスト
+                section_prompt_inputs = []  # 空リストにしておく
                 with gr.Group():
                     gr.Markdown("### セクション設定. セクション番号は動画の終わりからカウント.（任意。指定しない場合は通常のImage/プロンプトを使用）")
                     for i in range(max_keyframes):
                         with gr.Row():
-                            # 左側にセクション番号とプロンプトを配置
-                            with gr.Column(scale=1):
-                                section_number = gr.Number(label=f"セクション番号{i+1}", value=i, precision=0)
-                                section_prompt = gr.Textbox(label=f"セクションプロンプト{i+1}", placeholder="セクション固有のプロンプト（空白の場合は共通プロンプトを使用）", lines=2)
-                            
-                            # 右側にキーフレーム画像のみ配置
-                            with gr.Column(scale=2):
-                                section_image = gr.Image(label=f"キーフレーム画像{i+1}", sources="upload", type="numpy", height=200)
+                            section_number = gr.Number(label=f"セクション番号{i+1}", value=i, precision=0)
+                            section_image = gr.Image(label=f"キーフレーム画像{i+1}", sources="upload", type="numpy", height=200)
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
-                            section_prompt_inputs.append(section_prompt)
                 
                 # 重要なキーフレームの説明
                 with gr.Row():
@@ -1459,15 +1205,15 @@ with block:
                         # 設定から動的にHTML生成
                         note_html = gr.HTML(generate_keyframe_guide_html())
                         
-                # section_settingsは入力欄の値をまとめてリスト化
+                # section_settingsは9つの入力欄の値をまとめてリスト化
                 def collect_section_settings(*args):
-                    # args: [num1, img1, prompt1, num2, img2, prompt2, ...]
-                    return [[args[i], args[i+1], args[i+2]] for i in range(0, len(args), 3)]
+                    # args: [num1, img1, num2, img2, ...]
+                    return [[args[i], args[i+1], ""] for i in range(0, len(args), 2)]
                 
                 section_settings = gr.State([[None, None, ""] for _ in range(max_keyframes)])
                 section_inputs = []
                 for i in range(max_keyframes):
-                    section_inputs.extend([section_number_inputs[i], section_image_inputs[i], section_prompt_inputs[i]])
+                    section_inputs.extend([section_number_inputs[i], section_image_inputs[i]])
                 
                 # section_inputsをまとめてsection_settings Stateに格納
                 def update_section_settings(*args):
@@ -1569,7 +1315,7 @@ with block:
                 result_message = gr.Markdown("")
     
     # 実行ボタンのイベント
-    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings]
+    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, section_settings]
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
     
