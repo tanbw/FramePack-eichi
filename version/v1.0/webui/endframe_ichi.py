@@ -10,30 +10,13 @@ try:
 except ImportError:
     HAS_WINSOUND = False
 import json
-import traceback
 from datetime import datetime, timedelta
 
 os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
 
-# 設定モジュールをインポート（ローカルモジュール）
-import os.path
-from video_mode_settings import (
-    VIDEO_MODE_SETTINGS, get_video_modes, get_video_seconds, get_important_keyframes, 
-    get_copy_targets, get_max_keyframes_count, get_total_sections, generate_keyframe_guide_html,
-    handle_mode_length_change, process_keyframe_change, MODE_TYPE_NORMAL, MODE_TYPE_LOOP
-)
-
-# インデックス変換のユーティリティ関数追加
-def ui_to_code_index(ui_index):
-    """UI表示のキーフレーム番号(1始まり)をコード内インデックス(0始まり)に変換"""
-    return ui_index - 1
-
-def code_to_ui_index(code_index):
-    """コード内インデックス(0始まり)をUI表示のキーフレーム番号(1始まり)に変換"""
-    return code_index + 1
-
 import gradio as gr
 import torch
+import traceback
 import einops
 import safetensors.torch as sf
 import numpy as np
@@ -70,30 +53,16 @@ high_vram = free_mem_gb > 60
 print(f'Free VRAM {free_mem_gb} GB')
 print(f'High-VRAM Mode: {high_vram}')
 
+text_encoder = LlamaModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder', torch_dtype=torch.float16).cpu()
+text_encoder_2 = CLIPTextModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder_2', torch_dtype=torch.float16).cpu()
+tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
+tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
+vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
 
-# 元のモデル読み込みコード
-try:
-    text_encoder = LlamaModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder', torch_dtype=torch.float16).cpu()
-    text_encoder_2 = CLIPTextModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder_2', torch_dtype=torch.float16).cpu()
-    tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
-    tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
-    vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
-except Exception as e:
-    print(f"モデル読み込みエラー: {e}")
-    print("プログラムを終了します...")
-    import sys
-    sys.exit(1)
+feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
+image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
 
-# 他のモデルも同様に例外処理
-try:
-    feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
-    image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
-    transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
-except Exception as e:
-    print(f"モデル読み込みエラー (追加モデル): {e}")
-    print("プログラムを終了します...")
-    import sys
-    sys.exit(1)
+transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
 
 vae.eval()
 text_encoder.eval()
@@ -141,199 +110,14 @@ webui_folder = os.path.dirname(os.path.abspath(__file__))
 presets_folder = os.path.join(webui_folder, 'presets')
 os.makedirs(presets_folder, exist_ok=True)
 
-# 統一的なキーフレーム処理関数群
-
-# 1. 統一的なキーフレーム変更ハンドラ
-def unified_keyframe_change_handler(keyframe_idx, img, mode, length, enable_copy=True):
-    """すべてのキーフレーム処理を統一的に行う関数
-    
-    Args:
-        keyframe_idx: UIのキーフレーム番号-1 (0始まりのインデックス)
-        img: 変更されたキーフレーム画像
-        mode: モード ("通常" or "ループ")
-        length: 動画長 ("6秒", "8秒", "10(5x2)秒", "12(4x3)秒", "16(4x4)秒")
-        enable_copy: コピー機能が有効かどうか
-
-    Returns:
-        更新リスト: 変更するキーフレーム画像の更新情報のリスト
-    """
-    if img is None or not enable_copy:
-        # 画像が指定されていない、またはコピー機能が無効の場合は何もしない
-        max_keyframes = get_max_keyframes_count()
-        remaining = max(0, max_keyframes - keyframe_idx - 1)
-        return [gr.update() for _ in range(remaining)]
-    
-    # video_mode_settings.pyから定義されたコピーターゲットを取得
-    targets = get_copy_targets(mode, length, keyframe_idx)
-    
-    # 結果の更新リスト作成
-    max_keyframes = get_max_keyframes_count()
-    updates = []
-    
-    # このキーフレーム以降のインデックスに対してのみ処理
-    for i in range(keyframe_idx + 1, max_keyframes):
-        # コピーパターン定義では相対インデックスでなく絶対インデックスが使われているため、
-        # iがtargets内にあるかをチェック
-        if i in targets:
-            # コピー先リストに含まれている場合は画像をコピー
-            updates.append(gr.update(value=img))
-        else:
-            # 含まれていない場合は変更なし
-            updates.append(gr.update())
-    
-    return updates
-
-# 2. モード変更の統一ハンドラ
-def unified_mode_length_change_handler(mode, length, section_number_inputs):
-    """モードと動画長の変更を統一的に処理する関数
-    
-    Args:
-        mode: モード ("通常" or "ループ")
-        length: 動画長 ("6秒", "8秒", "10(5x2)秒", "12(4x3)秒", "16(4x4)秒")
-        section_number_inputs: セクション番号入力欄のリスト
-        
-    Returns:
-        更新リスト: 各UI要素の更新情報のリスト
-    """
-    # 基本要素のクリア（入力画像と終了フレーム）
-    updates = [gr.update(value=None) for _ in range(2)]
-    
-    # すべてのキーフレーム画像をクリア
-    section_image_count = get_max_keyframes_count()
-    for _ in range(section_image_count):
-        updates.append(gr.update(value=None, elem_classes=""))
-    
-    # セクション番号ラベルをリセット
-    for i in range(len(section_number_inputs)):
-        section_number_inputs[i].elem_classes = ""
-    
-    # 重要なキーフレームを強調表示
-    important_kfs = get_important_keyframes(length)
-    for idx in important_kfs:
-        ui_idx = code_to_ui_index(idx)
-        update_idx = ui_idx + 1  # 入力画像と終了フレームの2つを考慮
-        if update_idx < len(updates):
-            updates[update_idx] = gr.update(value=None, elem_classes="highlighted-keyframe")
-            if idx < len(section_number_inputs):
-                section_number_inputs[idx].elem_classes = "highlighted-label"
-    
-    # ループモードの場合はキーフレーム1も強調（まだ強調されていない場合）
-    if mode == MODE_TYPE_LOOP and 0 not in important_kfs:
-        updates[2] = gr.update(value=None, elem_classes="highlighted-keyframe")
-        if 0 < len(section_number_inputs):
-            section_number_inputs[0].elem_classes = "highlighted-label"
-    
-    # 動画長の設定
-    video_length = get_video_seconds(length)
-    
-    # 最終的な動画長設定を追加
-    updates.append(gr.update(value=video_length))
-    
-    return updates
-
-# 3. 入力画像変更の統一ハンドラ
-def unified_input_image_change_handler(img, mode, length, enable_copy=True):
-    """入力画像変更時の処理を統一的に行う関数
-    
-    Args:
-        img: 変更された入力画像
-        mode: モード ("通常" or "ループ")
-        length: 動画長 ("6秒", "8秒", "10(5x2)秒", "12(4x3)秒", "16(4x4)秒")
-        enable_copy: コピー機能が有効かどうか
-        
-    Returns:
-        更新リスト: 終了フレームとすべてのキーフレーム画像の更新情報のリスト
-    """
-    if img is None or not enable_copy:
-        # 画像が指定されていない、またはコピー機能が無効の場合は何もしない
-        section_count = get_max_keyframes_count()
-        return [gr.update() for _ in range(section_count + 1)]  # +1 for end_frame
-    
-    # ループモードかどうかで処理を分岐
-    if mode == MODE_TYPE_LOOP:
-        # ループモード: FinalFrameに入力画像をコピー
-        updates = [gr.update(value=img)]  # end_frame
-        
-        # キーフレーム画像は更新なし
-        section_count = get_max_keyframes_count()
-        updates.extend([gr.update() for _ in range(section_count)])
-        
-    else:
-        # 通常モード: FinalFrameは更新なし
-        updates = [gr.update()]  # end_frame
-        
-        # 動画長/モードに基づいてコピー先のキーフレームを取得
-        # これが設定ファイルに基づく方法
-        copy_targets = []
-        
-        # 特殊処理のモードでは設定によって異なるキーフレームにコピー
-        if length == "10(5x2)秒":
-            # 10(5x2)秒の場合は5～8にコピー (インデックス4-7)
-            copy_targets = [4, 5, 6, 7]
-        elif length == "12(4x3)秒":
-            # 12(4x3)秒の場合は7～9にコピー (インデックス6-8)
-            copy_targets = [6, 7, 8]
-        elif length == "16(4x4)秒":
-            # 16(4x4)秒の場合は10～12にコピー (インデックス9-11)
-            copy_targets = [9, 10, 11]
-        else:
-            # 通常の動画長の場合は最初のいくつかのキーフレームにコピー
-            if length == "6秒":
-                copy_targets = [0, 1, 2, 3]  # キーフレーム1-4
-            elif length == "8秒":
-                copy_targets = [0, 1, 2, 3, 4, 5]  # キーフレーム1-6
-        
-        # キーフレーム画像の更新リスト作成
-        section_count = get_max_keyframes_count()
-        for i in range(section_count):
-            if i in copy_targets:
-                updates.append(gr.update(value=img))
-            else:
-                updates.append(gr.update())
-    
-    return updates
-
-# 4. デバッグ情報表示関数 - コメントアウト部分を関数として維持
-def print_keyframe_debug_info():
-    """キーフレーム設定の詳細情報を表示"""
-    # print("\n[INFO] =========== キーフレーム設定デバッグ情報 ===========")
-    # 
-    # # 設定内容の確認表示
-    # print("\n[INFO] 動画モード設定の確認:")
-    # for mode_key in VIDEO_MODE_SETTINGS:
-    #     mode_info = VIDEO_MODE_SETTINGS[mode_key]
-    #     print(f"  - {mode_key}: {mode_info['display_seconds']}秒, {mode_info['frames']}フレーム")
-    #     
-    #     # 重要キーフレームの表示（UIインデックスに変換）
-    #     important_kfs = mode_info['important_keyframes']
-    #     important_kfs_ui = [code_to_ui_index(kf) for kf in important_kfs]
-    #     print(f"    重要キーフレーム: {important_kfs_ui}")
-    #     
-    #     # コピーパターンの表示
-    #     for mode_type in ["通常", "ループ"]:
-    #         if mode_type in mode_info["copy_patterns"]:
-    #             print(f"    {mode_type}モードのコピーパターン:")
-    #             for src, targets in mode_info["copy_patterns"][mode_type].items():
-    #                 src_ui = code_to_ui_index(int(src))
-    #                 targets_ui = [code_to_ui_index(t) for t in targets]
-    #                 print(f"      キーフレーム{src_ui} → {targets_ui}")
-    # 
-    # print("[INFO] =================================================\n")
-    pass
-
 
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, section_settings=None):
     # 処理時間計測の開始
     process_start_time = time.time()
     
-    # 既存の計算方法を保持しつつ、設定からセクション数も取得する
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
     total_latent_sections = int(max(round(total_latent_sections), 1))
-    
-    # 現在のモードを取得（UIから渡された情報から）
-    # セクション数を全セクション数として保存
-    total_sections = total_latent_sections
 
     job_id = generate_timestamp()
 
@@ -342,15 +126,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     if total_latent_sections > 4:
         latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
     
-    # 全セクション数を事前に計算して保存（イテレータの消費を防ぐため）
-    latent_paddings_list = list(latent_paddings)
-    total_sections = len(latent_paddings_list)
-    latent_paddings = latent_paddings_list  # リストに変換したものを使用
-    
     print(f"\u25a0 セクション生成詳細:")
-    print(f"  - 生成予定セクション: {latent_paddings}")
+    print(f"  - 生成予定セクション: {list(latent_paddings)}")
     print(f"  - 各セクションのフレーム数: 約{latent_window_size * 4 - 3}フレーム")
-    print(f"  - 合計セクション数: {total_sections}")
     
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
 
@@ -566,9 +344,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 current_step = d['i'] + 1
                 percentage = int(100.0 * current_step / steps)
                 hint = f'Sampling {current_step}/{steps}'
-                # セクション情報を追加（現在のセクション/全セクション）
-                section_info = f'セクション: {i_section+1}/{total_sections}, '
-                desc = f'{section_info}Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 30) :.2f} seconds (FPS-30). The video is being extended now ...'
+                desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 30) :.2f} seconds (FPS-30). The video is being extended now ...'
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
@@ -683,8 +459,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 else:
                     time_str = f"{seconds:.1f}秒"
                 print(f"\n全体の処理時間: {time_str}")
-                completion_message = f"すべてのセクション({total_sections}/{total_sections})が完了しました。全体の処理時間: {time_str}"
-                stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, '処理完了'))))
+                stream.output_queue.push(('progress', (None, f"全体の処理時間: {time_str}", make_progress_bar_html(100, '処理完了'))))
                 
                 # 中間ファイルの削除処理
                 if not keep_section_videos:
@@ -733,7 +508,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     # 動画生成の設定情報をログに出力
     total_latent_sections = int(max(round((total_second_length * 30) / (latent_window_size * 4)), 1))
     
-    mode_name = "通常モード" if mode_radio.value == MODE_TYPE_NORMAL else "ループモード"
+    mode_name = "通常モード" if mode_radio.value == "通常" else "ループモード"
     
     print(f"\n==== 動画生成開始 =====")
     print(f"\u25c6 生成モード: {mode_name}")
@@ -1009,6 +784,7 @@ def save_preset(name, prompt_text):
             return "プリセット '起動時デフォルト' を保存しました"
         except Exception as e:
             print(f"プリセット保存エラー: {e}")
+            import traceback
             traceback.print_exc()
             return f"保存エラー: {e}"
     
@@ -1046,6 +822,14 @@ def save_preset(name, prompt_text):
         # エラー発生
         return f"保存エラー: {e}"
 
+
+
+
+
+
+
+
+
 def delete_preset(preset_name):
     """プリセットを削除する関数"""
     if not preset_name:
@@ -1081,6 +865,7 @@ def delete_preset(preset_name):
         return f"削除エラー: {e}"
 
 
+
 # 既存のQuick Prompts（初期化時にプリセットに変換されるので、互換性のために残す）
 quick_prompts = [
     'A character doing some simple body movements.',
@@ -1114,17 +899,13 @@ block = gr.Blocks(css=css).queue()
 with block:
     gr.HTML('<h1>FramePack<span class="title-suffix">-eichi</span></h1>')
 
-    # デバッグ情報の表示
-    # print_keyframe_debug_info()
     
     # モード選択用のラジオボタンと動画長選択用のラジオボタンを横並びに配置
     with gr.Row():
         with gr.Column(scale=1):
-            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL, MODE_TYPE_LOOP], value=MODE_TYPE_NORMAL, label="生成モード", info="通常：一般的な生成 / ループ：ループ動画用")
+            mode_radio = gr.Radio(choices=["通常", "ループ"], value="通常", label="生成モード", info="通常：一般的な生成 / ループ：ループ動画用")
         with gr.Column(scale=1):
-            # 設定から動的に選択肢を生成
-            length_radio = gr.Radio(choices=get_video_modes(), value="6秒", label="動画長", info="キーフレーム画像のコピー範囲と動画の長さを設定")
-    
+            length_radio = gr.Radio(choices=["6秒", "8秒", "10(5x2)秒", "12(4x3)秒"], value="6秒", label="動画長", info="キーフレーム画像のコピー範囲と動画の長さを設定")
     with gr.Row():
         with gr.Column():
             input_image = gr.Image(sources='upload', type="numpy", label="Image", height=320)
@@ -1183,18 +964,14 @@ with block:
                 enable_keyframe_copy = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=True, info="オフにするとキーフレーム間の自動コピーが行われなくなります")
 
                 # セクション設定（DataFrameをやめて個別入力欄に変更）
-                # 設定から最大キーフレーム数を取得
-                max_keyframes = get_max_keyframes_count()
-                
-                # セクション設定の入力欄を動的に生成
                 section_number_inputs = []
                 section_image_inputs = []
                 section_prompt_inputs = []  # 空リストにしておく
                 with gr.Group():
                     gr.Markdown("### セクション設定. セクション番号は動画の終わりからカウント.（任意。指定しない場合は通常のImage/プロンプトを使用）")
-                    for i in range(max_keyframes):
+                    for i in range(9):
                         with gr.Row():
-                            section_number = gr.Number(label=f"セクション番号{i+1}", value=i, precision=0)
+                            section_number = gr.Number(label=f"セクション番号{i+1}", value=[0, 1, 2, 3, 4, 5, 6, 7, 8][i], precision=0)
                             section_image = gr.Image(label=f"キーフレーム画像{i+1}", sources="upload", type="numpy", height=200)
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
@@ -1202,71 +979,213 @@ with block:
                 # 重要なキーフレームの説明
                 with gr.Row():
                     with gr.Column():
-                        # 設定から動的にHTML生成
-                        note_html = gr.HTML(generate_keyframe_guide_html())
-                        
+                        note_html = gr.HTML("""
+                        <div style="margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                            <span style="display: inline-block; margin-bottom: 5px; font-weight: bold;">■ キーフレーム画像設定ガイド:</span>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li><span style="color: #ff3860; font-weight: bold;">10(5x2)秒</span> モードでは、<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1と5</span> が重要です</li>
+                                <li><span style="color: #ff3860; font-weight: bold;">12(4x3)秒</span> モードでは、<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1、4、7</span> が重要です</li>
+                                <li><span style="color: #ff3860; font-weight: bold;">ループモード</span>では、常に<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1</span>が重要です</li>
+                            </ul>
+                            <div style="margin-top: 5px; font-size: 0.9em; color: #666;">※ 重要なキーフレームは赤枠で強調表示されます</div>
+                        </div>
+                        """)
                 # section_settingsは9つの入力欄の値をまとめてリスト化
                 def collect_section_settings(*args):
                     # args: [num1, img1, num2, img2, ...]
                     return [[args[i], args[i+1], ""] for i in range(0, len(args), 2)]
-                
-                section_settings = gr.State([[None, None, ""] for _ in range(max_keyframes)])
+                section_settings = gr.State([[None, None, ""] for _ in range(9)])
                 section_inputs = []
-                for i in range(max_keyframes):
+                for i in range(9):
                     section_inputs.extend([section_number_inputs[i], section_image_inputs[i]])
-                
                 # section_inputsをまとめてsection_settings Stateに格納
                 def update_section_settings(*args):
                     return collect_section_settings(*args)
-                
                 # section_inputsが変化したらsection_settings Stateを更新
                 for inp in section_inputs:
                     inp.change(fn=update_section_settings, inputs=section_inputs, outputs=section_settings)
                 
+                # モードと動画長の切り替え時の処理
+                def handle_mode_length_change(mode=None, length=None):
+                    # Image, FinalFrame の2つをクリア
+                    base_updates = [gr.update(value=None) for _ in range(2)]
+                    
+                    # キーフレーム画像1〜9の更新リスト（値をクリアし、デフォルトでは強調なし）
+                    keyframe_updates = []
+                    for i in range(9):
+                        keyframe_updates.append(gr.update(value=None, elem_classes=""))
+                    
+                    # セクション番号ラベルのリセット（フォーマット用に事前に作成）
+                    label_updates = []
+                    for i in range(9):
+                        section_number_inputs[i].elem_classes = ""
+                    
+                    # 動画長に応じて特定のキーフレーム枠を強調
+                    if length == "10(5x2)秒":
+                        # キーフレーム1と5を強調
+                        keyframe_updates[0] = gr.update(value=None, elem_classes="highlighted-keyframe")
+                        keyframe_updates[4] = gr.update(value=None, elem_classes="highlighted-keyframe")
+                        # 対応するセクション番号ラベルも強調
+                        section_number_inputs[0].elem_classes = "highlighted-label"
+                        section_number_inputs[4].elem_classes = "highlighted-label"
+                        # Markdownはイベントハンドラ内で動的に追加できないため、別のアプローチで実装
+                    elif length == "12(4x3)秒":
+                        # キーフレーム1、4、7を強調
+                        keyframe_updates[0] = gr.update(value=None, elem_classes="highlighted-keyframe")
+                        keyframe_updates[3] = gr.update(value=None, elem_classes="highlighted-keyframe")
+                        keyframe_updates[6] = gr.update(value=None, elem_classes="highlighted-keyframe")
+                        # 対応するセクション番号ラベルも強調
+                        section_number_inputs[0].elem_classes = "highlighted-label"
+                        section_number_inputs[3].elem_classes = "highlighted-label"
+                        section_number_inputs[6].elem_classes = "highlighted-label"
+                    elif mode == "ループ": # 6秒/8秒でもループモードならキーフレーム1を強調
+                        # キーフレーム1のみ強調
+                        keyframe_updates[0] = gr.update(value=None, elem_classes="highlighted-keyframe")
+                        # 対応するセクション番号ラベルも強調
+                        section_number_inputs[0].elem_classes = "highlighted-label"
+                    
+                    # 動画長に応じて秒数を設定
+                    video_length = 6.0 
+                    if length == "8秒":
+                        video_length = 8.0 # デフォルト
+                    elif length == "10(5x2)秒":
+                        video_length = 10.8
+                    elif length == "12(4x3)秒":
+                        video_length = 12.0
+                    
+                    # 画像クリアと動画長設定を返す
+                    return base_updates + keyframe_updates + [gr.update(value=video_length)]
+                
+                # 入力画像が変更されたときのモードと動画長別処理
+                def process_image_change(img, mode, length):
+                    if img is None:
+                        return [gr.update() for _ in range(10)]  # FinalFrame + キーフレーム1〜9
+                    
+                    # コピー対象画像数を決定
+                    copy_count = 4  # 6秒は4枚
+                    if length == "8秒":
+                        copy_count = 6  # 8秒は6枚
+                    elif length == "10(5x2)秒":
+                        copy_count = 4  # 10秒は2パートなので前半・後半それぞれ4枚ずつ
+                    elif length == "12(4x3)秒":
+                        copy_count = 3  # 12秒は3パートなので各パート3枚ずつ
+                    
+                    if mode == "通常":
+                        if length == "10(5x2)秒":
+                            # 10(5x2)秒の場合はキーフレーム5～8にのみコピー
+                            keyframe_updates = [gr.update() for _ in range(4)] + \
+                                              [gr.update(value=img) for _ in range(4)] + \
+                                              [gr.update()]  # 9番目用
+                        elif length == "12(4x3)秒":
+                            # 12(4x3)秒の場合はキーフレーム7～9にのみコピー
+                            keyframe_updates = [gr.update() for _ in range(6)] + \
+                                              [gr.update(value=img) for _ in range(3)]
+                        else:
+                            # 通常の動画長の場合は頭からコピー
+                            keyframe_updates = [gr.update(value=img) for _ in range(copy_count)] + \
+                                              [gr.update() for _ in range(9 - copy_count)]
+                        return [gr.update()] + keyframe_updates
+                    else:
+                        # ループモード：FinalFrameにコピー
+                        return [gr.update(value=img)] + [gr.update() for _ in range(9)]
+                
+                # キーフレーム画像1の統合ハンドラ（ループモード・通常モード両対応）
+                def process_keyframe1_unified(img, mode, length, enable_copy=True):
+                    if img is None or not enable_copy:
+                        return [gr.update() for _ in range(8)]  # 全キーフレーム更新なし
+                    
+                    if mode == "通常":
+                        if length == "10(5x2)秒":
+                            # 通常モード+10(5x2)秒: キーフレーム2～4にコピー
+                            return [gr.update(value=img) for _ in range(3)] + [gr.update() for _ in range(5)]
+                        elif length == "12(4x3)秒":
+                            # 通常モード+12(4x3)秒: キーフレーム2～3にコピー
+                            return [gr.update(value=img) for _ in range(2)] + [gr.update() for _ in range(6)]
+                        else:
+                            # 他の通常モード: 何もしない
+                            return [gr.update() for _ in range(8)]
+                    else:  # ループモード
+                        # コピー対象画像数を決定
+                        copy_count = 3  # 6秒は2〜4（3枚）
+                        if length == "8秒":
+                            copy_count = 5  # 8秒は2〜6（5枚）
+                        elif length == "10(5x2)秒":
+                            copy_count = 3  # 10秒は前半部分のみ（2～4の3枚）
+                        elif length == "12(4x3)秒":
+                            copy_count = 2  # 12秒は最初のパート分（2～3の2枚）
+                        
+                        # ループモード: 必要数のキーフレーム画像にコピー
+                        return [gr.update(value=img) for _ in range(copy_count)] + \
+                              [gr.update() for _ in range(8 - copy_count)]
+                
                 # モード変更時の処理
-                mode_radio.change(
-                    fn=lambda mode, length: unified_mode_length_change_handler(mode, length, section_number_inputs),
-                    inputs=[mode_radio, length_radio],
-                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length]
-                )
+                mode_radio.change(fn=handle_mode_length_change, inputs=[mode_radio, length_radio], 
+                              outputs=[input_image, end_frame] + section_image_inputs + [total_second_length])
                 
                 # 動画長変更時の処理
-                length_radio.change(
-                    fn=lambda mode, length: unified_mode_length_change_handler(mode, length, section_number_inputs),
-                    inputs=[mode_radio, length_radio],
-                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length]
-                )
+                length_radio.change(fn=handle_mode_length_change, inputs=[mode_radio, length_radio],
+                               outputs=[input_image, end_frame] + section_image_inputs + [total_second_length])
                 
-                # 入力画像変更時の処理
-                input_image.change(
-                    fn=unified_input_image_change_handler,
-                    inputs=[input_image, mode_radio, length_radio, enable_keyframe_copy],
-                    outputs=[end_frame] + section_image_inputs
-                )
+                # input_imageが変更された時の処理
+                # 入力画像が変更されたときのコピー機能をオフにする場合のウラッパー関数
+                def process_image_change_wrapper(img, mode, length, enable_copy):
+                    if not enable_copy:
+                        return [gr.update() for _ in range(10)]  # FinalFrame + キーフレーム1～9
+                    return process_image_change(img, mode, length)
+                    
+                input_image.change(fn=process_image_change_wrapper, 
+                              inputs=[input_image, mode_radio, length_radio, enable_keyframe_copy], 
+                              outputs=[end_frame] + section_image_inputs)
                 
-                # 各キーフレーム画像の変更イベントを個別に設定
-                # 一度に複数のコンポーネントを更新する代わりに、個別の更新関数を使用
-                def create_single_keyframe_handler(src_idx, target_idx):
-                    def handle_single_keyframe(img, mode, length, enable_copy):
-                        # コピー条件をチェック
-                        if img is None or not enable_copy:
-                            return gr.update()
-                        
-                        # コピー先のチェック
-                        targets = get_copy_targets(mode, length, src_idx)
-                        if target_idx in targets:
-                            return gr.update(value=img)
-                        return gr.update()
-                    return handle_single_keyframe
+                # キーフレーム画像4が変更されたときの処理（12(4x3)秒用）
+                def process_keyframe4_change(img, mode, length, enable_copy=True):
+                    if img is None or not enable_copy:
+                        return [gr.update() for _ in range(5)]  # キーフレーム画像5～9向け
+                    
+                    # 12(4x3)秒モードの場合（通常モードとループモードの両方）
+                    if length == "12(4x3)秒":
+                        # キーフレーム画像4→キーフレーム画像5～6にコピー（2枚）
+                        return [gr.update(value=img) for _ in range(2)] + [gr.update() for _ in range(3)]
+                    
+                    # それ以外は何もしない
+                    # キーフレーム画像5～9の現在の状態を維持
+                    return [gr.update() for _ in range(5)]
                 
-                # 各キーフレームについて、影響を受ける可能性のある後続のキーフレームごとに個別のイベントを設定
-                for i, src_image in enumerate(section_image_inputs):
-                    for j in range(i+1, len(section_image_inputs)):
-                        src_image.change(
-                            fn=create_single_keyframe_handler(i, j),
-                            inputs=[src_image, mode_radio, length_radio, enable_keyframe_copy],
-                            outputs=[section_image_inputs[j]]
-                        )
+                # キーフレーム画像5が変更されたときの処理（10(5x2)秒ループモード用）
+                def process_keyframe5_change(img, mode, length, enable_copy=True):
+                    if img is None or mode != "ループ" or length != "10(5x2)秒" or not enable_copy:
+                        return [gr.update() for _ in range(4)]  # キーフレーム画像6～9向け
+                    
+                    # キーフレーム画像5→キーフレーム画像6～8にコピー（3枚）
+                    return [gr.update(value=img) for _ in range(3)] + [gr.update()]
+                
+                # キーフレーム画像7が変更されたときの処理（12(4x3)秒ループモード用）
+                def process_keyframe7_change(img, mode, length, enable_copy=True):
+                    if img is None or mode != "ループ" or length != "12(4x3)秒" or not enable_copy:
+                        return [gr.update() for _ in range(2)]  # キーフレーム画像8～9向け
+                    
+                    # キーフレーム画像7→キーフレーム画像8～9にコピー（2枚）
+                    return [gr.update(value=img) for _ in range(2)]
+                
+                # キーフレーム画像4のchange処理追加
+                section_image_inputs[3].change(fn=process_keyframe4_change,
+                                         inputs=[section_image_inputs[3], mode_radio, length_radio, enable_keyframe_copy],
+                                         outputs=section_image_inputs[4:])
+                
+                # キーフレーム画像5のchange処理追加
+                section_image_inputs[4].change(fn=process_keyframe5_change,
+                                         inputs=[section_image_inputs[4], mode_radio, length_radio, enable_keyframe_copy],
+                                         outputs=section_image_inputs[5:])
+                
+                # キーフレーム画像7のchange処理追加
+                section_image_inputs[6].change(fn=process_keyframe7_change,
+                                         inputs=[section_image_inputs[6], mode_radio, length_radio, enable_keyframe_copy],
+                                         outputs=section_image_inputs[7:])
+
+                # キーフレーム画像1のchange処理（統合版）
+                section_image_inputs[0].change(fn=process_keyframe1_unified,
+                                     inputs=[section_image_inputs[0], mode_radio, length_radio, enable_keyframe_copy],
+                                     outputs=section_image_inputs[1:])
 
         with gr.Column():
             result_video = gr.Video(label="Finished Frames", autoplay=True, show_share_button=False, height=512, loop=True)
@@ -1313,98 +1232,164 @@ with block:
                 
                 # メッセージ表示用
                 result_message = gr.Markdown("")
-    
-    # 実行ボタンのイベント
     ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, section_settings]
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
+        
+    # プリセット保存関数
+def save_button_click_handler(name, prompt_text):
+    """保存ボタンクリック時のハンドラ関数"""
     
-    # プリセット保存ボタンのイベント
-    def save_button_click_handler(name, prompt_text):
-        """保存ボタンクリック時のハンドラ関数"""
+    # 重複チェックと正規化
+    if "A character" in prompt_text and prompt_text.count("A character") > 1:
+        sentences = prompt_text.split(".")
+        if len(sentences) > 0:
+            prompt_text = sentences[0].strip() + "."
+            # 重複を検出したため正規化
+    
+    # ファイルパスを準備
+    preset_file = os.path.join(presets_folder, 'prompt_presets.json')
+    
+    try:
+        # プリセットデータを読み込む
+        if os.path.exists(preset_file):
+            with open(preset_file, 'r', encoding='utf-8') as f:
+                presets_data = json.load(f)
+        else:
+            presets_data = {"presets": [], "default_startup_prompt": ""}
         
-        # 重複チェックと正規化
-        if "A character" in prompt_text and prompt_text.count("A character") > 1:
-            sentences = prompt_text.split(".")
-            if len(sentences) > 0:
-                prompt_text = sentences[0].strip() + "."
-                # 重複を検出したため正規化
+        # 名前が空の場合は起動時デフォルトとして処理
+        if not name:
+            # 既存の起動時デフォルトを探す
+            startup_default_exists = False
+            for preset in presets_data["presets"]:
+                if preset.get("is_startup_default", False):
+                    # 既存の起動時デフォルトを更新
+                    preset["prompt"] = prompt_text
+                    preset["timestamp"] = datetime.now().isoformat()
+                    startup_default_exists = True
+                    break
+            
+            if not startup_default_exists:
+                # 見つからない場合は新規作成
+                presets_data["presets"].append({
+                    "name": "起動時デフォルト",
+                    "prompt": prompt_text,
+                    "timestamp": datetime.now().isoformat(),
+                    "is_default": True,
+                    "is_startup_default": True
+                })
+            
+            # デフォルト設定も更新
+            presets_data["default_startup_prompt"] = prompt_text
+            message = "起動時デフォルトプロンプトを保存しました"
         
-        # プリセット保存
-        result_msg = save_preset(name, prompt_text)
+        else:  # 通常のプリセット保存処理
+            # 同名のプリセットがあれば上書き、なければ追加
+            preset_exists = False
+            for preset in presets_data["presets"]:
+                if preset["name"] == name:
+                    preset["prompt"] = prompt_text
+                    preset["timestamp"] = datetime.now().isoformat()
+                    preset_exists = True
+                    break
+            
+            if not preset_exists:
+                presets_data["presets"].append({
+                    "name": name,
+                    "prompt": prompt_text,
+                    "timestamp": datetime.now().isoformat(),
+                    "is_default": False
+                })
+            
+            message = f"プリセット '{name}' を保存しました"
         
-        # プリセットデータを取得してドロップダウンを更新
-        presets_data = load_presets()
+        # JSONファイルに保存
+        with open(preset_file, 'w', encoding='utf-8') as f:
+            json.dump(presets_data, f, ensure_ascii=False, indent=2)
+        
+        # ドロップダウンを更新するための情報を作成
         choices = [preset["name"] for preset in presets_data["presets"]]
         default_presets = [n for n in choices if any(p["name"] == n and p.get("is_default", False) for p in presets_data["presets"])]
         user_presets = [n for n in choices if n not in default_presets]
         sorted_choices = [(n, n) for n in sorted(default_presets) + sorted(user_presets)]
         
-        # メインプロンプトは更新しない（保存のみを行う）
-        return result_msg, gr.update(choices=sorted_choices), gr.update()
+        # メッセージとドロップダウン更新情報を返す
+        # プロンプトへの自動コピーは不要なのでgr.update()を返す
+        return message, gr.update(choices=sorted_choices), gr.update()
+        
+    except Exception as e:
+        print(f"プリセット保存エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"保存エラー: {e}", gr.update(), gr.update()
     
     # 保存ボタンのクリックイベントを接続
+with block:
     save_btn.click(
         fn=save_button_click_handler,
         inputs=[edit_name, edit_prompt],
         outputs=[result_message, preset_dropdown, prompt]
     )
     
-    # クリアボタン処理
-    def clear_fields():
-        return gr.update(value=""), gr.update(value="")
+# クリアボタン処理
+def clear_fields():
+    return gr.update(value=""), gr.update(value="")
     
+with block:
     clear_btn.click(
         fn=clear_fields,
         inputs=[],
         outputs=[edit_name, edit_prompt]
     )
     
-    # プリセット読込処理
-    def load_preset_handler(preset_name):
-        # プリセット選択時に編集欄のみを更新
-        for preset in load_presets()["presets"]:
-            if preset["name"] == preset_name:
-                return gr.update(value=preset_name), gr.update(value=preset["prompt"])
-        return gr.update(), gr.update()
+# プリセット読込処理
+def load_preset_handler(preset_name):
+    # プリセット選択時に編集欄のみを更新
+    for preset in load_presets()["presets"]:
+        if preset["name"] == preset_name:
+            return gr.update(value=preset_name), gr.update(value=preset["prompt"])
+    return gr.update(), gr.update()
 
-    # プリセット選択時に編集欄に反映
-    def load_preset_handler_wrapper(preset_name):
-        # プリセット名がタプルの場合も処理する
-        if isinstance(preset_name, tuple) and len(preset_name) == 2:
-            preset_name = preset_name[1]  # 値部分を取得
-        return load_preset_handler(preset_name)
+# プリセット選択時に編集欄に反映
+def load_preset_handler_wrapper(preset_name):
+    # プリセット名がタプルの場合も処理する
+    if isinstance(preset_name, tuple) and len(preset_name) == 2:
+        preset_name = preset_name[1]  # 値部分を取得
+    return load_preset_handler(preset_name)
 
+with block:
     preset_dropdown.change(
         fn=load_preset_handler_wrapper,
         inputs=[preset_dropdown],
         outputs=[edit_name, edit_prompt]
     )
     
-    # 反映ボタン処理 - 編集画面の内容をメインプロンプトに反映
-    def apply_to_prompt(edit_text):
-        """編集画面の内容をメインプロンプトに反映する関数"""
-        # 編集画面のプロンプトをメインに適用
-        return gr.update(value=edit_text)
+# 反映ボタン処理 - 編集画面の内容をメインプロンプトに反映
+def apply_to_prompt(edit_text):
+    """編集画面の内容をメインプロンプトに反映する関数"""
+    # 編集画面のプロンプトをメインに適用
+    return gr.update(value=edit_text)
 
-    # プリセット削除処理
-    def delete_preset_handler(preset_name):
-        # プリセット名がタプルの場合も処理する
-        if isinstance(preset_name, tuple) and len(preset_name) == 2:
-            preset_name = preset_name[1]  # 値部分を取得
-        
-        result = delete_preset(preset_name)
-        
-        # プリセットデータを取得してドロップダウンを更新
-        presets_data = load_presets()
-        choices = [preset["name"] for preset in presets_data["presets"]]
-        default_presets = [name for name in choices if any(p["name"] == name and p.get("is_default", False) for p in presets_data["presets"])]
-        user_presets = [name for name in choices if name not in default_presets]
-        sorted_names = sorted(default_presets) + sorted(user_presets)
-        updated_choices = [(name, name) for name in sorted_names]
-        
-        return result, gr.update(choices=updated_choices)
+# プリセット削除処理
+def delete_preset_handler(preset_name):
+    # プリセット名がタプルの場合も処理する
+    if isinstance(preset_name, tuple) and len(preset_name) == 2:
+        preset_name = preset_name[1]  # 値部分を取得
+    
+    result = delete_preset(preset_name)
+    
+    # プリセットデータを取得してドロップダウンを更新
+    presets_data = load_presets()
+    choices = [preset["name"] for preset in presets_data["presets"]]
+    default_presets = [name for name in choices if any(p["name"] == name and p.get("is_default", False) for p in presets_data["presets"])]
+    user_presets = [name for name in choices if name not in default_presets]
+    sorted_names = sorted(default_presets) + sorted(user_presets)
+    updated_choices = [(name, name) for name in sorted_names]
+    
+    return result, gr.update(choices=updated_choices)
 
+with block:
     apply_preset_btn.click(
         fn=apply_to_prompt,
         inputs=[edit_prompt],
@@ -1417,7 +1402,7 @@ with block:
         outputs=[result_message, preset_dropdown]
     )
 
-# 起動コード
+
 block.launch(
     server_name=args.server,
     server_port=args.port,
