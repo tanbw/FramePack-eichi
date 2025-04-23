@@ -510,7 +510,7 @@ def load_and_apply_lora(
     is_diffusers: bool = False,
     selective_application: bool = True,
     pruning: bool = True,
-    pruning_threshold: float = 0.002,
+    pruning_threshold: float = 0.0005,
     blocks_type: str = "all"
 ) -> torch.nn.Module:
     """

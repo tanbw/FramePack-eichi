@@ -455,12 +455,11 @@ class DynamicSwapLoRAManager:
         if use_hierarchical:
             # 特に重要な層（視覚効果に大きく影響）は低い閾値を使用
             critical_layers = [
-                "transformer_blocks.18", "transformer_blocks.19",
-                "single_transformer_blocks.38", "single_transformer_blocks.39",
-                "norm_out", "proj_out"
+                "transformer_blocks", "single_transformer_blocks", 
+                "norm_out", "proj_out", "to_q", "to_k", "to_v", "to_out"
             ]
             # 中程度の重要性の層
-            important_layers = ["attn", "norm", "rgb_linear"]
+            important_layers = ["attn", "norm", "rgb_linear", "conv", "input_blocks", "output_blocks", "single_blocks", "double_blocks"]
             # その他の層（高い閾値＝より積極的な削減）
             
             logger.info(f"階層的プルーニングを使用: 重要度に応じて異なる閾値を適用")
