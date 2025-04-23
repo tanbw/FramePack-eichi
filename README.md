@@ -453,6 +453,29 @@ h11._util.LocalProtocolError: Too little data for declared Content-Length
 
 Hunyuan LoRA使用時にカウンターが始まるまでの待ち時間が長い場合は正常な動作です。LoRAの読み込みと適用に時間がかかるため、特に大きなLoRAファイルや複雑なモデルの場合は処理に時間がかかります。
 
+### 動画表示の問題
+
+一部のブラウザ（特にFirefoxなど）やmacOSで生成された動画が表示されない問題があります：
+
+- 症状: Gradio UI上で動画が表示されない、Windowsでサムネイルが表示されない、一部のプレイヤーで再生できない
+- 原因: `\framepack\webui\diffusers_helper\utils.py`内のビデオコーデック設定の問題
+
+本問題は本家のリポジトリ（lllyasviel/FramePack）の修正が必要な問題です。FramePack-eichiでは本家のソースコードは極力修正せず、本家の修正を待つスタンスとしています。
+
+暫定的な対処法：
+1. 生成された動画ファイルをVLC等の互換性の高いプレイヤーで再生
+2. 他の動画編集ソフトで一度開いて保存し直す
+3. 技術的な知識がある方は、下記の修正を手動で適用することも可能です：
+   ```python
+   # C:\Zero\Tool\framepack\webui\diffusers_helper\utils.py の該当箇所
+   # 変更前
+   torchvision.io.write_video(output_filename, x, fps=fps, video_codec='libx264', options={'crf': '0'})
+   # 変更後
+   torchvision.io.write_video(output_filename, x, fps=fps, video_codec='libx264', options={'crf': '17', 'pix_fmt': 'yuv420p'})
+   ```
+
+※この問題は本家リポジトリでPull Request #49として提案されており、今後のアップデートで解決される見込みです。
+
 ## 📝 更新履歴
 
 ### 2025-04-23: バージョン1.3
