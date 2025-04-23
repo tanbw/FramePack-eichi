@@ -69,8 +69,8 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
   - LoRAファイル選択: 使用するLoRAファイルを選択
   - 適用強度スライダー: LoRAの影響度を0.0〜1.0で調整
   - フォーマット選択: HunyuanVideo/Diffusers/Musubiなどのフォーマットを選択
-  - 注意: Hunyuan LoRA使用時はカウンターが始まる前の待ち時間が長くなる場合があります
-  - LoRAは種類が多様でありサンプル数も少ないため、有識者の型はご確認願います
+  - 注意: Hunyuan LoRA使用時はプログレスバーが始まる前に読込のための待ち時間が発生し、全体の処理時間が長くなります
+  - LoRAは種類が多様でありサンプル数も少ないため、有識者の方は試行願います
 
 - **EndFrame影響度設定**: ※v1.3で追加【試験実装】
   - スライダー(0.01〜1.00): 最終フレームが動画全体に与える影響を調整
@@ -310,7 +310,8 @@ Linuxでは、以下の手順で実行可能です：
     - 12GB VRAM: 6-8GB
     - 16GB以上: 6GB前後
   - 注意: 他のアプリケーションを同時実行している場合は値を大きくしてください
-  - このツールではメモリスワップ対策にバックグラウンドで他の画像生成系ツールが動いていいよう3GBのマージンを確保
+  - このツールではメモリスワップ対策にバックグラウンドで他の画像生成系ツールが動いていいよう3GBのマージンを確保しています
+  - LoRAを使用する場合、更にマージンを用意した方が良いでしょう
 
 - **高VRAMモード**: 自動検出（60GB以上の空きVRAMがある場合）※既存機能
   - 有効時: モデルを常にGPUに保持し、メモリ転送のオーバーヘッドを削減
@@ -409,7 +410,6 @@ Linuxでは、以下の手順で実行可能です：
   - 選択したプリセットのプロンプトを現在の生成設定に適用
   
 - **プリセット管理**:
-  - 編集: プリセットを選択して内容を編集
   - 削除: 不要なプリセットを削除（デフォルトプリセットは削除不可）
   - クリア: 編集フィールドをクリア
 
@@ -419,8 +419,11 @@ Linuxでは、以下の手順で実行可能です：
 
 ツールを立ち上げ、初回に画像をインポートする際に以下のようなエラーが多数発生することがあります：
 ※コンソールにエラーが表示され、GUI上では画像が表示されません。
+![FramePack-eichiエラー画面1](images/framepack_eichi_error_screenshot1.png)
 ```
-h11._util.LocalProtocolError: Too little data for declared Content-Length
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "C:\Zero\Tool\framepack\system\python\lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 404, in run_asgi
 ```
 このエラーは、HTTPレスポンスの処理中に問題が発生した場合に表示されます。
 前述のとおり、Gradioが起動し終わっていない起動初期の段階で頻発します。
@@ -467,7 +470,7 @@ Hunyuan LoRA使用時にカウンターが始まるまでの待ち時間が長�
 2. 他の動画編集ソフトで一度開いて保存し直す
 3. 技術的な知識がある方は、下記の修正を手動で適用することも可能です：
    ```python
-   # C:\Zero\Tool\framepack\webui\diffusers_helper\utils.py の該当箇所
+   # \framepack\webui\diffusers_helper\utils.py の該当箇所
    # 変更前
    torchvision.io.write_video(output_filename, x, fps=fps, video_codec='libx264', options={'crf': '0'})
    # 変更後
