@@ -4,7 +4,6 @@ import os
 import random
 import time
 import subprocess
-import copy  # transformer_loraのディープコピー用
 # クロスプラットフォーム対応のための条件付きインポート
 try:
     import winsound
@@ -16,15 +15,6 @@ import traceback
 from datetime import datetime, timedelta
 
 os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
-
-# LoRAサポートの確認
-has_lora_support = False
-try:
-    import lora_utils
-    has_lora_support = True
-    print("LoRAサポートが有効です")
-except ImportError:
-    print("LoRAサポートが無効です（lora_utilsモジュールがインストールされていません）")
 
 # 設定モジュールをインポート（ローカルモジュール）
 import os.path
@@ -443,7 +433,7 @@ def print_keyframe_debug_info():
 
 
 @torch.no_grad()
-def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, output_dir=None, section_settings=None, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0):
+def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, output_dir=None, section_settings=None):
     # 出力フォルダの設定
     global outputs_folder
     global output_folder_name
@@ -720,18 +710,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 print(f"[section_latent] current_latent id: {id(current_latent)}, min: {current_latent.min().item():.4f}, max: {current_latent.max().item():.4f}, mean: {current_latent.mean().item():.4f}")
 
             if is_first_section and end_frame_latent is not None:
-                # EndFrame影響度設定を適用（デフォルトは1.0=通常の影響）
-                if end_frame_strength != 1.0:
-                    # 影響度を適用した潜在表現を生成
-                    # 値が小さいほど影響が弱まるように単純な乗算を使用
-                    # end_frame_strength=1.0のときは1.0倍（元の値）
-                    # end_frame_strength=0.01のときは0.01倍（影響が非常に弱い）
-                    modified_end_frame_latent = end_frame_latent * end_frame_strength
-                    print(f"EndFrame影響度を{end_frame_strength:.2f}に設定（最終フレームの影響が{end_frame_strength:.2f}倍）")
-                    history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
-                else:
-                    # 通常の処理（通常の影響）
-                    history_latents[:, :, 0:1, :, :] = end_frame_latent
+                history_latents[:, :, 0:1, :, :] = end_frame_latent
 
             if stream.input_queue.top() == 'end':
                 stream.output_queue.push(('end', None))
@@ -741,80 +720,6 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask)
             
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
-            
-            # LoRA処理のためのオブジェクト
-            transformer_obj = transformer
-            
-            # LoRA処理部分を条件分岐で囲む
-            if use_lora and has_lora_support and lora_file is not None:
-                try:
-                    # LoRAファイルのパスを取得
-                    lora_path = lora_file.name
-                    is_diffusers = (lora_format == "Diffusers")
-                    
-                    print(f"LoRAを読み込み中: {os.path.basename(lora_path)} (スケール: {lora_scale})")
-                    
-                    # LoRAマネージャーを初期化
-                    from lora_utils.dynamic_swap_lora import DynamicSwapLoRAManager
-                    lora_manager = DynamicSwapLoRAManager()
-                    
-                    # LoRAをロード（選択的適用とプルーニングを有効化）
-                    lora_manager.load_lora(
-                        lora_path, 
-                        is_diffusers=is_diffusers, 
-                        selective_application=True, 
-                        pruning=True, 
-                        pruning_threshold=0.005
-                    )
-                    lora_manager.set_scale(lora_scale)
-                    
-                    # LoRAが有効になった場合のみ処理
-                    if lora_manager.is_active:
-                        # transformerモデルのコピーを作成（元のモデルを維持するため）
-                        transformer_lora = copy.deepcopy(transformer)
-                        
-                        if not high_vram:
-                            # DynamicSwapモードでフックをインストール
-                            lora_manager.install_hooks(transformer_lora)
-                            print("DynamicSwapモードでLoRAをインストールしました")
-                            # 使用するtransformerを変更
-                            transformer_obj = transformer_lora
-                        else:
-                            # 高VRAMモードでは直接適用
-                            from lora_utils.lora_loader import load_and_apply_lora
-                            transformer_lora = load_and_apply_lora(
-                                transformer_lora, 
-                                lora_path, 
-                                lora_scale, 
-                                is_diffusers,
-                                selective_application=True,
-                                pruning=True,
-                                pruning_threshold=0.005
-                            )
-                            print("高VRAMモードでLoRAを適用しました")
-                            # 使用するtransformerを変更
-                            transformer_obj = transformer_lora
-                    else:
-                        print("LoRAはブルーミング対象が存在しないため無効化されました")
-                        # 元のtransformerを使用
-                        transformer_obj = transformer
-                        
-                except Exception as e:
-                    print(f"LoRA適用エラー: {e}")
-                    traceback.print_exc()
-                    print("LoRA適用に失敗しました。通常モードで続行します。")
-                    # エラー時は元のtransformerを使用
-                    transformer_obj = transformer
-            else:
-                # LoRA未使用時は元のtransformerを使用
-                transformer_obj = transformer
-                if use_lora:
-                    if not has_lora_support:
-                        print("LoRAサポートが無効です。lora_utilsモジュールが必要です。")
-                    elif lora_file is None:
-                        print("LoRAファイルが指定されていません。通常モードで続行します。")
-                else:
-                    print("LoRAは使用されません。通常モードで続行します。")
 
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
@@ -1010,7 +915,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     return
 
 
-def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0):
+def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings):
     global stream
     assert input_image is not None, 'No input image!'
     
@@ -1025,13 +930,6 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     print(f"\u25c6 生成セクション数: {total_latent_sections}回")
     print(f"\u25c6 サンプリングステップ数: {steps}")
     print(f"\u25c6 TeaCache使用: {use_teacache}")
-    print(f"\u25c6 LoRA使用: {use_lora}")
-    
-    # LoRA情報のログ出力
-    if use_lora and lora_file is not None:
-        print(f"\u25c6 LoRAファイル: {os.path.basename(lora_file.name)}")
-        print(f"\u25c6 LoRA適用強度: {lora_scale}")
-        print(f"\u25c6 LoRAフォーマット: {lora_format}")
     
     # セクションごとのキーフレーム画像の使用状況をログに出力
     valid_sections = []
@@ -1065,7 +963,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
         output_dir = "outputs"
     print(f'Output directory: {output_dir}')
 
-    async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength)
+    async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings)
 
     output_filename = None
 
@@ -1478,59 +1376,6 @@ with block:
                 # キーフレームコピー機能のオンオフ切り替え
                 enable_keyframe_copy = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=True, info="オフにするとキーフレーム間の自動コピーが行われなくなります")
                 
-                # LoRA設定グループを追加
-                with gr.Group(visible=has_lora_support) as lora_settings_group:
-                    gr.Markdown("### LoRA設定")
-                    
-                    # LoRA使用有無のチェックボックス
-                    use_lora = gr.Checkbox(label="LoRAを使用する", value=False, info="チェックをオンにするとLoRAを使用します（要16GB VRAM以上）") 
-                    
-                    # LoRA設定コンポーネント（初期状態では非表示）
-                    lora_file = gr.File(label="LoRAファイル (.safetensors, .pt, .bin)", 
-                                file_types=[".safetensors", ".pt", ".bin"],
-                                visible=False)
-                    lora_scale = gr.Slider(label="LoRA適用強度", minimum=0.0, maximum=1.0, 
-                               value=0.8, step=0.01, visible=False)
-                    lora_format = gr.Radio(label="LoRAフォーマット", 
-                               choices=["HunyuanVideo", "Diffusers"], 
-                               value="HunyuanVideo", visible=False)
-                    lora_blocks_type = gr.Dropdown(
-                        label="LoRAブロック選択",
-                        choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
-                        value="all",
-                        info="選択するブロックタイプ（all=すべて、その他=メモリ節約）",
-                        visible=False
-                    )
-                    
-                    # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
-                    def toggle_lora_settings(use_lora):
-                        return [
-                            gr.update(visible=use_lora),  # lora_file
-                            gr.update(visible=use_lora),  # lora_scale
-                            gr.update(visible=use_lora),  # lora_format
-                        ]
-                    
-                    # チェックボックスの変更イベントに関数を紋づけ
-                    use_lora.change(fn=toggle_lora_settings, 
-                               inputs=[use_lora], 
-                               outputs=[lora_file, lora_scale, lora_format])
-                    
-                    # LoRAサポートが無効の場合のメッセージ
-                    if not has_lora_support:
-                        gr.Markdown("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。")
-                
-                # EndFrame影響度調整スライダー
-                with gr.Group():
-                    gr.Markdown("### EndFrame影響度調整")
-                    end_frame_strength = gr.Slider(
-                        label="EndFrame影響度", 
-                        minimum=0.01, 
-                        maximum=1.00, 
-                        value=1.00, 
-                        step=0.01, 
-                        info="最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。"
-                    )
-                
                 # 出力フォルダ設定
                 gr.Markdown("※ 出力先は `webui` 配下に限定されます")
                 with gr.Row(equal_height=True):
@@ -1724,7 +1569,7 @@ with block:
                 result_message = gr.Markdown("")
     
     # 実行ボタンのイベント
-    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength]
+    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings]
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
     
