@@ -30,6 +30,19 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 
 ![FramePack-eichi画面2](images/framepack_eichi_screenshot2.png)
 
+### 終点およびキーフレーム画像の持続性問題（対応検討中）
+
+一部のユーザーから以下の問題が報告されており、現在対応を検討中です：
+
+- 生成中止後に再度生成を開始すると、終点およびキーフレーム画像が使用されないことがある
+- 画像を一度削除して再アップロードすると問題が解決するが、生成を開始するまで問題に気づきにくい
+- この問題が確認された場合、一度画像を閉じて再度アップロードし直してください
+
+今後のアップデートで、以下の改善を予定しています：
+- スタートボタンクリック時の画像再取得機能
+- アップロードまたはコピーした画像への視覚的フィードバック（チェックマーク表示）
+- 画像取得エラー時の明確な警告表示
+
 ## 🚀 使い方
 
 ### 基本的な動画生成　※既存機能
@@ -71,6 +84,7 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
   - フォーマット選択: HunyuanVideo/Diffusers/Musubiなどのフォーマットを選択
   - 注意: Hunyuan LoRA使用時はプログレスバーが始まる前に読込のための待ち時間が発生し、全体の処理時間が長くなります
   - LoRAは種類が多様でありサンプル数も少ないため、有識者の方は試行願います
+  - 従来のHunyuan用のLoRAとFramePack用のLoRAは重み付けが異なるという情報もあるので、実際のLoRAが用意されるまであくまで試験的実装とお考えください
 
 - **EndFrame影響度設定**: ※v1.3で追加【試験実装】
   - スライダー(0.01〜1.00): 最終フレームが動画全体に与える影響を調整
@@ -272,17 +286,27 @@ FramePackの動画生成品質は、キーフレーム画像の選択に大き�
 #### FramePack-eichiのインストール
 
 1. `run_endframe_ichi.bat`をFramePackのルートディレクトリに配置します。
-2. `endframe_ichi.py`と`video_mode_settings.py`を`webui`フォルダに配置します。
-3. v1.3で追加: `lora_utils`フォルダとその中のファイルを`webui`フォルダに配置します。
-4. `run_endframe_ichi.bat`を実行すると、FramePack-eichiのWebUIが起動します。
+2. 以下のファイルとフォルダを`webui`フォルダに配置します：
+   - `endframe_ichi.py` - メインアプリケーションファイル
+   - `eichi_utils` フォルダ - ユーティリティモジュール（v1.3.1で見直し）
+     - `__init__.py`
+     - `keyframe_handler.py` - キーフレーム処理モジュール
+     - `preset_manager.py` - プリセット管理モジュール
+     - `settings_manager.py` - 設定管理モジュール
+     - `video_mode_settings.py` - 動画モード設定モジュール
+   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加）
+     - `__init__.py`
+     - `dynamic_swap_lora.py` - DynamicSwap対応LoRAモジュール
+     - `lora_loader.py` - LoRAローダーモジュール
+
+3. `run_endframe_ichi.bat`を実行すると、FramePack-eichiのWebUIが起動します。
 
 #### Linux向けインストール方法
 
 Linuxでは、以下の手順で実行可能です：
 
-1. `endframe_ichi.py`と`video_mode_settings.py`をダウンロードして配置します。
-2. v1.3で追加: `lora_utils`フォルダとその中のファイルを配置します。
-3. ターミナルで次のコマンドを実行します：
+1. 上記の必要なファイルとフォルダをダウンロードして配置します。
+2. ターミナルで次のコマンドを実行します：
    ```bash
    python endframe_ichi.py
    ```
@@ -419,6 +443,7 @@ Linuxでは、以下の手順で実行可能です：
 
 ツールを立ち上げ、初回に画像をインポートする際に以下のようなエラーが多数発生することがあります：
 ※コンソールにエラーが表示され、GUI上では画像が表示されません。
+
 ![FramePack-eichiエラー画面1](images/framepack_eichi_error_screenshot1.png)
 ```
 ERROR:    Exception in ASGI application
@@ -480,6 +505,11 @@ Hunyuan LoRA使用時にカウンターが始まるまでの待ち時間が長�
 ※この問題は本家リポジトリでPull Request #49として提案されており、今後のアップデートで解決される見込みです。
 
 ## 📝 更新履歴
+
+### 2025-04-24: バージョン1.3.1
+- **コードベースのリファクタリング**: 保守性と拡張性向上のため、コードを複数のモジュールに整理
+  - `eichi_utils`: キーフレーム処理、設定管理、プリセット管理、ビデオモード設定を管理
+  - `lora_utils`: LoRA関連の機能を集約
 
 ### 2025-04-23: バージョン1.3
 - **【試験実装】Hunyuan LoRAサポートの追加**: モデルをカスタマイズして独自の表現を追加

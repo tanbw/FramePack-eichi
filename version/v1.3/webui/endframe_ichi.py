@@ -28,40 +28,20 @@ except ImportError:
 
 # 設定モジュールをインポート（ローカルモジュール）
 import os.path
-from eichi_utils.video_mode_settings import (
+from video_mode_settings import (
     VIDEO_MODE_SETTINGS, get_video_modes, get_video_seconds, get_important_keyframes, 
     get_copy_targets, get_max_keyframes_count, get_total_sections, generate_keyframe_guide_html,
     handle_mode_length_change, process_keyframe_change, MODE_TYPE_NORMAL, MODE_TYPE_LOOP
 )
 
-# 設定管理モジュールをインポート
-from eichi_utils.settings_manager import (
-    get_settings_file_path,
-    get_output_folder_path,
-    initialize_settings,
-    load_settings,
-    save_settings,
-    open_output_folder
-)
+# インデックス変換のユーティリティ関数追加
+def ui_to_code_index(ui_index):
+    """UI表示のキーフレーム番号(1始まり)をコード内インデックス(0始まり)に変換"""
+    return ui_index - 1
 
-# プリセット管理モジュールをインポート
-from eichi_utils.preset_manager import (
-    initialize_presets,
-    load_presets,
-    get_default_startup_prompt,
-    save_preset,
-    delete_preset
-)
-
-# キーフレーム処理モジュールをインポート
-from eichi_utils.keyframe_handler import (
-    ui_to_code_index,
-    code_to_ui_index,
-    unified_keyframe_change_handler,
-    unified_mode_length_change_handler,
-    unified_input_image_change_handler,
-    print_keyframe_debug_info
-)
+def code_to_ui_index(code_index):
+    """コード内インデックス(0始まり)をUI表示のキーフレーム番号(1始まり)に変換"""
+    return code_index + 1
 
 import gradio as gr
 import torch
@@ -164,18 +144,100 @@ else:
 
 stream = AsyncStream()
 
-# 設定管理モジュールをインポート
-from eichi_utils.settings_manager import (
-    get_settings_file_path,
-    get_output_folder_path,
-    initialize_settings,
-    load_settings,
-    save_settings,
-    open_output_folder
-)
+# 設定ファイル関連処理のリファクタリング
+def get_settings_file_path():
+    """設定ファイルの絶対パスを取得する"""
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    settings_folder = os.path.join(base_path, 'settings')
+    return os.path.join(settings_folder, 'app_settings.json')
+
+def get_output_folder_path(folder_name=None):
+    """出力フォルダの絶対パスを取得する"""
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    if not folder_name or not folder_name.strip():
+        folder_name = "outputs"
+    return os.path.join(base_path, folder_name)
+
+def initialize_settings():
+    """設定ファイルを初期化する（存在しない場合のみ）"""
+    settings_file = get_settings_file_path()
+    settings_dir = os.path.dirname(settings_file)
+    
+    if not os.path.exists(settings_file):
+        # 初期デフォルト設定
+        default_settings = {'output_folder': 'outputs'}
+        try:
+            os.makedirs(settings_dir, exist_ok=True)
+            with open(settings_file, 'w', encoding='utf-8') as f:
+                json.dump(default_settings, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"設定ファイル初期化エラー: {e}")
+            return False
+    return True
+
+def load_settings():
+    """設定を読み込む関数"""
+    settings_file = get_settings_file_path()
+    default_settings = {'output_folder': 'outputs'}
+    
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+                if not file_content.strip():
+                    return default_settings
+                settings = json.loads(file_content)
+                
+                # デフォルト値とマージ
+                for key, value in default_settings.items():
+                    if key not in settings:
+                        settings[key] = value
+                return settings
+        except Exception as e:
+            print(f"設定読み込みエラー: {e}")
+    
+    return default_settings
+
+def save_settings(settings):
+    """設定を保存する関数"""
+    settings_file = get_settings_file_path()
+    
+    try:
+        # 保存前にディレクトリが存在するか確認
+        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
+        
+        # JSON書き込み
+        with open(settings_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"設定保存エラー: {e}")
+        return False
+
+def open_output_folder(folder_path):
+    """指定されたフォルダをOSに依存せず開く"""
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path, exist_ok=True)
+    
+    try:
+        if os.name == 'nt':  # Windows
+            subprocess.Popen(['explorer', folder_path])
+        elif os.name == 'posix':  # Linux/Mac
+            try:
+                subprocess.Popen(['xdg-open', folder_path])
+            except:
+                subprocess.Popen(['open', folder_path])
+        print(f"フォルダを開きました: {folder_path}")
+        return True
+    except Exception as e:
+        print(f"フォルダを開く際にエラーが発生しました: {e}")
+        return False
 
 # フォルダ構造を先に定義
 webui_folder = os.path.dirname(os.path.abspath(__file__))
+presets_folder = os.path.join(webui_folder, 'presets')
+os.makedirs(presets_folder, exist_ok=True)
 
 # 設定保存用フォルダの設定
 settings_folder = os.path.join(webui_folder, 'settings')
@@ -196,7 +258,188 @@ print(f"設定から出力フォルダを読み込み: {output_folder_name}")
 outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
 
-# キーフレーム処理関数は keyframe_handler.py に移動済み
+# 統一的なキーフレーム処理関数群
+
+# 1. 統一的なキーフレーム変更ハンドラ
+def unified_keyframe_change_handler(keyframe_idx, img, mode, length, enable_copy=True):
+    """すべてのキーフレーム処理を統一的に行う関数
+    
+    Args:
+        keyframe_idx: UIのキーフレーム番号-1 (0始まりのインデックス)
+        img: 変更されたキーフレーム画像
+        mode: モード ("通常" or "ループ")
+        length: 動画長 ("6秒", "8秒", "10(5x2)秒", "12(4x3)秒", "16(4x4)秒")
+        enable_copy: コピー機能が有効かどうか
+
+    Returns:
+        更新リスト: 変更するキーフレーム画像の更新情報のリスト
+    """
+    if img is None or not enable_copy:
+        # 画像が指定されていない、またはコピー機能が無効の場合は何もしない
+        max_keyframes = get_max_keyframes_count()
+        remaining = max(0, max_keyframes - keyframe_idx - 1)
+        return [gr.update() for _ in range(remaining)]
+    
+    # video_mode_settings.pyから定義されたコピーターゲットを取得
+    targets = get_copy_targets(mode, length, keyframe_idx)
+    
+    # 結果の更新リスト作成
+    max_keyframes = get_max_keyframes_count()
+    updates = []
+    
+    # このキーフレーム以降のインデックスに対してのみ処理
+    for i in range(keyframe_idx + 1, max_keyframes):
+        # コピーパターン定義では相対インデックスでなく絶対インデックスが使われているため、
+        # iがtargets内にあるかをチェック
+        if i in targets:
+            # コピー先リストに含まれている場合は画像をコピー
+            updates.append(gr.update(value=img))
+        else:
+            # 含まれていない場合は変更なし
+            updates.append(gr.update())
+    
+    return updates
+
+# 2. モード変更の統一ハンドラ
+def unified_mode_length_change_handler(mode, length, section_number_inputs):
+    """モードと動画長の変更を統一的に処理する関数
+    
+    Args:
+        mode: モード ("通常" or "ループ")
+        length: 動画長 ("6秒", "8秒", "10(5x2)秒", "12(4x3)秒", "16(4x4)秒")
+        section_number_inputs: セクション番号入力欄のリスト
+        
+    Returns:
+        更新リスト: 各UI要素の更新情報のリスト
+    """
+    # 基本要素のクリア（入力画像と終了フレーム）
+    updates = [gr.update(value=None) for _ in range(2)]
+    
+    # すべてのキーフレーム画像をクリア
+    section_image_count = get_max_keyframes_count()
+    for _ in range(section_image_count):
+        updates.append(gr.update(value=None, elem_classes=""))
+    
+    # セクション番号ラベルをリセット
+    for i in range(len(section_number_inputs)):
+        section_number_inputs[i].elem_classes = ""
+    
+    # 重要なキーフレームを強調表示
+    important_kfs = get_important_keyframes(length)
+    for idx in important_kfs:
+        ui_idx = code_to_ui_index(idx)
+        update_idx = ui_idx + 1  # 入力画像と終了フレームの2つを考慮
+        if update_idx < len(updates):
+            updates[update_idx] = gr.update(value=None, elem_classes="highlighted-keyframe")
+            if idx < len(section_number_inputs):
+                section_number_inputs[idx].elem_classes = "highlighted-label"
+    
+    # ループモードの場合はキーフレーム1も強調（まだ強調されていない場合）
+    if mode == MODE_TYPE_LOOP and 0 not in important_kfs:
+        updates[2] = gr.update(value=None, elem_classes="highlighted-keyframe")
+        if 0 < len(section_number_inputs):
+            section_number_inputs[0].elem_classes = "highlighted-label"
+    
+    # 動画長の設定
+    video_length = get_video_seconds(length)
+    
+    # 最終的な動画長設定を追加
+    updates.append(gr.update(value=video_length))
+    
+    return updates
+
+# 3. 入力画像変更の統一ハンドラ
+def unified_input_image_change_handler(img, mode, length, enable_copy=True):
+    """入力画像変更時の処理を統一的に行う関数
+    
+    Args:
+        img: 変更された入力画像
+        mode: モード ("通常" or "ループ")
+        length: 動画長 ("6秒", "8秒", "10(5x2)秒", "12(4x3)秒", "16(4x4)秒")
+        enable_copy: コピー機能が有効かどうか
+        
+    Returns:
+        更新リスト: 終了フレームとすべてのキーフレーム画像の更新情報のリスト
+    """
+    if img is None or not enable_copy:
+        # 画像が指定されていない、またはコピー機能が無効の場合は何もしない
+        section_count = get_max_keyframes_count()
+        return [gr.update() for _ in range(section_count + 1)]  # +1 for end_frame
+    
+    # ループモードかどうかで処理を分岐
+    if mode == MODE_TYPE_LOOP:
+        # ループモード: FinalFrameに入力画像をコピー
+        updates = [gr.update(value=img)]  # end_frame
+        
+        # キーフレーム画像は更新なし
+        section_count = get_max_keyframes_count()
+        updates.extend([gr.update() for _ in range(section_count)])
+        
+    else:
+        # 通常モード: FinalFrameは更新なし
+        updates = [gr.update()]  # end_frame
+        
+        # 動画長/モードに基づいてコピー先のキーフレームを取得
+        # これが設定ファイルに基づく方法
+        copy_targets = []
+        
+        # 特殊処理のモードでは設定によって異なるキーフレームにコピー
+        if length == "10(5x2)秒":
+            # 10(5x2)秒の場合は5～8にコピー (インデックス4-7)
+            copy_targets = [4, 5, 6, 7]
+        elif length == "12(4x3)秒":
+            # 12(4x3)秒の場合は7～9にコピー (インデックス6-8)
+            copy_targets = [6, 7, 8]
+        elif length == "16(4x4)秒":
+            # 16(4x4)秒の場合は10～12にコピー (インデックス9-11)
+            copy_targets = [9, 10, 11]
+        elif length == "20(4x5)秒":
+            # 20(4x5)秒の場合は13～15にコピー (インデックス12-14)
+            copy_targets = [12, 13, 14]
+        else:
+            # 通常の動画長の場合は最初のいくつかのキーフレームにコピー
+            if length == "6秒":
+                copy_targets = [0, 1, 2, 3]  # キーフレーム1-4
+            elif length == "8秒":
+                copy_targets = [0, 1, 2, 3, 4, 5]  # キーフレーム1-6
+        
+        # キーフレーム画像の更新リスト作成
+        section_count = get_max_keyframes_count()
+        for i in range(section_count):
+            if i in copy_targets:
+                updates.append(gr.update(value=img))
+            else:
+                updates.append(gr.update())
+    
+    return updates
+
+# 4. デバッグ情報表示関数 - コメントアウト部分を関数として維持
+def print_keyframe_debug_info():
+    """キーフレーム設定の詳細情報を表示"""
+    # print("\n[INFO] =========== キーフレーム設定デバッグ情報 ===========")
+    # 
+    # # 設定内容の確認表示
+    # print("\n[INFO] 動画モード設定の確認:")
+    # for mode_key in VIDEO_MODE_SETTINGS:
+    #     mode_info = VIDEO_MODE_SETTINGS[mode_key]
+    #     print(f"  - {mode_key}: {mode_info['display_seconds']}秒, {mode_info['frames']}フレーム")
+    #     
+    #     # 重要キーフレームの表示（UIインデックスに変換）
+    #     important_kfs = mode_info['important_keyframes']
+    #     important_kfs_ui = [code_to_ui_index(kf) for kf in important_kfs]
+    #     print(f"    重要キーフレーム: {important_kfs_ui}")
+    #     
+    #     # コピーパターンの表示
+    #     for mode_type in ["通常", "ループ"]:
+    #         if mode_type in mode_info["copy_patterns"]:
+    #             print(f"    {mode_type}モードのコピーパターン:")
+    #             for src, targets in mode_info["copy_patterns"][mode_type].items():
+    #                 src_ui = code_to_ui_index(int(src))
+    #                 targets_ui = [code_to_ui_index(t) for t in targets]
+    #                 print(f"      キーフレーム{src_ui} → {targets_ui}")
+    # 
+    # print("[INFO] =================================================\n")
+    pass
 
 
 @torch.no_grad()
@@ -846,7 +1089,292 @@ def end_process():
     stream.input_queue.push('end')
 
 
+# プリセット管理関連の関数
+def initialize_presets():
+    """初期プリセットファイルがない場合に作成する関数"""
+    preset_file = os.path.join(presets_folder, 'prompt_presets.json')
+    
+    # デフォルトのプロンプト
+    default_prompts = [
+        'A character doing some simple body movements.',
+        'A character uses expressive hand gestures and body language.',
+        'A character walks leisurely with relaxed movements.',
+        'A character performs dynamic movements with energy and flowing motion.',
+        'A character moves in unexpected ways, with surprising transitions poses.',
+    ]
+    
+    # デフォルト起動時プロンプト
+    default_startup_prompt = "A character doing some simple body movements."
+    
+    # 既存ファイルがあり、正常に読み込める場合は終了
+    if os.path.exists(preset_file):
+        try:
+            with open(preset_file, 'r', encoding='utf-8') as f:
+                presets_data = json.load(f)
+                
+            # 起動時デフォルトがあるか確認
+            startup_default_exists = any(preset.get("is_startup_default", False) for preset in presets_data.get("presets", []))
+            
+            # なければ追加
+            if not startup_default_exists:
+                presets_data.setdefault("presets", []).append({
+                    "name": "起動時デフォルト",
+                    "prompt": default_startup_prompt,
+                    "timestamp": datetime.now().isoformat(),
+                    "is_default": True,
+                    "is_startup_default": True
+                })
+                presets_data["default_startup_prompt"] = default_startup_prompt
+                
+                with open(preset_file, 'w', encoding='utf-8') as f:
+                    json.dump(presets_data, f, ensure_ascii=False, indent=2)
+            return
+        except:
+            # エラーが発生した場合は新規作成
+            pass
+    
+    # 新規作成
+    presets_data = {
+        "presets": [],
+        "default_startup_prompt": default_startup_prompt
+    }
+    
+    # デフォルトのプリセットを追加
+    for i, prompt_text in enumerate(default_prompts):
+        presets_data["presets"].append({
+            "name": f"デフォルト {i+1}: {prompt_text[:20]}...",
+            "prompt": prompt_text,
+            "timestamp": datetime.now().isoformat(),
+            "is_default": True
+        })
+    
+    # 起動時デフォルトプリセットを追加
+    presets_data["presets"].append({
+        "name": "起動時デフォルト",
+        "prompt": default_startup_prompt,
+        "timestamp": datetime.now().isoformat(),
+        "is_default": True,
+        "is_startup_default": True
+    })
+    
+    # 保存
+    try:
+        with open(preset_file, 'w', encoding='utf-8') as f:
+            json.dump(presets_data, f, ensure_ascii=False, indent=2)
+    except:
+        # 保存に失敗してもエラーは出さない（次回起動時に再試行される）
+        pass
 
+def load_presets():
+    """プリセットを読み込む関数"""
+    preset_file = os.path.join(presets_folder, 'prompt_presets.json')
+    
+    # 初期化関数を呼び出し（初回実行時のみ作成される）
+    initialize_presets()
+    
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            with open(preset_file, 'r', encoding='utf-8') as f:
+                file_contents = f.read()
+                if not file_contents.strip():
+                    print(f"読み込み時に空ファイルが検出されました: {preset_file}")
+                    # 空ファイルの場合は再初期化を試みる
+                    initialize_presets()
+                    retry_count += 1
+                    continue
+                    
+                data = json.loads(file_contents)
+                print(f"プリセットファイル読み込み成功: {len(data.get('presets', []))}件")
+                return data
+                
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            # JSONパースエラーの場合はファイルが破損している可能性がある
+            print(f"プリセットファイルの形式が不正です: {e}")
+            # ファイルをバックアップ
+            backup_file = f"{preset_file}.bak.{int(time.time())}"
+            try:
+                import shutil
+                shutil.copy2(preset_file, backup_file)
+                print(f"破損したファイルをバックアップしました: {backup_file}")
+            except Exception as backup_error:
+                print(f"バックアップ作成エラー: {backup_error}")
+            
+            # 再初期化
+            initialize_presets()
+            retry_count += 1
+            
+        except Exception as e:
+            print(f"プリセット読み込みエラー: {e}")
+            # エラー発生
+            retry_count += 1
+    
+    # 再試行しても失敗した場合は空のデータを返す
+    print("再試行しても読み込みに失敗しました。空のデータを返します。")
+    return {"presets": []}
+
+def get_default_startup_prompt():
+    """起動時に表示するデフォルトプロンプトを取得する関数"""
+    print("起動時デフォルトプロンプト読み込み開始")
+    presets_data = load_presets()
+    
+    # プリセットからデフォルト起動時プロンプトを探す
+    for preset in presets_data["presets"]:
+        if preset.get("is_startup_default", False):
+            startup_prompt = preset["prompt"]
+            print(f"起動時デフォルトプロンプトを読み込み: '{startup_prompt[:30]}...' (長さ: {len(startup_prompt)}文字)")
+            
+            # 重複しているかチェック
+            # 例えば「A character」が複数回出てくる場合は重複している可能性がある
+            if "A character" in startup_prompt and startup_prompt.count("A character") > 1:
+                print("プロンプトに重複が見つかりました。最初のセンテンスのみを使用します。")
+                # 最初のセンテンスのみを使用
+                sentences = startup_prompt.split(".")
+                if len(sentences) > 0:
+                    clean_prompt = sentences[0].strip() + "."
+                    print(f"正規化されたプロンプト: '{clean_prompt}'")
+                    return clean_prompt
+                
+            return startup_prompt
+    
+    # 見つからない場合はデフォルト設定を使用
+    if "default_startup_prompt" in presets_data:
+        default_prompt = presets_data["default_startup_prompt"]
+        print(f"デフォルト設定から読み込み: '{default_prompt[:30]}...' (長さ: {len(default_prompt)}文字)")
+        
+        # 同様に重複チェック
+        if "A character" in default_prompt and default_prompt.count("A character") > 1:
+            print("デフォルトプロンプトに重複が見つかりました。最初のセンテンスのみを使用します。")
+            sentences = default_prompt.split(".")
+            if len(sentences) > 0:
+                clean_prompt = sentences[0].strip() + "."
+                print(f"正規化されたデフォルトプロンプト: '{clean_prompt}'")
+                return clean_prompt
+                
+        return default_prompt
+    
+    # フォールバックとしてプログラムのデフォルト値を返す
+    fallback_prompt = "A character doing some simple body movements."
+    print(f"プログラムのデフォルト値を使用: '{fallback_prompt}'")
+    return fallback_prompt
+
+def save_preset(name, prompt_text):
+    """プリセットを保存する関数"""
+    
+    presets_data = load_presets()
+    
+    if not name:
+        # 名前が空の場合は起動時デフォルトとして保存
+        # 既存の起動時デフォルトを探す
+        startup_default_exists = False
+        for preset in presets_data["presets"]:
+            if preset.get("is_startup_default", False):
+                # 既存の起動時デフォルトを更新
+                preset["prompt"] = prompt_text
+                preset["timestamp"] = datetime.now().isoformat()
+                startup_default_exists = True
+                # 起動時デフォルトを更新
+                break
+        
+        if not startup_default_exists:
+            # 見つからない場合は新規作成
+            presets_data["presets"].append({
+                "name": "起動時デフォルト",
+                "prompt": prompt_text,
+                "timestamp": datetime.now().isoformat(),
+                "is_default": True,
+                "is_startup_default": True
+            })
+            print(f"起動時デフォルトを新規作成: {prompt_text[:50]}...")
+        
+        # デフォルト設定も更新
+        presets_data["default_startup_prompt"] = prompt_text
+        
+        preset_file = os.path.join(presets_folder, 'prompt_presets.json')
+        try:
+            # JSON直接書き込み
+            with open(preset_file, 'w', encoding='utf-8') as f:
+                json.dump(presets_data, f, ensure_ascii=False, indent=2)
+            
+            # プロンプトの値を更新
+            if 'prompt' in globals():
+                prompt.value = prompt_text
+                
+            return "プリセット '起動時デフォルト' を保存しました"
+        except Exception as e:
+            print(f"プリセット保存エラー: {e}")
+            traceback.print_exc()
+            return f"保存エラー: {e}"
+    
+    # 通常のプリセット保存処理
+    # 同名のプリセットがあれば上書き、なければ追加
+    preset_exists = False
+    for preset in presets_data["presets"]:
+        if preset["name"] == name:
+            preset["prompt"] = prompt_text
+            preset["timestamp"] = datetime.now().isoformat()
+            preset_exists = True
+            # 既存のプリセットを更新
+            break
+    
+    if not preset_exists:
+        presets_data["presets"].append({
+            "name": name,
+            "prompt": prompt_text,
+            "timestamp": datetime.now().isoformat(),
+            "is_default": False
+        })
+        # 新規プリセットを作成
+    
+    preset_file = os.path.join(presets_folder, 'prompt_presets.json')
+    
+    try:
+        # JSON直接書き込み
+        with open(preset_file, 'w', encoding='utf-8') as f:
+            json.dump(presets_data, f, ensure_ascii=False, indent=2)
+        
+        # ファイル保存成功
+        return f"プリセット '{name}' を保存しました"
+    except Exception as e:
+        print(f"プリセット保存エラー: {e}")
+        # エラー発生
+        return f"保存エラー: {e}"
+
+def delete_preset(preset_name):
+    """プリセットを削除する関数"""
+    if not preset_name:
+        return "プリセットを選択してください"
+    
+    presets_data = load_presets()
+    
+    # 削除対象のプリセットを確認
+    target_preset = None
+    for preset in presets_data["presets"]:
+        if preset["name"] == preset_name:
+            target_preset = preset
+            break
+    
+    if not target_preset:
+        return f"プリセット '{preset_name}' が見つかりません"
+    
+    # デフォルトプリセットは削除できない
+    if target_preset.get("is_default", False):
+        return f"デフォルトプリセットは削除できません"
+    
+    # プリセットを削除
+    presets_data["presets"] = [p for p in presets_data["presets"] if p["name"] != preset_name]
+    
+    preset_file = os.path.join(presets_folder, 'prompt_presets.json')
+    
+    try:
+        with open(preset_file, 'w', encoding='utf-8') as f:
+            json.dump(presets_data, f, ensure_ascii=False, indent=2)
+        
+        return f"プリセット '{preset_name}' を削除しました"
+    except Exception as e:
+        return f"削除エラー: {e}"
 
 
 # 既存のQuick Prompts（初期化時にプリセットに変換されるので、互換性のために残す）
@@ -939,7 +1467,7 @@ with block:
                 gs = gr.Slider(label="Distilled CFG Scale", minimum=1.0, maximum=32.0, value=10.0, step=0.01, info='Changing this value is not recommended.')
                 rs = gr.Slider(label="CFG Re-Scale", minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)  # Should not change
 
-                gpu_memory_preservation = gr.Slider(label="GPU Memory to Preserve (GB) (smaller = more VRAM usage)", minimum=6, maximum=128, value=10, step=0.1, info="空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全")
+                gpu_memory_preservation = gr.Slider(label="GPU Memory to Preserve (GB) (smaller = more VRAM usage)", minimum=6, maximum=128, value=9, step=0.1, info="空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全")
 
                 # セクションごとの動画保存チェックボックスを追加（デフォルトOFF）
                 keep_section_videos = gr.Checkbox(label="完了時にセクションごとの動画を残す", value=False, info="チェックがない場合は最終動画のみ保存されます（デフォルトOFF）")
