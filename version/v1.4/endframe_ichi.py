@@ -255,8 +255,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     
     print(f"\u25a0 セクション生成詳細:")
     print(f"  - 生成予定セクション: {latent_paddings}")
-    frame_count = latent_window_size * 4 - 3
-    print(f"  - 各セクションのフレーム数: 約{frame_count}フレーム (latent_window_size: {latent_window_size})")
+    print(f"  - 各セクションのフレーム数: 約{latent_window_size * 4 - 3}フレーム")
     print(f"  - 合計セクション数: {total_sections}")
     
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
@@ -769,7 +768,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     return
 
 
-def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0, use_all_padding=False, all_padding_value=1.0, frame_size_setting="1秒 (33フレーム)"):
+def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0, use_all_padding=False, all_padding_value=1.0):
     global stream
     assert input_image is not None, 'No input image!'
     
@@ -781,7 +780,6 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     print(f"\n==== 動画生成開始 =====")
     print(f"\u25c6 生成モード: {mode_name}")
     print(f"\u25c6 動画長: {total_second_length}秒")
-    print(f"\u25c6 フレームサイズ: {frame_size_setting}")
     print(f"\u25c6 生成セクション数: {total_latent_sections}回")
     print(f"\u25c6 サンプリングステップ数: {steps}")
     print(f"\u25c6 TeaCache使用: {use_teacache}")
@@ -825,16 +823,6 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     # GPUメモリの設定値をデバッグ出力し、正しい型に変換
     gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
     print(f'Using GPU memory preservation setting: {gpu_memory_value} GB')
-    
-    # フレームサイズ設定に応じてlatent_window_sizeを調整
-    if frame_size_setting == "0.5秒 (17フレーム)":
-        # 0.5秒の場合はlatent_window_size=5に設定（5*4-3=17フレーム≒0.5秒@30fps）
-        latent_window_size = 5
-        print(f'フレームサイズを0.5秒モードに設定: latent_window_size = {latent_window_size}')
-    else:
-        # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
-        latent_window_size = 9
-        print(f'フレームサイズを1秒モードに設定: latent_window_size = {latent_window_size}')
     
     # 出力フォルダが空の場合はデフォルト値を使用
     if not output_dir or not output_dir.strip():
@@ -966,15 +954,6 @@ with block:
                 example_quick_prompts.click(lambda x: x[0], inputs=[example_quick_prompts], outputs=prompt, show_progress=False, queue=False)
 
             with gr.Group():
-                # フレームサイズ切替用のUIコントロール
-                with gr.Row():
-                    frame_size_radio = gr.Radio(
-                        choices=["1秒 (33フレーム)", "0.5秒 (17フレーム)"], 
-                        value="1秒 (33フレーム)", 
-                        label="フレームサイズ", 
-                        info="1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）"
-                    )
-                
                 use_teacache = gr.Checkbox(label='Use TeaCache', value=True, info='Faster speed, but often makes hands and fingers slightly worse.')
 
                 # Use Random Seedの初期値
@@ -1258,7 +1237,7 @@ with block:
                 result_message = gr.Markdown("")
     
     # 実行ボタンのイベント
-    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value, frame_size_radio]
+    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value]
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
     
