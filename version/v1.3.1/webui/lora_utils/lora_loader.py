@@ -36,19 +36,6 @@ PRESET_BLOCKS = { # Name = single / double, accepted layers.
 # LoRAファイルのキャッシュ
 _lora_cache = {}
 
-def convert_diffusers_lora_to_hunyuan(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """
-    後方互換性のための旧関数名を維持
-    
-    Args:
-        state_dict: Diffusersフォーマットの状態辞書
-    
-    Returns:
-        Dict[str, torch.Tensor]: FramePack内部形式の状態辞書
-    """
-    logger.info("後方互換性のための旧関数を使用")
-    return convert_diffusers_lora_to_framepack(state_dict)
-
 def load_lora_weights(lora_path: str) -> Dict[str, torch.Tensor]:
     """
     LoRAファイルから重みを読み込む（キャッシュ機能付き）
@@ -133,17 +120,17 @@ def detect_lora_format(state_dict: Dict[str, torch.Tensor]) -> str:
     else:
         return 'unknown'
 
-def convert_diffusers_lora_to_framepack(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+def convert_diffusers_lora_to_hunyuan(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     """
-    DiffusersフォーマットのLoRAをFramePack内部形式に変換
+    DiffusersフォーマットのLoRAをHunyuan互換形式に変換
     
     Args:
         state_dict: Diffusersフォーマットの状態辞書
     
     Returns:
-        Dict[str, torch.Tensor]: FramePack内部形式の状態辞書
+        Dict[str, torch.Tensor]: Hunyuan互換の状態辞書
     """
-    logger.info("DiffusersフォーマットからFramePack内部フォーマットへ変換中...")
+    logger.info("DiffusersフォーマットからHunyuanフォーマットへ変換中...")
     converted_dict = {}
     
     # フォーマット変換ロジック
@@ -443,7 +430,7 @@ def apply_lora_to_model(
     lora_state_dict: Dict[str, torch.Tensor],
     scale: float = 0.8,
     format_type: Optional[str] = None
-) -> Tuple[torch.nn.Module, int]:
+) -> torch.nn.Module:
     """
     モデルにLoRAを適用する
     
@@ -464,13 +451,9 @@ def apply_lora_to_model(
     
     # フォーマットに応じて変換
     if format_type == 'diffusers':
-        lora_state_dict = convert_diffusers_lora_to_framepack(lora_state_dict)
+        lora_state_dict = convert_diffusers_lora_to_hunyuan(lora_state_dict)
     elif format_type == 'musubi':
         lora_state_dict = check_for_musubi(lora_state_dict)
-    
-    # 適用率カウンタの追加
-    total_params = sum(1 for key in lora_state_dict if ".lora_down" in key)
-    applied_params = 0
     
     # モデルの現在の状態を保存
     original_state = {}
@@ -502,32 +485,10 @@ def apply_lora_to_model(
                     
                     # 元のパラメータに適用
                     param.data += delta
-                    # LoRA適用フラグを設定（チェック用）
-                    param._lora_applied = True
                     modified_modules.append(name)
-                    applied_params += 1
         
-        # 適用率の出力
-        if total_params > 0:
-            application_rate = (applied_params / total_params) * 100.0
-            logger.info(f"LoRA適用状況: {applied_params}/{total_params} パラメータ ({application_rate:.2f}%)")
-        else:
-            logger.warning("LoRAパラメータが見つかりません。適用率は0%です。")
-        
-        # 適用率が0%の場合は詳細診断情報を出力
-        if applied_params == 0:
-            try:
-                from .lora_check_helper import diagnose_lora_application_failure, log_key_mapping_attempts
-                diagnosis = diagnose_lora_application_failure(model, lora_state_dict)
-                mapping_report = log_key_mapping_attempts(model, lora_state_dict)
-                logger.warning("LoRA適用に失敗しました。詳細診断情報:")
-                logger.warning(diagnosis)
-                logger.warning(mapping_report)
-            except Exception as e:
-                logger.error(f"診断情報出力中にエラーが発生: {e}")
-            
         logger.info(f"LoRA適用完了: {len(modified_modules)} モジュールが修正されました")
-        return model, applied_params
+        return model
     
     except Exception as e:
         # エラー時には元の状態に戻す
@@ -550,9 +511,8 @@ def load_and_apply_lora(
     selective_application: bool = True,
     pruning: bool = True,
     pruning_threshold: float = 0.0005,
-    blocks_type: str = "all",
-    return_applied_count: bool = False
-) -> Union[torch.nn.Module, Tuple[torch.nn.Module, int]]:
+    blocks_type: str = "all"
+) -> torch.nn.Module:
     """
     LoRAをロードしてモデルに適用する便利関数
     
@@ -580,7 +540,7 @@ def load_and_apply_lora(
     
     # フォーマットに応じて変換
     if format_type == 'diffusers':
-        lora_state_dict = convert_diffusers_lora_to_framepack(lora_state_dict)
+        lora_state_dict = convert_diffusers_lora_to_hunyuan(lora_state_dict)
     elif format_type == 'musubi':
         lora_state_dict = check_for_musubi(lora_state_dict)
         
@@ -637,14 +597,9 @@ def load_and_apply_lora(
             logger.info("プルーニングをスキップします")
     
     # モデルに適用
-    applied_params = 0
     if lora_state_dict:
-        model, applied_params = apply_lora_to_model(model, lora_state_dict, scale)
+        model = apply_lora_to_model(model, lora_state_dict, scale)
     else:
         logger.warning("LoRAパラメータが空です。モデルに適用しません。")
     
-    # 適用パラメータ数を返すかどうか
-    if return_applied_count:
-        return model, applied_params
-    else:
-        return model
+    return model

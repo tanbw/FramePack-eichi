@@ -530,59 +530,31 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                         # transformerモデルのコピーを作成（元のモデルを維持するため）
                         transformer_lora = copy.deepcopy(transformer)
                         
-                        # 低VRAMモードでも高VRAMモードと同様に直接LoRAを適用する
-                        from lora_utils.lora_loader import load_and_apply_lora
-                        transformer_lora, applied_params = load_and_apply_lora(
-                            transformer_lora, 
-                            lora_path, 
-                            lora_scale, 
-                            is_diffusers,
-                            selective_application=True,
-                            pruning=True,
-                            pruning_threshold=0.005,
-                            return_applied_count=True  # 適用されたパラメータ数を返す
-                        )
-                        print(f"LoRAを直接適用しました（適用パラメータ: {applied_params} 個）")
-                        # 使用するtransformerを変更
-                        transformer_obj = transformer_lora
-                    
-                    # LoRA適用状況の結果を診断
-                    try:
-                        from lora_utils.lora_check_helper import create_lora_stats_report
-                        from lora_utils.lora_loader import load_lora_weights, detect_lora_format, check_for_musubi
-                        
-                        # 元のLoRAファイルを読み込む
-                        try:
-                            lora_state_dict = load_lora_weights(lora_path)
-                            format_type = detect_lora_format(lora_state_dict)
-                            
-                            # フォーマットに応じて変換
-                            if format_type == 'musubi':
-                                lora_state_dict = check_for_musubi(lora_state_dict)
-                            elif is_diffusers:
-                                from lora_utils.lora_loader import convert_diffusers_lora_to_framepack
-                                lora_state_dict = convert_diffusers_lora_to_framepack(lora_state_dict)
-                            
-                            # 適用済みパラメータ数を渡して診断レポートを生成
-                            lora_stats = create_lora_stats_report(
-                                model=transformer_lora, 
-                                lora_name=os.path.basename(lora_path), 
-                                lora_state_dict=lora_state_dict,
-                                applied_params=applied_params  # 適用済みパラメータ数を渡す
+                        if not high_vram:
+                            # DynamicSwapモードでフックをインストール
+                            lora_manager.install_hooks(transformer_lora)
+                            print("DynamicSwapモードでLoRAをインストールしました")
+                            # 使用するtransformerを変更
+                            transformer_obj = transformer_lora
+                        else:
+                            # 高VRAMモードでは直接適用
+                            from lora_utils.lora_loader import load_and_apply_lora
+                            transformer_lora = load_and_apply_lora(
+                                transformer_lora, 
+                                lora_path, 
+                                lora_scale, 
+                                is_diffusers,
+                                selective_application=True,
+                                pruning=True,
+                                pruning_threshold=0.005
                             )
-                            print(lora_stats)
-                        except Exception as e:
-                            print(f"LoRA診断エラー: {e}")
-                            traceback.print_exc()
-                        
-                        # 適用可能か確認
-                        if applied_params == 0:
-                            print("LoRAは適用対象が存在しないため無効化されました")
-                            # 元のtransformerを使用
-                            transformer_obj = transformer
-                    except Exception as check_err:
-                        print(f"LoRA状態確認エラー: {check_err}")
-                        traceback.print_exc()
+                            print("高VRAMモードでLoRAを適用しました")
+                            # 使用するtransformerを変更
+                            transformer_obj = transformer_lora
+                    else:
+                        print("LoRAはブルーミング対象が存在しないため無効化されました")
+                        # 元のtransformerを使用
+                        transformer_obj = transformer
                         
                 except Exception as e:
                     print(f"LoRA適用エラー: {e}")
@@ -617,9 +589,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory)
 
             if use_teacache:
-                transformer_obj.initialize_teacache(enable_teacache=True, num_steps=steps)
+                transformer.initialize_teacache(enable_teacache=True, num_steps=steps)
             else:
-                transformer_obj.initialize_teacache(enable_teacache=False)
+                transformer.initialize_teacache(enable_teacache=False)
 
             def callback(d):
                 preview = d['denoised']
@@ -642,7 +614,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 return
 
             generated_latents = sample_hunyuan(
-                transformer=transformer_obj,  # ← transformerをtransformer_objに変更
+                transformer=transformer,
                 sampler='unipc',
                 width=width,
                 height=height,

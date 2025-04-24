@@ -21,7 +21,7 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 - **マルチキーフレーム対応**: 複数のキーフレーム画像を指定し複雑なアニメーションを実現　※nirvash氏追加機能
 - **柔軟な動画長設定**: 6秒、8秒、10秒(5x2)、12秒(4x3)、16秒(4x4)、20秒(4x5)の6つのモードに対応　※独自機能
 - **セクションごとのプロンプト設定**: 各セクションに個別のプロンプトを指定可能 ※v1.2で追加【試験実装】
-- **【試験実装】Hunyuan LoRAサポート**: モデルのカスタマイズによる独自の表現を追加 ※v1.3で追加
+- **【調査中】Hunyuan LoRAサポート**: モデルのカスタマイズによる独自の表現を追加 ※v1.3で追加
 - **【試験実装】EndFrame影響度設定**: 最終フレームの影響力を調整して動画の流れを制御 ※v1.3で追加（nirvash氏の知見）
 - **出力フォルダ管理機能**: 出力先フォルダの指定とOSに依存しない開き方をサポート ※v1.2で追加
 - **プロンプト管理機能**: プロンプトの保存、編集、再利用が簡単　※独自機能
@@ -42,6 +42,15 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 - スタートボタンクリック時の画像再取得機能
 - アップロードまたはコピーした画像への視覚的フィードバック（チェックマーク表示）
 - 画像取得エラー時の明確な警告表示
+
+### Hunyuan LoRA対応状況
+
+以下の理由により難航中となります：
+
+- 従来のHunyuanVideoのLoRAとFramePackはキーマッピング構造体が全く異なり、ヒットしないといった事象が発生しています
+- 今後情報が増え、調査が進めば、利用できるようになるかもしれないため、しばらくお待ちください。
+- また、v1.3.2で一部バグの修正およびログ出力の強化を実施しています
+- 適用方式も現在は直接LoRAを適用する方式のみとしています。これにより安定性が向上しましたが、VRAMの使用量が増加する可能性があります
 
 ## 🚀 使い方
 
@@ -77,14 +86,14 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
   - 空白の場合は共通プロンプトが使用される
   - 注意: この機能は試験実装であり、効果の保証はできません
 
-- **Hunyuan LoRAの設定**: ※v1.3で追加【試験実装】
+- **Hunyuan LoRAの設定**: ※v1.3で追加【調査中】
   - 「LoRAを使用する」チェックボックス: LoRAの有効/無効を切り替え
   - LoRAファイル選択: 使用するLoRAファイルを選択
   - 適用強度スライダー: LoRAの影響度を0.0〜1.0で調整
   - フォーマット選択: HunyuanVideo/Diffusers/Musubiなどのフォーマットを選択
   - 注意: Hunyuan LoRA使用時はプログレスバーが始まる前に読込のための待ち時間が発生し、全体の処理時間が長くなります
   - LoRAは種類が多様でありサンプル数も少ないため、有識者の方は試行願います
-  - 従来のHunyuan用のLoRAとFramePack用のLoRAは重み付けが異なるという情報もあるので、実際のLoRAが用意されるまであくまで試験的実装とお考えください
+  - 従来のHunyuan用のLoRAとFramePackキーマッピング構造体が異なるという情報もあるので、あくまで試験的実装とお考えください
 
 - **EndFrame影響度設定**: ※v1.3で追加【試験実装】
   - スライダー(0.01〜1.00): 最終フレームが動画全体に与える影響を調整
@@ -294,10 +303,11 @@ FramePackの動画生成品質は、キーフレーム画像の選択に大き�
      - `preset_manager.py` - プリセット管理モジュール
      - `settings_manager.py` - 設定管理モジュール
      - `video_mode_settings.py` - 動画モード設定モジュール
-   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加）
+   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加、v1.3.2で改良）
      - `__init__.py`
-     - `dynamic_swap_lora.py` - DynamicSwap対応LoRAモジュール
+     - `dynamic_swap_lora.py` - LoRA管理モジュール（フック方式は廃止され、直接適用方式のみサポート）
      - `lora_loader.py` - LoRAローダーモジュール
+     - `lora_check_helper.py` - LoRA適用状況確認モジュール（v1.3.2で追加）
 
 3. `run_endframe_ichi.bat`を実行すると、FramePack-eichiのWebUIが起動します。
 
@@ -370,14 +380,14 @@ Linuxでは、以下の手順で実行可能です：
   - 大きい値(1.0): 従来の標準動作
   - 中間値: 動きの強調度と速度のバランスを調整
 
-### LoRA設定 (v1.3で追加【試験実装】)
+### LoRA設定 (v1.3で追加、v1.3.2で試験中【試験実装】)
 - **LoRA使用**: `use_lora` チェックボックス（デフォルト: 無効）
   - 有効: LoRAファイルを使用してモデルをカスタマイズ
-  - Hunyuan LoRA使用時はカウンターが始まる前の待ち時間が長くなる場合があります
+  - LoRA使用時はカウンターが始まる前の待ち時間が長くなる場合があります
 
 - **LoRAファイル**: ファイル選択コンポーネント
   - 使用するLoRAファイルを指定
-  - 対応フォーマット: HunyuanVideo、Diffusers、Musubi、Kohya形式
+  - 対応フォーマット: FramePack形式のみ（v1.3.2で確認）
 
 - **LoRA強度**: `lora_strength` スライダー（デフォルト: 0.8）
   - 範囲: 0.0〜1.0
@@ -388,8 +398,6 @@ Linuxでは、以下の手順で実行可能です：
 - **LoRAフォーマット**: ラジオボタン
   - HunyuanVideo: Hunyuan Video向けのLoRA形式
   - Diffusers: Diffusers形式のLoRA
-  - Musubi: Musubiフォーマット
-  - Kohya: Kohya形式
 
 ### フレーム設定
 - **動画長**: ラジオボタン + `total_second_length` スライダー　※独自機能
@@ -448,7 +456,7 @@ Linuxでは、以下の手順で実行可能です：
 ```
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
-  File "C:\Zero\Tool\framepack\system\python\lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 404, in run_asgi
+  File "C:\xxx\xxx\framepack\system\python\lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 404, in run_asgi
 ```
 このエラーは、HTTPレスポンスの処理中に問題が発生した場合に表示されます。
 前述のとおり、Gradioが起動し終わっていない起動初期の段階で頻発します。
@@ -470,7 +478,7 @@ Traceback (most recent call last):
 3. 再起動して再試行
 4. 画像解像度を下げる（640x640前後推奨）
 
-### LoRA関連の問題（v1.3）
+### LoRA関連の問題（v1.3、v1.3.2）
 
 「LoRAはブルーミング対象が存在しないため無効化されました」というメッセージが表示される場合：
 
@@ -479,7 +487,7 @@ Traceback (most recent call last):
 3. LoRA強度を0.5-0.8の範囲で調整
 4. プロンプトとLoRAの内容が一致するかを確認
 
-Hunyuan LoRA使用時にカウンターが始まるまでの待ち時間が長い場合は正常な動作です。LoRAの読み込みと適用に時間がかかるため、特に大きなLoRAファイルや複雑なモデルの場合は処理に時間がかかります。
+v1.3.2では、LoRAの適用方式が統一され、DynamicSwapモード（低VRAMモード）でも高VRAMモードと同様に直接LoRAを適用するようになりました。これにより安定性が向上しましたが、VRAMの使用量が増加する可能性があります。
 
 ### 動画表示の問題
 
@@ -506,13 +514,22 @@ Hunyuan LoRA使用時にカウンターが始まるまでの待ち時間が長�
 
 ## 📝 更新履歴
 
+### 2025-04-24: バージョン1.3.2
+- **LoRA適用機能の統一**:
+  - 低VRAMモード（DynamicSwap）でも高VRAMモードと同様に直接LoRAを適用する方式に統一
+  - フック方式を廃止し、より安定した直接適用方式のみをサポート
+  - 互換性のためにインターフェースは維持しつつ、内部実装を改善
+- **デバッグ・検証機能の強化**:
+  - LoRAの適用状況を確認するための専用ユーティリティを追加（lora_check_helper.py）
+  - 詳細なログ出力とデバッグ情報の提供
+
 ### 2025-04-24: バージョン1.3.1
 - **コードベースのリファクタリング**: 保守性と拡張性向上のため、コードを複数のモジュールに整理
   - `eichi_utils`: キーフレーム処理、設定管理、プリセット管理、ビデオモード設定を管理
   - `lora_utils`: LoRA関連の機能を集約
 
 ### 2025-04-23: バージョン1.3
-- **【試験実装】Hunyuan LoRAサポートの追加**: モデルをカスタマイズして独自の表現を追加
+- **【調査中】Hunyuan LoRAサポートの追加**: モデルをカスタマイズして独自の表現を追加
 - **【試験実装】EndFrame影響度設定の追加**: 最終フレームの影響力を0.01〜1.00の範囲で調整可能に（nirvash氏の知見）
 
 ### 2025-04-23: バージョン1.2
