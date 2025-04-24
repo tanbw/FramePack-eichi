@@ -200,7 +200,7 @@ os.makedirs(outputs_folder, exist_ok=True)
 
 
 @torch.no_grad()
-def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, output_dir=None, section_settings=None, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0, use_all_padding=False, all_padding_value=1.0):
+def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, save_section_frames, keep_section_videos, output_dir=None, section_settings=None, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0):
     # 出力フォルダの設定
     global outputs_folder
     global output_folder_name
@@ -237,16 +237,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     job_id = generate_timestamp()
 
     # セクション处理の詳細ログを出力
-    if use_all_padding:
-        # オールパディングが有効な場合、すべてのセクションで同じ値を使用
-        padding_value = round(all_padding_value, 1)  # 小数点1桁に固定
-        latent_paddings = [padding_value] * total_latent_sections
-        print(f"\u30aa\u30fc\u30eb\u30d1\u30c7\u30a3\u30f3\u30b0\u3092\u6709\u52b9\u5316: \u3059\u3079\u3066\u306e\u30bb\u30af\u30b7\u30e7\u30f3\u306b\u30d1\u30c7\u30a3\u30f3\u30b0\u5024 {padding_value} \u3092\u9069\u7528")
-    else:
-        # 通常のパディング値計算
-        latent_paddings = reversed(range(total_latent_sections))
-        if total_latent_sections > 4:
-            latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
+    latent_paddings = reversed(range(total_latent_sections))
+    if total_latent_sections > 4:
+        latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
     
     # 全セクション数を事前に計算して保存（イテレータの消費を防ぐため）
     latent_paddings_list = list(latent_paddings)
@@ -442,41 +435,24 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         history_pixels = None
         total_generated_latent_frames = 0
 
-        # ここでlatent_paddingsを再定義していたのが原因だったため、再定義を削除します
+        latent_paddings = reversed(range(total_latent_sections))
+
+        if total_latent_sections > 4:
+            # In theory the latent_paddings should follow the above sequence, but it seems that duplicating some
+            # items looks better than expanding it when total_latent_sections > 4
+            # One can try to remove below trick and just
+            # use `latent_paddings = list(reversed(range(total_latent_sections)))` to compare
+            latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
 
         for i_section, latent_padding in enumerate(latent_paddings):
             # 先に変数を定義
             is_first_section = i_section == 0
-            
-            # オールパディングの場合の特別処理
-            if use_all_padding:
-                # 最後のセクションの判定
-                is_last_section = i_section == len(latent_paddings) - 1
-                
-                # 内部処理用に元の値を保存
-                orig_padding_value = latent_padding
-                
-                # 最後のセクションが0より大きい場合は警告と強制変換
-                if is_last_section and float(latent_padding) > 0:
-                    print(f"\u8b66\u544a: \u6700\u5f8c\u306e\u30bb\u30af\u30b7\u30e7\u30f3\u306e\u30d1\u30c7\u30a3\u30f3\u30b0\u5024\u306f\u5185\u90e8\u8a08\u7b97\u306e\u305f\u3081\u306b0\u306b\u5f37\u5236\u3057\u307e\u3059\u3002")
-                    latent_padding = 0
-                elif isinstance(latent_padding, float):
-                    # 浮動小数点の場合は整数変換
-                    # 小数点1桁に固定し、最近の整数に丸める
-                    latent_padding = int(round(float(latent_padding)))
-                
-                # 値が変更された場合にデバッグ情報を出力
-                if float(orig_padding_value) != float(latent_padding):
-                    print(f"\u30d1\u30c7\u30a3\u30f3\u30b0\u5024\u5909\u63db: \u30bb\u30af\u30b7\u30e7\u30f3{i_section}\u306e\u5024\u3092{orig_padding_value}\u304b\u3089{latent_padding}\u306b\u5909\u63db\u3057\u307e\u3057\u305f")
-            else:
-                # 通常モードの場合
-                is_last_section = latent_padding == 0
-            
+            is_last_section = latent_padding == 0
             use_end_latent = is_last_section and end_frame is not None
             latent_padding_size = latent_padding * latent_window_size
             
             # 定義後にログ出力
-            print(f"\n\u25a0 セクション{i_section}の処理開始 (" + (f"設定パディング値: {all_padding_value}" if use_all_padding else f"パディング値: {latent_padding}") + ")")
+            print(f"\n\u25a0 セクション{i_section}の処理開始 (パディング値: {latent_padding})")
             print(f"  - 現在の生成フレーム数: {total_generated_latent_frames * 4 - 3}フレーム")
             print(f"  - 生成予定フレーム数: {num_frames}フレーム")
             print(f"  - 最初のセクション?: {is_first_section}")
@@ -768,7 +744,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     return
 
 
-def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0, use_all_padding=False, all_padding_value=1.0):
+def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0):
     global stream
     assert input_image is not None, 'No input image!'
     
@@ -784,12 +760,6 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     print(f"\u25c6 サンプリングステップ数: {steps}")
     print(f"\u25c6 TeaCache使用: {use_teacache}")
     print(f"\u25c6 LoRA使用: {use_lora}")
-    
-    # オールパディング設定のログ出力
-    if use_all_padding:
-        print(f"\u25c6 オールパディング: 有効 (値: {round(all_padding_value, 1)})")
-    else:
-        print(f"\u25c6 オールパディング: 無効")
     
     # LoRA情報のログ出力
     if use_lora and lora_file is not None:
@@ -829,7 +799,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
         output_dir = "outputs"
     print(f'Output directory: {output_dir}')
 
-    async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value)
+    async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength)
 
     output_filename = None
 
@@ -884,26 +854,6 @@ css = make_progress_bar_css() + """
     color: #ff3860 !important;
     font-weight: bold !important;
 }
-
-/* オールパディングの高さ調整 */
-#all_padding_checkbox {
-    padding-top: 1.5rem;
-    min-height: 5.8rem;
-}
-
-#all_padding_checkbox .wrap {
-    align-items: flex-start;
-}
-
-#all_padding_checkbox .label-wrap {
-    margin-bottom: 0.8rem;
-    font-weight: 500;
-    font-size: 14px;
-}
-
-#all_padding_checkbox .info {
-    margin-top: 0.2rem;
-}
 """
 block = gr.Blocks(css=css).queue()
 with block:
@@ -916,20 +866,6 @@ with block:
     with gr.Row():
         with gr.Column(scale=1):
             mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL, MODE_TYPE_LOOP], value=MODE_TYPE_NORMAL, label="生成モード", info="通常：一般的な生成 / ループ：ループ動画用")
-        with gr.Column(scale=1):
-            # オールパディング設定
-            use_all_padding = gr.Checkbox(label="オールパディング", value=False, info="すべてのセクションで同じパディング値を使用", elem_id="all_padding_checkbox")
-            all_padding_value = gr.Slider(label="パディング値", minimum=0, maximum=3, value=1, step=1, info="すべてのセクションに適用するパディング値（0〜3の整数）", visible=False)
-            
-            # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
-            def toggle_all_padding_slider(use_all_padding):
-                return gr.update(visible=use_all_padding)
-            
-            use_all_padding.change(
-                fn=toggle_all_padding_slider,
-                inputs=[use_all_padding],
-                outputs=[all_padding_value]
-            )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
             length_radio = gr.Radio(choices=get_video_modes(), value="6秒", label="動画長", info="キーフレーム画像のコピー範囲と動画の長さを設定")
@@ -1237,7 +1173,7 @@ with block:
                 result_message = gr.Markdown("")
     
     # 実行ボタンのイベント
-    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value]
+    ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength]
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
     
