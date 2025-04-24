@@ -502,7 +502,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             # LoRA処理のためのオブジェクト
             transformer_obj = transformer
             
-            # LoRA処理部分を条件分岐で囲む - DynamicSwapLoRA版
+            # LoRA処理部分を条件分岐で囲む
             if use_lora and has_lora_support and lora_file is not None:
                 try:
                     # LoRAファイルのパスを取得
@@ -511,28 +511,79 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     
                     print(f"LoRAを読み込み中: {os.path.basename(lora_path)} (スケール: {lora_scale})")
                     
-                    # transformerモデルのコピーを作成（元のモデルを維持するため）
-                    transformer_lora = copy.deepcopy(transformer)
-                    
-                    # DynamicSwapLoRAによるLoRA適用
+                    # LoRAマネージャーを初期化
                     from lora_utils.dynamic_swap_lora import DynamicSwapLoRAManager
                     lora_manager = DynamicSwapLoRAManager()
-                    lora_manager.load_lora(lora_path, is_diffusers=is_diffusers)
+                    
+                    # LoRAをロード（選択的適用とプルーニングを有効化）
+                    lora_manager.load_lora(
+                        lora_path, 
+                        is_diffusers=is_diffusers, 
+                        selective_application=True, 
+                        pruning=True, 
+                        pruning_threshold=0.005
+                    )
                     lora_manager.set_scale(lora_scale)
-                    lora_manager.install_hooks(transformer_lora)
-                    print(f"DynamicSwapLoRAによるLoRAを適用しました (スケール: {lora_scale})")
                     
-                    # 使用するtransformerを変更
-                    transformer_obj = transformer_lora
+                    # LoRAが有効になった場合のみ処理
+                    if lora_manager.is_active:
+                        # transformerモデルのコピーを作成（元のモデルを維持するため）
+                        transformer_lora = copy.deepcopy(transformer)
+                        
+                        # 低VRAMモードでも高VRAMモードと同様に直接LoRAを適用する
+                        from lora_utils.lora_loader import load_and_apply_lora
+                        transformer_lora, applied_params = load_and_apply_lora(
+                            transformer_lora, 
+                            lora_path, 
+                            lora_scale, 
+                            is_diffusers,
+                            selective_application=True,
+                            pruning=True,
+                            pruning_threshold=0.005,
+                            return_applied_count=True  # 適用されたパラメータ数を返す
+                        )
+                        print(f"LoRAを直接適用しました（適用パラメータ: {applied_params} 個）")
+                        # 使用するtransformerを変更
+                        transformer_obj = transformer_lora
                     
-                    # 診断レポートの出力（オプション）
+                    # LoRA適用状況の結果を診断
                     try:
-                        from lora_utils.lora_check_helper import check_lora_applied
-                        has_lora, source = check_lora_applied(transformer_lora)
-                        print(f"LoRA適用状況: {has_lora}, 適用方法: {source}")
-                    except Exception as diagnostic_error:
-                        print(f"LoRA診断エラー: {diagnostic_error}")
-                    
+                        from lora_utils.lora_check_helper import create_lora_stats_report
+                        from lora_utils.lora_loader import load_lora_weights, detect_lora_format, check_for_musubi
+                        
+                        # 元のLoRAファイルを読み込む
+                        try:
+                            lora_state_dict = load_lora_weights(lora_path)
+                            format_type = detect_lora_format(lora_state_dict)
+                            
+                            # フォーマットに応じて変換
+                            if format_type == 'musubi':
+                                lora_state_dict = check_for_musubi(lora_state_dict)
+                            elif is_diffusers:
+                                from lora_utils.lora_loader import convert_diffusers_lora_to_framepack
+                                lora_state_dict = convert_diffusers_lora_to_framepack(lora_state_dict)
+                            
+                            # 適用済みパラメータ数を渡して診断レポートを生成
+                            lora_stats = create_lora_stats_report(
+                                model=transformer_lora, 
+                                lora_name=os.path.basename(lora_path), 
+                                lora_state_dict=lora_state_dict,
+                                applied_params=applied_params  # 適用済みパラメータ数を渡す
+                            )
+                            print(lora_stats)
+                        except Exception as e:
+                            print(f"LoRA診断エラー: {e}")
+                            traceback.print_exc()
+                        
+                        # 適用可能か確認
+                        if applied_params == 0:
+                            print("LoRAは適用対象が存在しないため無効化されました")
+                            # 元のtransformerを使用
+                            transformer_obj = transformer
+                    except Exception as check_err:
+                        print(f"LoRA状態確認エラー: {check_err}")
+                        traceback.print_exc()
+                        
                 except Exception as e:
                     print(f"LoRA適用エラー: {e}")
                     traceback.print_exc()
