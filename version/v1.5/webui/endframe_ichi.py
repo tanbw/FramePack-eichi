@@ -58,12 +58,11 @@ from eichi_utils.keyframe_handler import (
     ui_to_code_index,
     code_to_ui_index,
     unified_keyframe_change_handler,
+    unified_mode_length_change_handler,
     unified_input_image_change_handler,
     print_keyframe_debug_info
 )
 
-# 拡張キーフレーム処理モジュールをインポート
-from eichi_utils.keyframe_handler_extended import extended_mode_length_change_handler
 import gradio as gr
 import torch
 import einops
@@ -774,19 +773,8 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     global stream
     assert input_image is not None, 'No input image!'
     
-    # フレームサイズ設定に応じてlatent_window_sizeを先に調整
-    if frame_size_setting == "0.5秒 (17フレーム)":
-        # 0.5秒の場合はlatent_window_size=5に設定（5*4-3=17フレーム≒0.5秒@30fps）
-        latent_window_size = 5
-        print(f'フレームサイズを0.5秒モードに設定: latent_window_size = {latent_window_size}')
-    else:
-        # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
-        latent_window_size = 9
-        print(f'フレームサイズを1秒モードに設定: latent_window_size = {latent_window_size}')
-    
     # 動画生成の設定情報をログに出力
-    frame_count = latent_window_size * 4 - 3
-    total_latent_sections = int(max(round((total_second_length * 30) / frame_count), 1))
+    total_latent_sections = int(max(round((total_second_length * 30) / (latent_window_size * 4)), 1))
     
     mode_name = "通常モード" if mode_radio.value == MODE_TYPE_NORMAL else "ループモード"
     
@@ -838,20 +826,20 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
     print(f'Using GPU memory preservation setting: {gpu_memory_value} GB')
     
+    # フレームサイズ設定に応じてlatent_window_sizeを調整
+    if frame_size_setting == "0.5秒 (17フレーム)":
+        # 0.5秒の場合はlatent_window_size=5に設定（5*4-3=17フレーム≒0.5秒@30fps）
+        latent_window_size = 5
+        print(f'フレームサイズを0.5秒モードに設定: latent_window_size = {latent_window_size}')
+    else:
+        # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
+        latent_window_size = 9
+        print(f'フレームサイズを1秒モードに設定: latent_window_size = {latent_window_size}')
+    
     # 出力フォルダが空の場合はデフォルト値を使用
     if not output_dir or not output_dir.strip():
         output_dir = "outputs"
     print(f'Output directory: {output_dir}')
-    
-    # 先に入力データの状態をログ出力（デバッグ用）
-    if input_image is not None:
-        print(f"[DEBUG] input_image shape: {input_image.shape}, type: {type(input_image)}")
-    if end_frame is not None:
-        print(f"[DEBUG] end_frame shape: {end_frame.shape}, type: {type(end_frame)}")
-    if section_settings is not None:
-        print(f"[DEBUG] section_settings count: {len(section_settings)}")
-        valid_images = sum(1 for s in section_settings if s and s[1] is not None)
-        print(f"[DEBUG] Valid section images: {valid_images}")
 
     async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value)
 
@@ -862,17 +850,14 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
 
         if flag == 'file':
             output_filename = data
-            # より明確な更新方法を使用し、preview_imageを明示的にクリア
-            yield output_filename, gr.update(value=None, visible=False), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True), gr.update()
+            yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
         if flag == 'progress':
             preview, desc, html = data
-            # preview_imageを明示的に設定
             yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
         if flag == 'end':
-            # 処理終了時に明示的にpreview_imageをクリア
-            yield output_filename, gr.update(value=None, visible=False), gr.update(), '', gr.update(interactive=True), gr.update(interactive=False), gr.update()
+            yield output_filename, gr.update(visible=False), gr.update(), '', gr.update(interactive=True), gr.update(interactive=False), gr.update()
             break
 
 
@@ -931,39 +916,6 @@ css = make_progress_bar_css() + """
 #all_padding_checkbox .info {
     margin-top: 0.2rem;
 }
-
-/* セクション間の区切り線を太くする */
-.section-row {
-    border-bottom: 4px solid #3273dc;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    margin-top: 10px;
-    position: relative;
-}
-
-/* セクション番号を目立たせる */
-.section-row .gr-form:first-child label {
-    font-weight: bold;
-    font-size: 1.1em;
-    color: #3273dc;
-    background-color: rgba(50, 115, 220, 0.1);
-    padding: 5px 10px;
-    border-radius: 4px;
-    margin-bottom: 10px;
-    display: inline-block;
-}
-
-/* セクションの背景を少し強調 */
-.section-row {
-    background-color: rgba(50, 115, 220, 0.03);
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* セクション間の余白を増やす */
-.section-container > .gr-block:not(:first-child) {
-    margin-top: 10px;
-}
 """
 block = gr.Blocks(css=css).queue()
 with block:
@@ -982,17 +934,17 @@ with block:
             all_padding_value = gr.Slider(label="パディング値", minimum=0, maximum=3, value=1, step=1, info="すべてのセクションに適用するパディング値（0〜3の整数）", visible=False)
             
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
-            def toggle_all_padding_visibility(use_all_padding):
+            def toggle_all_padding_slider(use_all_padding):
                 return gr.update(visible=use_all_padding)
             
             use_all_padding.change(
-                fn=toggle_all_padding_visibility,
+                fn=toggle_all_padding_slider,
                 inputs=[use_all_padding],
                 outputs=[all_padding_value]
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
-            length_radio = gr.Radio(choices=get_video_modes(), value="1秒", label="動画長", info="キーフレーム画像のコピー範囲と動画の長さを設定")
+            length_radio = gr.Radio(choices=get_video_modes(), value="6秒", label="動画長", info="キーフレーム画像のコピー範囲と動画の長さを設定")
     
     with gr.Row():
         with gr.Column():
@@ -1022,9 +974,6 @@ with block:
                         label="フレームサイズ", 
                         info="1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）"
                     )
-                
-                # 計算結果を表示するエリア
-                section_calc_display = gr.HTML("", label="")
                 
                 use_teacache = gr.Checkbox(label='Use TeaCache', value=True, info='Faster speed, but often makes hands and fingers slightly worse.')
 
@@ -1061,7 +1010,7 @@ with block:
                 save_section_frames = gr.Checkbox(label="セクションごとの静止画を保存", value=False, info="各セクションの最終フレームを静止画として保存します（デフォルトOFF）")
                 
                 # キーフレームコピー機能のオンオフ切り替え
-                enable_keyframe_copy = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=False, info="オンにするとキーフレーム間の自動コピーが行われます")
+                enable_keyframe_copy = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=True, info="オフにするとキーフレーム間の自動コピーが行われなくなります")
                 
                 # LoRA設定グループを追加
                 with gr.Group(visible=has_lora_support) as lora_settings_group:
@@ -1169,60 +1118,29 @@ with block:
                 
                 open_folder_btn.click(fn=handle_open_folder_btn, inputs=[output_dir], outputs=[output_dir, path_display])
 
-                # セクション設定（ダイナミックに表示する）
+                # セクション設定（DataFrameをやめて個別入力欄に変更）
                 # 設定から最大キーフレーム数を取得
                 max_keyframes = get_max_keyframes_count()
                 
-                # セクション入力用のリストを初期化
+                # セクション設定の入力欄を動的に生成
                 section_number_inputs = []
                 section_image_inputs = []
                 section_prompt_inputs = []  # プロンプト入力欄用のリスト
-                section_row_groups = []  # 各セクションのUI行を管理するリスト
-                
-                # 現在の動画モードで必要なセクション数を取得する関数
-                def get_current_sections_count():
-                    mode_value = length_radio.value
-                    if mode_value in VIDEO_MODE_SETTINGS:
-                        return VIDEO_MODE_SETTINGS[mode_value]["sections"]
-                    return max_keyframes  # デフォルト値
-
-                # 現在の必要セクション数を取得
-                initial_sections_count = get_current_sections_count()
-                print(f"初期表示セクション数: {initial_sections_count}")
-                
-                # セクション設定タイトルの定義と動的な更新用の関数
-                # 現在のセクション数に応じたMarkdownを返す関数
-                def generate_section_title(total_sections):
-                    return f"### セクション設定. セクション番号は動画の終わりからカウント（0が最後のセクション）.（任意。指定しない場合は通常のImage/プロンプトを使用）総セクション数：{total_sections}"
-                
-                # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
-                def update_section_title(frame_size, mode, length):
-                    seconds = get_video_seconds(length)
-                    latent_window_size = 5 if frame_size == "0.5秒 (17フレーム)" else 9
-                    frame_count = latent_window_size * 4 - 3
-                    total_frames = int(seconds * 30)
-                    total_sections = int(max(round(total_frames / frame_count), 1))
-                    return generate_section_title(total_sections)
-                
-                # 初期タイトルを計算
-                initial_title = update_section_title(frame_size_radio.value, mode_radio.value, length_radio.value)
-                
-                with gr.Group(elem_classes="section-container"):
-                    section_title = gr.Markdown(initial_title)
+                with gr.Group():
+                    gr.Markdown("### セクション設定. セクション番号は動画の終わりからカウント.（任意。指定しない場合は通常のImage/プロンプトを使用）")
                     for i in range(max_keyframes):
-                        with gr.Row(visible=(i < initial_sections_count), elem_classes="section-row") as row_group:
+                        with gr.Row():
                             # 左側にセクション番号とプロンプトを配置
                             with gr.Column(scale=1):
-                                section_number = gr.Number(label=f"セクション番号{i}", value=i, precision=0)
-                                section_prompt = gr.Textbox(label=f"セクションプロンプト{i}", placeholder="セクション固有のプロンプト（空白の場合は共通プロンプトを使用）", lines=2)
+                                section_number = gr.Number(label=f"セクション番号{i+1}", value=i, precision=0)
+                                section_prompt = gr.Textbox(label=f"セクションプロンプト{i+1}", placeholder="セクション固有のプロンプト（空白の場合は共通プロンプトを使用）", lines=2)
                             
                             # 右側にキーフレーム画像のみ配置
                             with gr.Column(scale=2):
-                                section_image = gr.Image(label=f"キーフレーム画像{i}", sources="upload", type="numpy", height=200)
+                                section_image = gr.Image(label=f"キーフレーム画像{i+1}", sources="upload", type="numpy", height=200)
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
                             section_prompt_inputs.append(section_prompt)
-                            section_row_groups.append(row_group)  # 行全体をリストに保存
                 
                 # 重要なキーフレームの説明
                 with gr.Row():
@@ -1248,130 +1166,24 @@ with block:
                 for inp in section_inputs:
                     inp.change(fn=update_section_settings, inputs=section_inputs, outputs=section_settings)
                 
-                # フレームサイズ変更時の処理を追加
-                def update_section_calculation(frame_size, mode, length):
-                    """フレームサイズ変更時にセクション数を再計算して表示を更新"""
-                    # 動画長を取得
-                    seconds = get_video_seconds(length)
-                    
-                    # latent_window_sizeを設定
-                    latent_window_size = 5 if frame_size == "0.5秒 (17フレーム)" else 9
-                    frame_count = latent_window_size * 4 - 3
-                    
-                    # セクション数を計算
-                    total_frames = int(seconds * 30)
-                    total_sections = int(max(round(total_frames / frame_count), 1))
-                    
-                    # 計算詳細を表示するHTMLを生成
-                    html = f"""<div style='padding: 10px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px;'>
-                    <strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}
-                    <br>
-                    動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong>
-                    </div>"""
-                    
-                    # デバッグ用ログ
-                    print(f"計算結果: モード={length}, フレームサイズ={frame_size}, latent_window_size={latent_window_size}, 総フレーム数={total_frames}, 必要セクション数={total_sections}")
-                    
-                    return html
-                
-                # 初期化時にも計算を実行
-                initial_html = update_section_calculation(frame_size_radio.value, mode_radio.value, length_radio.value)
-                section_calc_display = gr.HTML(value=initial_html, label="")
-                
-                # フレームサイズ変更イベント - HTML表示の更新とセクションタイトルの更新を行う
-                frame_size_radio.change(
-                    fn=update_section_calculation,
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[section_calc_display]
-                )
-                
-                # フレームサイズ変更時にセクションタイトルも更新
-                frame_size_radio.change(
-                    fn=update_section_title,
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[section_title]
-                )
-                
-                # フレームサイズ変更時にセクションUIも更新する
-                frame_size_radio.change(
-                    fn=lambda frame_size, mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups, frame_size),
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
-                )
-                
-                # 動画長変更イベントでもセクション数計算を更新
-                length_radio.change(
-                    fn=update_section_calculation,
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[section_calc_display]
-                )
-                
-                # 動画長変更時にセクションタイトルも更新
-                length_radio.change(
-                    fn=update_section_title,
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[section_title]
-                )
-                
-                # モード変更時にも計算を更新
-                mode_radio.change(
-                    fn=update_section_calculation,
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[section_calc_display]
-                )
-                
-                # モード変更時にセクションタイトルも更新
-                mode_radio.change(
-                    fn=update_section_title,
-                    inputs=[frame_size_radio, mode_radio, length_radio],
-                    outputs=[section_title]
-                )
-                
                 # モード変更時の処理
                 mode_radio.change(
-                    fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups),
+                    fn=lambda mode, length: unified_mode_length_change_handler(mode, length, section_number_inputs),
                     inputs=[mode_radio, length_radio],
-                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
+                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length]
                 )
                 
                 # 動画長変更時の処理
                 length_radio.change(
-                    fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups),
+                    fn=lambda mode, length: unified_mode_length_change_handler(mode, length, section_number_inputs),
                     inputs=[mode_radio, length_radio],
-                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
+                    outputs=[input_image, end_frame] + section_image_inputs + [total_second_length]
                 )
                 
-                # 入力画像変更時の処理 - ループモード用に復活
-                # 通常モードでセクションにコピーする処理はコメント化したまま
-                # ループモードのLastにコピーする処理のみ復活
-                
-                # ループモード専用の入力画像ハンドラ関数
-                def loop_mode_image_handler(img, mode, length):
-                    """input_imageの変更時、ループモードの場合のみコピーを行う関数"""
-                    if img is None:
-                        # 画像が指定されていない場合は何もしない
-                        section_count = get_max_keyframes_count()
-                        return [gr.update()] + [gr.update() for _ in range(section_count)]
-                    
-                    # ループモードかどうかで処理を分岐
-                    if mode == MODE_TYPE_LOOP:
-                        # ループモード: FinalFrameに入力画像をコピー
-                        updates = [gr.update(value=img)]  # end_frame
-                        
-                        # キーフレーム画像は更新なし
-                        section_count = get_max_keyframes_count()
-                        updates.extend([gr.update() for _ in range(section_count)])
-                    else:
-                        # 通常モード: 何もしない
-                        section_count = get_max_keyframes_count()
-                        updates = [gr.update()] + [gr.update() for _ in range(section_count)]
-                    
-                    return updates
-                
-                # ループモード専用ハンドラを使用
+                # 入力画像変更時の処理
                 input_image.change(
-                    fn=loop_mode_image_handler,
-                    inputs=[input_image, mode_radio, length_radio],
+                    fn=unified_input_image_change_handler,
+                    inputs=[input_image, mode_radio, length_radio, enable_keyframe_copy],
                     outputs=[end_frame] + section_image_inputs
                 )
                 

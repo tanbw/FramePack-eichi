@@ -14,20 +14,6 @@ MODE_TYPE_LOOP = "ループ"
 # ビデオモード設定の定義
 # このデータ構造がモード選択の中心となります
 VIDEO_MODE_SETTINGS = {
-    "1秒": {
-        "frames": 30,                   # 1秒×30FPS
-        "sections": 1,                  # 必要セクション数（正確な計算に基づく）
-        "display_seconds": 1.0,         # UI表示用秒数
-        "important_keyframes": [0],     # 重要なキーフレームのインデックス（0始まり）
-        "copy_patterns": {
-            "通常": {
-                "0": [],                # 短いためコピー不要
-            },
-            "ループ": {
-                "0": [],                # 短いためコピー不要
-            }
-        }
-    },
     "6秒": {
         "frames": 180,                  # 6秒×30FPS
         "sections": 6,                  # 必要セクション数（正確な計算に基づく）
@@ -195,7 +181,6 @@ def get_copy_targets(mode, mode_key, keyframe_index):
 
 def get_max_keyframes_count():
     """設定で使用されている最大キーフレーム数を取得"""
-    # 動的に計算するメソッド
     max_kf = 0
     for mode_key in VIDEO_MODE_SETTINGS:
         # まず重要なキーフレームの最大値をチェック
@@ -218,16 +203,8 @@ def get_max_keyframes_count():
                 if targets and max(targets) > max_kf:
                     max_kf = max(targets)
     
-   # 計算されたセクション数の最大値も考慮
-    for mode_key in VIDEO_MODE_SETTINGS:
-        if "sections" in VIDEO_MODE_SETTINGS[mode_key]:
-            sections = VIDEO_MODE_SETTINGS[mode_key]["sections"]
-            if sections > max_kf:
-                max_kf = sections
-    
-    # 固定値として50を設定（または計算値と50の大きい方を使用。100だとUIコンポーネント超過エラー）
-    return max(max_kf + 1, 50)  # 0始まりなので+1、かつ最小50
-    
+    return max_kf + 1  # 0始まりなので+1
+
 
 def generate_keyframe_guide_html():
     """キーフレームガイドのHTML生成"""
