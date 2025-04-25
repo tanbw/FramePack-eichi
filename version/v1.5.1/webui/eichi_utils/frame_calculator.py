@@ -30,12 +30,11 @@ def calculate_total_second_length(frames, fps=30):
 
 def calculate_sections_for_mode_and_size(mode_key, frame_size_setting="1秒 (33フレーム)"):
     """動画モードとフレームサイズ設定から必要なセクション数を計算"""
-    # 動画モードから秒数を取得
+    # 動画モードからフレーム数を取得
     if mode_key not in VIDEO_MODE_SETTINGS:
         return 15  # デフォルト値
     
-    # 動画の秒数を取得
-    total_seconds = VIDEO_MODE_SETTINGS[mode_key]["display_seconds"]
+    total_frames = VIDEO_MODE_SETTINGS[mode_key]["frames"]
     
     # フレームサイズ設定からlatent_window_sizeを判定
     if frame_size_setting == "0.5秒 (17フレーム)":
@@ -43,18 +42,12 @@ def calculate_sections_for_mode_and_size(mode_key, frame_size_setting="1秒 (33�
     else:
         latent_window_size = 9  # 1秒モードがデフォルト
     
-    # video_mode_settingsの動的計算関数を使用
-    # endframe_ichi.pyと同じ計算ロジックを適用
-    from eichi_utils.video_mode_settings import calculate_dynamic_sections_count
-    required_sections = calculate_dynamic_sections_count(total_seconds, latent_window_size)
+    # 必要なセクション数を計算
+    required_sections = calculate_sections_from_frames(total_frames, latent_window_size)
     
     # デバッグ情報
     frames_per_section = calculate_frames_per_section(latent_window_size)
-    total_frames = int(total_seconds * 30)
-    # print(f"計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, "
-    #       f"総フレーム数={total_frames}, 秒数={total_seconds}, "
-    #       f"セクションあたり={frames_per_section}フレーム, "
-    #       f"必要セクション数={required_sections}")
+    print(f"計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}")
     
     # 結果を返す
     return required_sections

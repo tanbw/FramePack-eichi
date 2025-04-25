@@ -14,7 +14,7 @@ from eichi_utils.keyframe_handler import code_to_ui_index, get_max_keyframes_cou
 from eichi_utils.frame_calculator import calculate_sections_for_mode_and_size
 
 def extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups=None, frame_size_setting="1秒 (33フレーム)"):
-    """モードと動画長の変更を統一的に処理する関数（セクション行の表示/非表示制御を追加）
+    """モードと動画長の変更を統一的に処理する関数（セクション行の表示/非表示制御とセクション番号の自動設定を追加）
     
     Args:
         mode: モード ("通常" or "ループ")
@@ -26,33 +26,42 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     Returns:
         更新リスト: 各UI要素の更新情報のリスト
     """
-    # 基本要素のクリア（入力画像と終了フレーム）
-    updates = [gr.update(value=None) for _ in range(2)]
+    # 基本要素の更新（値を保持し、visible状態のみ更新）
+    updates = [gr.update(), gr.update()]
     
     # すべてのキーフレーム画像をクリア
     section_image_count = get_max_keyframes_count()
+    section_image_updates = []
     for _ in range(section_image_count):
-        updates.append(gr.update(value=None, elem_classes=""))
+        section_image_updates.append(gr.update(value=None, elem_classes=""))
+    
+    # 更新リストに画像更新を追加
+    updates.extend(section_image_updates)
     
     # セクション番号ラベルをリセット
     for i in range(len(section_number_inputs)):
         section_number_inputs[i].elem_classes = ""
     
-    # 重要なキーフレームを強調表示
-    important_kfs = get_important_keyframes(length)
-    for idx in important_kfs:
-        ui_idx = code_to_ui_index(idx)
-        update_idx = ui_idx + 1  # 入力画像と終了フレームの2つを考慮
-        if update_idx < len(updates):
-            updates[update_idx] = gr.update(value=None, elem_classes="highlighted-keyframe")
-            if idx < len(section_number_inputs):
-                section_number_inputs[idx].elem_classes = "highlighted-label"
+    # 動画モードとフレームサイズから必要なセクション数を計算
+    required_sections = calculate_sections_for_mode_and_size(length, frame_size_setting)
+    print(f"動画モード '{length}' とフレームサイズ '{frame_size_setting}' で必要なセクション数: {required_sections}")
     
-    # ループモードの場合はキーフレーム0も強調（まだ強調されていない場合）
-    if mode == MODE_TYPE_LOOP and 0 not in important_kfs:
-        updates[2] = gr.update(value=None, elem_classes="highlighted-keyframe")
-        if 0 < len(section_number_inputs):
-            section_number_inputs[0].elem_classes = "highlighted-label"
+    # セクション番号の更新用リスト
+    section_number_updates = []
+    
+    # セクション番号を降順で自動設定 (実際のセクション数に合わせて設定)
+    for i in range(len(section_number_inputs)):
+        if i < required_sections - 1:  # 実際のセクション数-1まで表示
+            # セクション番号をrequired_sections-1から0に設定
+            section_number = (required_sections - 1) - i  # 例: 7セクションなら6,5,4,3,2,1,0に
+            section_number_updates.append(gr.update(value=section_number))
+            # print(f"[デバッグ] セクション番号自動設定: セクションインデックス{i} → 値{section_number}")
+        else:
+            # 非表示のセクションは変更なし
+            section_number_updates.append(gr.update())
+    
+    # 重要なキーフレームの強調表示を削除
+    # キーフレーム画像には赤枠などの強調表示を適用しない
     
     # 動画長の設定
     video_length = get_video_seconds(length)
@@ -60,16 +69,19 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     # 最終的な動画長設定を追加
     updates.append(gr.update(value=video_length))
     
+    # セクション番号更新を更新リストに追加
+    updates.extend(section_number_updates)
+    
     # セクション行の表示/非表示を制御
     if section_row_groups is not None:
-        # 動画モードとフレームサイズから必要なセクション数を計算
-        required_sections = calculate_sections_for_mode_and_size(length, frame_size_setting)
-        print(f"動画モード '{length}' とフレームサイズ '{frame_size_setting}' で必要なセクション数: {required_sections}")
-        
         # 各セクション行の表示/非表示を設定
         row_updates = []
+        # print(f"[デバッグ] キーフレームハンドラー拡張: セクション行表示判定: required_sections={required_sections}, 表示条件=(i < (required_sections - 1))")
         for i, _ in enumerate(section_row_groups):
-            if i < required_sections:
+            # 実際のセクション数に合わせて表示/非表示を制御
+            is_visible = i < (required_sections - 1)  # セクション数が7の場合はセクション番号6～0を表示
+            # print(f"[デバッグ] セクション行{i}: 表示={'YES' if is_visible else 'NO'}")
+            if is_visible:
                 row_updates.append(gr.update(visible=True))
             else:
                 row_updates.append(gr.update(visible=False))
