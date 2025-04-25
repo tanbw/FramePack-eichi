@@ -302,7 +302,9 @@ FramePackの動画生成品質は、キーフレーム画像の選択に大き�
    - `endframe_ichi.py` - メインアプリケーションファイル
    - `eichi_utils` フォルダ - ユーティリティモジュール（v1.3.1で見直し）
      - `__init__.py`
+     - `frame_calculator.py` - フレームサイズ計算モジュール
      - `keyframe_handler.py` - キーフレーム処理モジュール
+     - `keyframe_handler_extended.py` - キーフレーム処理モジュール
      - `preset_manager.py` - プリセット管理モジュール
      - `settings_manager.py` - 設定管理モジュール
      - `video_mode_settings.py` - 動画モード設定モジュール
