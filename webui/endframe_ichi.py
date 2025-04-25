@@ -1140,7 +1140,7 @@ with block:
             # セクション設定とUI関連のコード
             
             # total_second_lengthを先に移動して定義する必要があるのでここに配置
-            total_second_length = gr.Slider(label="Total Video Length (Seconds)", minimum=1, maximum=120, value=6, step=1)
+            total_second_length = gr.Slider(label="Total Video Length (Seconds)", minimum=1, maximum=120, value=1, step=1)
             latent_window_size = gr.Slider(label="Latent Window Size", minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
             
             # section_settingsは入力欄の値をまとめてリスト化
