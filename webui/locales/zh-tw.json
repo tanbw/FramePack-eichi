@@ -181,5 +181,7 @@
   "16(4x4)秒": "16(4x4)秒",
   "20(4x5)秒": "20(4x5)秒",
   "6秒": "6秒",
-  "8秒": "8秒"
+  "8秒": "8秒",
+
+  "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'>\n<strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}\n<br>\n動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong>\n<br>\n<span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span>\n</div>": "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'>\n<strong>詳細計算</strong>: 模式={length}, 幀大小={frame_size}, 總幀數={total_frames}, 每關鍵幀幀數={frame_count}幀, 必要關鍵幀數={total_sections}\n<br>\n動畫模式 '{length}' 和幀大小 '{frame_size}' 所需關鍵幀數: <strong>{total_sections}</strong>\n<br>\n<span style='color: #ff3860; font-weight: bold;'>關鍵幀範圍: {section_range}</span>\n</div>"
 }
