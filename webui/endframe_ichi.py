@@ -822,9 +822,24 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     return
 
 
+# 入力画像のバリデーション関数
+def validate_input_image(input_image):
+    """入力画像が有効かどうかを確認し、エラーメッセージを返す"""
+    if input_image is None:
+        error_html = """
+        <div style="padding: 15px; border-radius: 10px; background-color: #ffebee; border: 1px solid #f44336; margin: 10px 0;">
+            <h3 style="color: #d32f2f; margin: 0 0 10px 0;">❗️ 入力画像が選択されていません</h3>
+            <p>生成を開始する前に「Image」欄に画像をアップロードしてください。これは叡智の出発点となる重要な画像です。</p>
+        </div>
+        """
+        error_bar = make_progress_bar_html(100, '入力画像がありません')
+        return False, error_html + error_bar
+    return True, ""
+
 def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0, use_all_padding=False, all_padding_value=1.0, frame_size_setting="1秒 (33フレーム)"):
     global stream
-    assert input_image is not None, 'No input image!'
+    
+    # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
     
     # フレームサイズ設定に応じてlatent_window_sizeを先に調整
     if frame_size_setting == "0.5秒 (17フレーム)":
@@ -1078,6 +1093,7 @@ with block:
             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
             
             with gr.Row():
+                # クリック前のバリデーション関数を設定
                 start_button = gr.Button(value="Start Generation")
                 end_button = gr.Button(value="End Generation", interactive=False)
                 
@@ -1106,7 +1122,7 @@ with block:
             # 現在のセクション数に応じたMarkdownを返す関数
             def generate_section_title(total_sections):
                 last_section = total_sections - 1
-                return f"### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}"
+                return f"### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。"
             
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
@@ -1515,9 +1531,24 @@ with block:
                 # メッセージ表示用
                 result_message = gr.Markdown("")
     
+    # 実行前のバリデーション関数
+    def validate_and_process(*args):
+        """入力画像のバリデーションを行い、問題がなければ処理を実行する"""
+        input_img = args[0]  # 入力の最初が入力画像
+        is_valid, error_message = validate_input_image(input_img)
+        
+        if not is_valid:
+            # 画像が無い場合はエラーメッセージを表示して終了
+            yield None, gr.update(visible=False), "エラー: 入力画像が選択されていません", error_message, gr.update(interactive=True), gr.update(interactive=False), gr.update()
+            return
+            
+        # 画像がある場合は通常の処理を実行
+        # process関数のジェネレータを返す
+        yield from process(*args)
+    
     # 実行ボタンのイベント
     ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value, frame_size_radio]
-    start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
+    start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
     
     # プリセット保存ボタンのイベント

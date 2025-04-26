@@ -525,10 +525,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
             
+            # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
+            if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+                old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+                os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+                print(f"CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {old_env})")
+
             # LoRA処理のためのオブジェクト
             transformer_obj = transformer
             
-            # LoRA処理部分を条件分岐で囲む - DynamicSwapLoRA版
+            # LoRA処理部分を条件分岐で囲む - DynamicSwapLoRA改良版
             if use_lora and has_lora_support and lora_file is not None:
                 try:
                     # LoRAファイルのパスを取得
@@ -536,6 +542,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     is_diffusers = (lora_format == "Diffusers")
                     
                     print(f"LoRAを読み込み中: {os.path.basename(lora_path)} (スケール: {lora_scale})")
+                    
+                    # セクション処理前に明示的にメモリを解放
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                        torch.cuda.empty_cache()
+                        print(f"メモリクリア: 空き={torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
                     
                     # transformerモデルのコピーを作成（元のモデルを維持するため）
                     transformer_lora = copy.deepcopy(transformer)
@@ -545,6 +557,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     lora_manager = DynamicSwapLoRAManager()
                     lora_manager.load_lora(lora_path, is_diffusers=is_diffusers)
                     lora_manager.set_scale(lora_scale)
+                    # 明示的な同期ポイントの追加（改良）
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    # フックインストール前にメモリ状態をログ出力
+                    print(f"フック設置前メモリ状態: 使用中={torch.cuda.memory_allocated()/1024**3:.2f}GB")
                     lora_manager.install_hooks(transformer_lora)
                     print(f"DynamicSwapLoRAによるLoRAを適用しました (スケール: {lora_scale})")
                     
@@ -565,6 +582,14 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     print("LoRA適用に失敗しました。通常モードで続行します。")
                     # エラー時は元のtransformerを使用
                     transformer_obj = transformer
+                    
+                    # エラー発生時の追加メモリクリア
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                        torch.cuda.empty_cache()
+                        import gc
+                        gc.collect()
+                        print("エラー後のメモリクリア完了")
             else:
                 # LoRA未使用時は元のtransformerを使用
                 transformer_obj = transformer
@@ -576,6 +601,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 else:
                     print("LoRAは使用されません。通常モードで続行します。")
 
+            # セクション処理前に明示的にメモリを解放
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
@@ -662,6 +692,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
+            # VAEデコードの前に同期とメモリクリア（改良）
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                print(f"VAEデコード前メモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
             else:
@@ -670,6 +706,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
                 current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
                 history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
+                
+            # 明示的なCPU転送と不要テンソルの削除（改良）
+            if torch.cuda.is_available():
+                # 必要なデコード後、明示的にキャッシュをクリア
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
 
             # 各セクションの最終フレームを静止画として保存（セクション番号付き）
             if save_section_frames and history_pixels is not None:
@@ -699,6 +741,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30)
 
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
+
+            # セクション処理後の明示的なメモリ解放
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+                memory_allocated = torch.cuda.memory_allocated()/1024**3
+                memory_reserved = torch.cuda.memory_reserved()/1024**3
+                print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
 
             print(f"\u25a0 セクション{i_section}の処理完了")
             print(f"  - 現在の累計フレーム数: {int(max(0, total_generated_latent_frames * 4 - 3))}フレーム")
@@ -770,9 +822,24 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     return
 
 
+# 入力画像のバリデーション関数
+def validate_input_image(input_image):
+    """入力画像が有効かどうかを確認し、エラーメッセージを返す"""
+    if input_image is None:
+        error_html = """
+        <div style="padding: 15px; border-radius: 10px; background-color: #ffebee; border: 1px solid #f44336; margin: 10px 0;">
+            <h3 style="color: #d32f2f; margin: 0 0 10px 0;">❗️ 入力画像が選択されていません</h3>
+            <p>生成を開始する前に「Image」欄に画像をアップロードしてください。これは叡智の出発点となる重要な画像です。</p>
+        </div>
+        """
+        error_bar = make_progress_bar_html(100, '入力画像がありません')
+        return False, error_html + error_bar
+    return True, ""
+
 def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora=False, lora_file=None, lora_scale=0.8, lora_format="HunyuanVideo", end_frame_strength=1.0, use_all_padding=False, all_padding_value=1.0, frame_size_setting="1秒 (33フレーム)"):
     global stream
-    assert input_image is not None, 'No input image!'
+    
+    # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
     
     # フレームサイズ設定に応じてlatent_window_sizeを先に調整
     if frame_size_setting == "0.5秒 (17フレーム)":
@@ -1026,6 +1093,7 @@ with block:
             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
             
             with gr.Row():
+                # クリック前のバリデーション関数を設定
                 start_button = gr.Button(value="Start Generation")
                 end_button = gr.Button(value="End Generation", interactive=False)
                 
@@ -1054,7 +1122,7 @@ with block:
             # 現在のセクション数に応じたMarkdownを返す関数
             def generate_section_title(total_sections):
                 last_section = total_sections - 1
-                return f"### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}"
+                return f"### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。"
             
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
@@ -1463,9 +1531,24 @@ with block:
                 # メッセージ表示用
                 result_message = gr.Markdown("")
     
+    # 実行前のバリデーション関数
+    def validate_and_process(*args):
+        """入力画像のバリデーションを行い、問題がなければ処理を実行する"""
+        input_img = args[0]  # 入力の最初が入力画像
+        is_valid, error_message = validate_input_image(input_img)
+        
+        if not is_valid:
+            # 画像が無い場合はエラーメッセージを表示して終了
+            yield None, gr.update(visible=False), "エラー: 入力画像が選択されていません", error_message, gr.update(interactive=True), gr.update(interactive=False), gr.update()
+            return
+            
+        # 画像がある場合は通常の処理を実行
+        # process関数のジェネレータを返す
+        yield from process(*args)
+    
     # 実行ボタンのイベント
     ips = [input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value, frame_size_radio]
-    start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
+    start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
     
     # プリセット保存ボタンのイベント

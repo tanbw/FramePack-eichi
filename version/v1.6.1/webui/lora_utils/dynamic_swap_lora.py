@@ -256,6 +256,9 @@ class DynamicSwapLoRAManager:
         # 優先度でソート
         all_matches.sort(key=lambda x: x[3], reverse=True)
         
+        # 最大パラメータ数を拡大（1.5倍に増加 - メモリ改善）
+        self.max_parameters = max(self.max_parameters, min(1500, len(all_matches)))  # 最大1500パラメータまで自動拡張
+        
         # 最大パラメータ数に制限
         selected_matches = all_matches[:self.max_parameters]
         
@@ -268,9 +271,21 @@ class DynamicSwapLoRAManager:
             # CPUメモリに保存してGPUメモリを節約
             self.original_states[name][param_name] = param.data.detach().cpu().clone()
             saved_params += 1
-            logger.info(f"パラメータ保存: {full_param_name} (スコア: {score})")
+            # デバッグレベルに変更し、ログの量を減らす
+            logger.debug(f"パラメータ保存: {full_param_name} (スコア: {score})")
+            
+            # 100件ごとにメモリ状態をログ出力
+            if saved_params % 100 == 0 and torch.cuda.is_available():
+                memory_allocated = torch.cuda.memory_allocated()/1024**3
+                logger.info(f"保存進捗: {saved_params}/{len(selected_matches)} - メモリ使用: {memory_allocated:.2f}GB")
         
-        logger.info(f"元の状態を保存: {saved_params}パラメータ（最大{self.max_parameters}個に制限）")
+        logger.info(f"元の状態を保存: {saved_params}パラメータ（最大{self.max_parameters}個まで処理）")
+        
+        # 明示的なメモリクリア
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            import gc
+            gc.collect()
     
     def find_matching_lora_keys(self, param_name: str) -> Tuple[Optional[str], Optional[str]]:
         """
@@ -458,37 +473,68 @@ class DynamicSwapLoRAManager:
             return layer
         
         try:
+            # メモリ使用状況を記録（改良）
+            if torch.cuda.is_available() and layer_name.endswith("0"):  # 主要レイヤーのみログ出力
+                memory_allocated = torch.cuda.memory_allocated()/1024**3
+                logger.info(f"レイヤー適用前メモリ: {layer_name}, 使用中={memory_allocated:.2f}GB")
+            
             applied_count = 0
             with torch.no_grad():
+                # 適用予定パラメータを参照
+                orig_names = set()
+                if layer_name in self.original_states:
+                    orig_names = set(self.original_states[layer_name].keys())
+                
                 # レイヤーのパラメータを取得
                 for param_name, param in layer.named_parameters(recurse=False):
+                    # 保存されているパラメータのみ処理（高速化）
+                    if param_name not in orig_names:
+                        continue
+                    
                     full_param_name = f"{layer_name}.{param_name}"
                     
                     # LoRAキーの検索（緩やかなマッチングを含む）
                     lora_down_key, lora_up_key = self.find_matching_lora_keys(full_param_name)
                     
                     if lora_down_key and lora_up_key:
-                        # LoRAの重みを取得
-                        lora_down = self.lora_state_dict[lora_down_key].to(param.device)
-                        lora_up = self.lora_state_dict[lora_up_key].to(param.device)
-                        
-                        # LoRAの演算
-                        delta = torch.matmul(lora_up, lora_down) * self.scale
-                        
-                        # 形状を確認して調整
-                        if delta.shape != param.shape:
-                            logger.warning(f"形状不一致: {delta.shape} != {param.shape}, スキップ: {full_param_name}")
-                            continue
-                        
-                        # 元のパラメータに適用
-                        param.data += delta
-                        applied_count += 1
-                        logger.debug(f"LoRA適用: {full_param_name}")
+                        try:
+                            # LoRAの重みを取得
+                            lora_down = self.lora_state_dict[lora_down_key].to(param.device)
+                            lora_up = self.lora_state_dict[lora_up_key].to(param.device)
+                            
+                            # LoRAの演算
+                            delta = torch.matmul(lora_up, lora_down) * self.scale
+                            
+                            # 不要になった中間テンソルを明示的に削除
+                            del lora_down, lora_up
+                            
+                            # 形状を確認して調整
+                            if delta.shape != param.shape:
+                                logger.warning(f"形状不一致: {delta.shape} != {param.shape}, スキップ: {full_param_name}")
+                                continue
+                            
+                            # 元のパラメータに適用
+                            param.data += delta
+                            applied_count += 1
+                            logger.debug(f"LoRA適用: {full_param_name}")
+                            
+                            # deltaも不要になったので削除
+                            del delta
+                            
+                        except Exception as param_error:
+                            logger.warning(f"パラメータ適用エラー: {full_param_name}, {param_error}")
             
             # 適用したパラメータがあれば記録
             if applied_count > 0:
                 self.applied_layers.add(layer_name)
-                logger.debug(f"レイヤー「{layer_name}」に{applied_count}個のパラメータを適用")
+                logger.info(f"レイヤー「{layer_name}」に{applied_count}個のパラメータを適用")
+            
+            # メモリ使用状況の記録（適用後）
+            if torch.cuda.is_available() and (applied_count > 0 or layer_name.endswith("0")):
+                # 昕やかなメモリ使用状況をデバッグ用に記録
+                torch.cuda.synchronize()  # 特に重要なレイヤーの場合は同期する
+                memory_allocated = torch.cuda.memory_allocated()/1024**3
+                logger.debug(f"レイヤー適用後メモリ: {layer_name}, 使用中={memory_allocated:.2f}GB")
             
             return layer
             
