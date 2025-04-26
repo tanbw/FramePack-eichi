@@ -364,7 +364,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Text encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Text encoding ...'))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Text encoding ..."))))
 
         if not high_vram:
             fake_diffusers_current_device(text_encoder, gpu)  # since we only encode one text - that is one model move and one encode, offload is same time consumption since it is also one load and one encode.
@@ -382,7 +382,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Processing input image
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Image processing ...'))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ..."))))
 
         def preprocess_image(img):
             H, W, C = img.shape
@@ -397,7 +397,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # VAE encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'VAE encoding ...'))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("VAE encoding ..."))))
 
         if not high_vram:
             load_model_as_complete(vae, target_device=gpu)
@@ -422,7 +422,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # CLIP Vision
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'CLIP Vision encoding ...'))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("CLIP Vision encoding ..."))))
 
         if not high_vram:
             load_model_as_complete(image_encoder, target_device=gpu)
@@ -440,7 +440,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Sampling
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Start sampling ...'))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Start sampling ..."))))
 
         rnd = torch.Generator("cpu").manual_seed(seed)
         num_frames = latent_window_size * 4 - 3
@@ -779,11 +779,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 minutes, seconds = divmod(remainder, 60)
                 time_str = ""
                 if hours > 0:
-                    time_str = f"{int(hours)}時間 {int(minutes)}分 {seconds:.1f}秒"
+                    time_str = i18n.translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), seconds:.1f)
                 elif minutes > 0:
-                    time_str = f"{int(minutes)}分 {seconds:.1f}秒"
+                    time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), seconds:.1f)
                 else:
-                    time_str = f"{seconds:.1f}秒"
+                    time_str = i18n.translate("{0}秒").format(seconds:.1f)
                 print(i18n.translate("\n全体の処理時間: {0}").format(time_str))
                 completion_message = i18n.translate("すべてのセクション({0}/{1})が完了しました。全体の処理時間: {2}").format(total_sections, total_sections, time_str)
                 stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, i18n.translate('処理完了')))))
@@ -848,7 +848,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
 
     # フレームサイズ設定に応じてlatent_window_sizeを先に調整
-    if frame_size_setting == "0.5秒 (17フレーム)":
+    if frame_size_setting == i18n.translate("0.5秒 (17フレーム)"):
         # 0.5秒の場合はlatent_window_size=5に設定（5*4-3=17フレーム≒0.5秒@30fps）
         latent_window_size = 5
         print(i18n.translate('フレームサイズを0.5秒モードに設定: latent_window_size = {0}').format(latent_window_size))
@@ -1069,8 +1069,8 @@ with block:
         with gr.Column(scale=1):
             # フレームサイズ切替用のUIコントロール（名前を「セクションフレームサイズ」に変更）
             frame_size_radio = gr.Radio(
-                choices=["1秒 (33フレーム)", "0.5秒 (17フレーム)"],
-                value="1秒 (33フレーム)",
+                choices=[i18n.translate("1秒 (33フレーム)"), i18n.translate("0.5秒 (17フレーム)")],
+                value=i18n.translate("1秒 (33フレーム)"),
                 label=i18n.translate("セクションフレームサイズ"),
                 info=i18n.translate("1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）")
             )
@@ -1128,7 +1128,7 @@ with block:
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
                 seconds = get_video_seconds(length)
-                latent_window_size = 5 if frame_size == "0.5秒 (17フレーム)" else 9
+                latent_window_size = 5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
                 frame_count = latent_window_size * 4 - 3
                 total_frames = int(seconds * 30)
                 total_sections = int(max(round(total_frames / frame_count), 1))
@@ -1138,7 +1138,7 @@ with block:
                 return generate_section_title(display_sections)
 
             # 初期タイトルを計算
-            initial_title = update_section_title("1秒 (33フレーム)", MODE_TYPE_NORMAL, "1秒")
+            initial_title = update_section_title(i18n.translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, i18n.translate("1秒"))
 
             with gr.Accordion(i18n.translate("セクション設定"), open=False, elem_classes="section-accordion"):
                 with gr.Group(elem_classes="section-container"):
@@ -1167,7 +1167,7 @@ with block:
 
             # 互換性のためにQuick Listも残しておくが、非表示にする
             with gr.Row(visible=False):
-                example_quick_prompts = gr.Dataset(samples=quick_prompts, label='Quick List', samples_per_page=1000, components=[prompt])
+                example_quick_prompts = gr.Dataset(samples=quick_prompts, label=i18n.translate("Quick List"), samples_per_page=1000, components=[prompt])
                 example_quick_prompts.click(lambda x: x[0], inputs=[example_quick_prompts], outputs=prompt, show_progress=False, queue=False)
 
             with gr.Group():
@@ -1668,10 +1668,13 @@ with block:
         outputs=[result_message, preset_dropdown]
     )
 
+allowed_paths = [os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './outputs')))]
+
 # 起動コード
 block.launch(
     server_name=args.server,
     server_port=args.port,
     share=args.share,
+    allowed_paths=allowed_paths,
     inbrowser=args.inbrowser,
 )
