@@ -201,7 +201,11 @@ def load_and_apply_lora(
     model: torch.nn.Module,
     lora_path: str,
     scale: float = 0.8,
-    is_diffusers: bool = False
+    is_diffusers: bool = False,
+    selective_application: bool = False,
+    pruning: bool = False,
+    pruning_threshold: float = 0.005,
+    use_simple_mapper: bool = False
 ) -> torch.nn.Module:
     """
     LoRAをロードしてモデルに適用する便利関数
@@ -216,6 +220,12 @@ def load_and_apply_lora(
         torch.nn.Module: LoRAが適用されたモデル
     """
     logger.info(f"LoRAを読み込み・適用: {lora_path}, スケール: {scale}")
+    logger.info(f"オプション設定: selective_application={selective_application}, pruning={pruning}, pruning_threshold={pruning_threshold}, use_simple_mapper={use_simple_mapper}")
+    
+    # 適用前にCUDAキャッシュをクリア
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        logger.info(f"CUDAキャッシュをクリア: 空きメモリ {torch.cuda.memory_allocated()/1024**2:.2f}MB / {torch.cuda.memory_reserved()/1024**2:.2f}MB (割当/予約)")
     
     # LoRAの読み込み
     lora_state_dict = load_lora_weights(lora_path)
@@ -230,43 +240,116 @@ def load_and_apply_lora(
     elif format_type == 'musubi':
         lora_state_dict = check_for_musubi(lora_state_dict)
         
+    # プルーニングが有効な場合、閾値以下の重みを持つLoRAパラメータを削除
+    if pruning:
+        pruned_keys = 0
+        original_keys = len(lora_state_dict)
+        for key in list(lora_state_dict.keys()):
+            if torch.abs(lora_state_dict[key]).max() < pruning_threshold:
+                del lora_state_dict[key]
+                pruned_keys += 1
+        if pruned_keys > 0:
+            logger.info(f"プルーニング: {pruned_keys}/{original_keys} キーを削除 (閾値: {pruning_threshold})")
+        
     # モデルの現在の状態を保存
     original_state = {}
     modified_modules = []
     
+    # 重要なレイヤーを識別する関数（選択的適用時に使用）
+    def identify_important_layers(model):
+        if not selective_application:
+            return [name for name, _ in model.named_parameters()]
+            
+        # 選択的適用のための重要なレイヤーを特定
+        important_patterns = [
+            "qkv", "attn", "up", "down", "gate", "proj",  # アテンションと投影関連
+            "to_out", "feedforward"  # 出力と重要な転送
+        ]
+        return [name for name, _ in model.named_parameters() 
+                if any(pattern in name.lower() for pattern in important_patterns)]
+    
+    # 選択的適用のための重要なレイヤーのリスト
+    important_layers = identify_important_layers(model) if selective_application else None
+    
     try:
         # LoRAの適用
         with torch.no_grad():
+            # パラメータのカウンターを初期化
+            total_params = 0
+            applied_params = 0
+            
+            # 同期ポイントの設定（GPU間の読み書きの一貫性確保）
+            torch.cuda.synchronize()
+            
             for name, param in model.named_parameters():
-                # LoRAに対応するキーを探す
-                lora_down_key = f"{name}.lora_down"
-                lora_up_key = f"{name}.lora_up"
+                # 選択的適用モードで、重要でないレイヤーはスキップ
+                if selective_application and name not in important_layers:
+                    continue
+                    
+                total_params += 1
+                    
+                # LoRAキーのマッピング（通常方式と簡易方式）
+                if use_simple_mapper:
+                    # 簡易マッピング: 直接キー名を使用
+                    lora_down_key = f"{name}.lora_down"
+                    lora_up_key = f"{name}.lora_up"
+                else:
+                    # 詳細マッピング: 複雑なパスをハンドリング
+                    # ここでは簡易マッピングと同じ実装だが、将来的に拡張可能
+                    lora_down_key = f"{name}.lora_down"
+                    lora_up_key = f"{name}.lora_up"
                 
                 if lora_down_key in lora_state_dict and lora_up_key in lora_state_dict:
                     # 元の値を保存
                     original_state[name] = param.data.clone()
                     
-                    # LoRAの重みを取得
-                    lora_down = lora_state_dict[lora_down_key].to(param.device)
-                    lora_up = lora_state_dict[lora_up_key].to(param.device)
-                    
-                    # LoRAの演算
-                    delta = torch.matmul(lora_up, lora_down) * scale
-                    
-                    # 形状を確認して調整
-                    if delta.shape != param.shape:
-                        logger.warning(f"形状不一致: {delta.shape} != {param.shape}, スキップ: {name}")
+                    # LoRAの重みを段階的に処理（メモリ最適化）
+                    try:
+                        # 上部重みを取得し、特定のタイミングで同期
+                        lora_up = lora_state_dict[lora_up_key].to(param.device)
+                        
+                        # 下部重みを取得し、特定のタイミングで同期
+                        lora_down = lora_state_dict[lora_down_key].to(param.device)
+                        
+                        # LoRAの演算（使用後に一部のテンソルをCPUに戻す）
+                        delta = torch.matmul(lora_up, lora_down) * scale
+                        
+                        # 不要になったテンソルを明示的に削除
+                        del lora_up, lora_down
+                        
+                        # 形状を確認して調整
+                        if delta.shape != param.shape:
+                            logger.warning(f"形状不一致: {delta.shape} != {param.shape}, スキップ: {name}")
+                            continue
+                        
+                        # 元のパラメータに適用
+                        param.data += delta
+                        modified_modules.append(name)
+                        applied_params += 1
+                        
+                        # 計算済みのdeltaを明示的に削除
+                        del delta
+                        
+                    except Exception as e:
+                        logger.error(f"LoRA適用エラー（パラメータ {name}）: {e}")
                         continue
-                    
-                    # 元のパラメータに適用
-                    param.data += delta
-                    modified_modules.append(name)
         
         # _lora_appliedフラグを設定（診断用）
         model._lora_applied = True
         model._lora_source = "direct_application"
         
-        logger.info(f"LoRA適用完了: {len(modified_modules)} モジュールが修正されました")
+        # 適用率の計算と表示
+        application_ratio = applied_params / total_params if total_params > 0 else 0
+        logger.info(f"LoRA適用完了: {applied_params}/{total_params} パラメータ ({application_ratio:.2%})")
+        logger.info(f"修正されたモジュール数: {len(modified_modules)}")
+        
+        # 明示的なGCとキャッシュクリア
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            import gc
+            gc.collect()
+        
         return model
     
     except Exception as e:
@@ -274,10 +357,33 @@ def load_and_apply_lora(
         logger.error(f"LoRA適用エラー: {e}")
         logger.error(traceback.format_exc())
         
+        # メモリ使用状況のデバッグ情報
+        if torch.cuda.is_available():
+            try:
+                allocated = torch.cuda.memory_allocated() / 1024**2
+                reserved = torch.cuda.memory_reserved() / 1024**2
+                logger.error(f"CUDA メモリ (エラー時): 割当={allocated:.2f}MB, 予約={reserved:.2f}MB")
+            except:
+                pass
+        
         with torch.no_grad():
             for name, original_data in original_state.items():
-                param = dict(model.named_parameters())[name]
-                param.data.copy_(original_data)
+                try:
+                    param = dict(model.named_parameters())[name]
+                    param.data.copy_(original_data)
+                except Exception as rollback_error:
+                    logger.error(f"状態復元エラー {name}: {rollback_error}")
+        
+        # 明示的なメモリクリーンアップ
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+            except:
+                pass
         
         logger.info("エラーにより元の状態に復元しました")
+        # スタックトレースとともに再度エラーを発生させる
         raise

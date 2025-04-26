@@ -525,10 +525,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
             
+            # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
+            if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+                old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+                os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+                print(f"CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {old_env})")
+
             # LoRA処理のためのオブジェクト
             transformer_obj = transformer
             
-            # LoRA処理部分を条件分岐で囲む - DynamicSwapLoRA版
+            # LoRA処理部分を条件分岐で囲む - DynamicSwapLoRA改良版
             if use_lora and has_lora_support and lora_file is not None:
                 try:
                     # LoRAファイルのパスを取得
@@ -536,6 +542,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     is_diffusers = (lora_format == "Diffusers")
                     
                     print(f"LoRAを読み込み中: {os.path.basename(lora_path)} (スケール: {lora_scale})")
+                    
+                    # セクション処理前に明示的にメモリを解放
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                        torch.cuda.empty_cache()
+                        print(f"メモリクリア: 空き={torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
                     
                     # transformerモデルのコピーを作成（元のモデルを維持するため）
                     transformer_lora = copy.deepcopy(transformer)
@@ -545,6 +557,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     lora_manager = DynamicSwapLoRAManager()
                     lora_manager.load_lora(lora_path, is_diffusers=is_diffusers)
                     lora_manager.set_scale(lora_scale)
+                    # 明示的な同期ポイントの追加（改良）
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    # フックインストール前にメモリ状態をログ出力
+                    print(f"フック設置前メモリ状態: 使用中={torch.cuda.memory_allocated()/1024**3:.2f}GB")
                     lora_manager.install_hooks(transformer_lora)
                     print(f"DynamicSwapLoRAによるLoRAを適用しました (スケール: {lora_scale})")
                     
@@ -565,6 +582,14 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     print("LoRA適用に失敗しました。通常モードで続行します。")
                     # エラー時は元のtransformerを使用
                     transformer_obj = transformer
+                    
+                    # エラー発生時の追加メモリクリア
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                        torch.cuda.empty_cache()
+                        import gc
+                        gc.collect()
+                        print("エラー後のメモリクリア完了")
             else:
                 # LoRA未使用時は元のtransformerを使用
                 transformer_obj = transformer
@@ -576,6 +601,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 else:
                     print("LoRAは使用されません。通常モードで続行します。")
 
+            # セクション処理前に明示的にメモリを解放
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
@@ -662,6 +692,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
+            # VAEデコードの前に同期とメモリクリア（改良）
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                print(f"VAEデコード前メモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
             else:
@@ -670,6 +706,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
                 current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
                 history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
+                
+            # 明示的なCPU転送と不要テンソルの削除（改良）
+            if torch.cuda.is_available():
+                # 必要なデコード後、明示的にキャッシュをクリア
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
 
             # 各セクションの最終フレームを静止画として保存（セクション番号付き）
             if save_section_frames and history_pixels is not None:
@@ -699,6 +741,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30)
 
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
+
+            # セクション処理後の明示的なメモリ解放
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+                memory_allocated = torch.cuda.memory_allocated()/1024**3
+                memory_reserved = torch.cuda.memory_reserved()/1024**3
+                print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
 
             print(f"\u25a0 セクション{i_section}の処理完了")
             print(f"  - 現在の累計フレーム数: {int(max(0, total_generated_latent_frames * 4 - 3))}フレーム")
