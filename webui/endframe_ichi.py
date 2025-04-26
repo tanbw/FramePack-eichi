@@ -528,7 +528,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     # end_frame_strength=1.0のときは1.0倍（元の値）
                     # end_frame_strength=0.01のときは0.01倍（影響が非常に弱い）
                     modified_end_frame_latent = end_frame_latent * end_frame_strength
-                    print(i18n.translate("EndFrame影響度を{0:.2f}に設定（最終フレームの影響が{1:.2f}倍）").format(end_frame_strength, end_frame_strength))
+                    print(i18n.translate("EndFrame影響度を{0}に設定（最終フレームの影響が{1}倍）").format(f"{end_frame_strength:.2f}", f"{end_frame_strength:.2f}"))
                     history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
                 else:
                     # 通常の処理（通常の影響）
@@ -738,7 +738,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             print(i18n.translate("■ セクション{0}の処理完了").format(i_section))
             print(i18n.translate("  - 現在の累計フレーム数: {0}フレーム").format(int(max(0, total_generated_latent_frames * 4 - 3))))
-            print(i18n.translate("  - レンダリング時間: {0:.2f}秒").format(max(0, (total_generated_latent_frames * 4 - 3) / 30)))
+            print(i18n.translate("  - レンダリング時間: {0}秒").format(f"{max(0, (total_generated_latent_frames * 4 - 3) / 30):.2f}"))
             print(i18n.translate("  - 出力ファイル: {0}").format(output_filename))
 
             stream.output_queue.push(('file', output_filename))
@@ -748,7 +748,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 if HAS_WINSOUND:
                     winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
                 else:
-                    print("\n✓ 処理が完了しました！")  # Linuxでの代替通知
+                    print(i18n.translate("\n✓ 処理が完了しました！"))  # Linuxでの代替通知
 
                 # 全体の処理時間を計算
                 process_end_time = time.time()
@@ -835,7 +835,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     total_latent_sections = int(max(round((total_second_length * 30) / frame_count), 1))
     print(i18n.translate('[DEBUG] 動画モード: {0}, 実際の秒数: {1}, 計算されたセクション数: {2}').format(length_radio.value, total_second_length, total_latent_sections))
 
-    mode_name = "通常モード" if mode_radio.value == MODE_TYPE_NORMAL else "ループモード"
+    mode_name = i18n.translate("通常モード") if mode_radio.value == MODE_TYPE_NORMAL else i18n.translate("ループモード")
 
     print(i18n.translate("\n==== 動画生成開始 ====="))
     print(i18n.translate("\u25c6 生成モード: {0}").format(mode_name))
@@ -870,7 +870,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     else:
         print(i18n.translate("◆ キーフレーム画像: デフォルト設定のみ使用"))
 
-    print(i18n.translate("=============================\n"))
+    print("=============================\n")
 
     if use_random_seed:
         seed = random.randint(0, 2**32 - 1)
