@@ -97,7 +97,7 @@ args = parser.parse_args()
 print(args)
 
 free_mem_gb = get_cuda_free_memory_gb(gpu)
-high_vram = free_mem_gb > 60
+high_vram = free_mem_gb > 100
 
 print(f'Free VRAM {free_mem_gb} GB')
 print(f'High-VRAM Mode: {high_vram}')
@@ -240,7 +240,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     # セクション处理の詳細ログを出力
     if use_all_padding:
         # オールパディングが有効な場合、すべてのセクションで同じ値を使用
-        padding_value = round(all_padding_value, 1)  # 小数点1桁に固定
+        padding_value = round(all_padding_value, 1)  # 小数点1桁に固定（小数点対応）
         latent_paddings = [padding_value] * total_latent_sections
         print(f"\u30aa\u30fc\u30eb\u30d1\u30c7\u30a3\u30f3\u30b0\u3092\u6709\u52b9\u5316: \u3059\u3079\u3066\u306e\u30bb\u30af\u30b7\u30e7\u30f3\u306b\u30d1\u30c7\u30a3\u30f3\u30b0\u5024 {padding_value} \u3092\u9069\u7528")
     else:
@@ -463,9 +463,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     print(f"\u8b66\u544a: \u6700\u5f8c\u306e\u30bb\u30af\u30b7\u30e7\u30f3\u306e\u30d1\u30c7\u30a3\u30f3\u30b0\u5024\u306f\u5185\u90e8\u8a08\u7b97\u306e\u305f\u3081\u306b0\u306b\u5f37\u5236\u3057\u307e\u3059\u3002")
                     latent_padding = 0
                 elif isinstance(latent_padding, float):
-                    # 浮動小数点の場合は整数変換
-                    # 小数点1桁に固定し、最近の整数に丸める
-                    latent_padding = int(round(float(latent_padding)))
+                    # 浮動小数点の場合はそのまま使用（小数点対応）
+                    # 小数点1桁に固定のみ行い、丸めは行わない
+                    latent_padding = round(float(latent_padding), 1)
                 
                 # 値が変更された場合にデバッグ情報を出力
                 if float(orig_padding_value) != float(latent_padding):
@@ -475,7 +475,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 is_last_section = latent_padding == 0
             
             use_end_latent = is_last_section and end_frame is not None
-            latent_padding_size = latent_padding * latent_window_size
+            latent_padding_size = int(latent_padding * latent_window_size)
             
             # 定義後にログ出力
             print(f"\n\u25a0 セクション{i_section}の処理開始 (" + (f"設定パディング値: {all_padding_value}" if use_all_padding else f"パディング値: {latent_padding}") + ")")
@@ -1004,7 +1004,7 @@ with block:
         with gr.Column(scale=1):
             # オールパディング設定
             use_all_padding = gr.Checkbox(label="オールパディング", value=False, info="数値が小さいほど直前の絵への影響度が下がり動きが増える", elem_id="all_padding_checkbox")
-            all_padding_value = gr.Slider(label="パディング値", minimum=0, maximum=3, value=1, step=1, info="すべてのセクションに適用するパディング値（0〜3の整数）", visible=False)
+            all_padding_value = gr.Slider(label="パディング値", minimum=0.2, maximum=3, value=1, step=0.1, info="すべてのセクションに適用するパディング値（0.2〜3の小数点対応）", visible=False)
             
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
             def toggle_all_padding_visibility(use_all_padding):
