@@ -231,6 +231,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
     total_latent_sections = int(max(round(total_latent_sections), 1))
     
+    # worker関数でのセクション数計算デバッグ情報
+    print(f'[DEBUG] worker関数での秒数: {total_second_length}, latent_window_size: {latent_window_size}, 計算されたセクション数: {total_latent_sections}')
+    
     # 現在のモードを取得（UIから渡された情報から）
     # セクション数を全セクション数として保存
     total_sections = total_latent_sections
@@ -802,10 +805,18 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
         # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
         latent_window_size = 9
         print(f'フレームサイズを1秒モードに設定: latent_window_size = {latent_window_size}')
+        
+    # 動画長の確認と更新（UI値と設定値の一致を確保）
+    current_mode = length_radio.value
+    expected_seconds = get_video_seconds(current_mode)
+    if abs(total_second_length - expected_seconds) > 0.1:  # 小数点の誤差を考慮
+        print(f'[注意] 動画長設定の不一致を修正: UIモード「{current_mode}」の期待値は{expected_seconds}秒ですが、スライダー値は{total_second_length}秒でした')
+        total_second_length = expected_seconds
     
     # 動画生成の設定情報をログに出力
     frame_count = latent_window_size * 4 - 3
     total_latent_sections = int(max(round((total_second_length * 30) / frame_count), 1))
+    print(f'[DEBUG] 動画モード: {length_radio.value}, 実際の秒数: {total_second_length}, 計算されたセクション数: {total_latent_sections}')
     
     mode_name = "通常モード" if mode_radio.value == MODE_TYPE_NORMAL else "ループモード"
     
@@ -1283,6 +1294,14 @@ with block:
                 outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_number_inputs + section_row_groups
             )
             
+            # 動画長が変更された時、total_second_lengthスライダーの値を更新しUIに表示するだけでなく
+            # 実際の内部状態も更新されるようにするための追加イベント
+            length_radio.change(
+                fn=lambda length: get_video_seconds(length),
+                inputs=[length_radio],
+                outputs=[total_second_length]
+            )
+            
             # 入力画像変更時の処理 - ループモード用に復活
             # 通常モードでセクションにコピーする処理はコメント化したまま
             # ループモードのLastにコピーする処理のみ復活
@@ -1387,7 +1406,7 @@ with block:
                     return gr.update()
             use_random_seed.change(fn=set_random_seed, inputs=use_random_seed, outputs=seed)
 
-            total_second_length = gr.Slider(label="Total Video Length (Seconds)", minimum=1, maximum=120, value=6, step=1)
+            total_second_length = gr.Slider(label="Total Video Length (Seconds)", minimum=1, maximum=120, value=1, step=1)
             latent_window_size = gr.Slider(label="Latent Window Size", minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
             steps = gr.Slider(label="Steps", minimum=1, maximum=100, value=25, step=1, info='Changing this value is not recommended.')
 
