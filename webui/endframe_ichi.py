@@ -1231,13 +1231,7 @@ with block:
                 section_range = f"0～{total_sections-2}" if total_sections > 1 else "0"
 
                 # 計算詳細を表示するHTMLを生成
-                html = i18n.translate("""<div style='padding: 10px; border-radius: 5px; font-size: 14px;'>
-                <strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}
-                <br>
-                動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong>
-                <br>
-                <span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span>
-                </div>""").format(length=length, frame_size=frame_size, total_frames=total_frames, frame_count=frame_count, total_sections=total_sections - 1, section_range=section_range)
+                html = i18n.translate("<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>").format(length=length, frame_size=frame_size, total_frames=total_frames, frame_count=frame_count, total_sections=total_sections - 1, section_range=section_range)
 
                 # デバッグ用ログ
                 # print(i18n.translate("計算結果: モード={0}, フレームサイズ={1}, latent_window_size={2}, 総フレーム数={3}, 必要セクション数={4}, セクション番号範囲: {5}").format(length, frame_size, latent_window_size, total_frames, total_sections, section_range))
