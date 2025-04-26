@@ -364,7 +364,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Text encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Text encoding ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Text encoding ...")))))
 
         if not high_vram:
             fake_diffusers_current_device(text_encoder, gpu)  # since we only encode one text - that is one model move and one encode, offload is same time consumption since it is also one load and one encode.
@@ -382,7 +382,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Processing input image
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ...")))))
 
         def preprocess_image(img):
             H, W, C = img.shape
@@ -397,7 +397,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # VAE encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("VAE encoding ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("VAE encoding ...")))))
 
         if not high_vram:
             load_model_as_complete(vae, target_device=gpu)
@@ -422,7 +422,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # CLIP Vision
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("CLIP Vision encoding ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("CLIP Vision encoding ...")))))
 
         if not high_vram:
             load_model_as_complete(image_encoder, target_device=gpu)
@@ -440,7 +440,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Sampling
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Start sampling ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Start sampling ...")))))
 
         rnd = torch.Generator("cpu").manual_seed(seed)
         num_frames = latent_window_size * 4 - 3
@@ -779,11 +779,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 minutes, seconds = divmod(remainder, 60)
                 time_str = ""
                 if hours > 0:
-                    time_str = i18n.translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), seconds:.1f)
+                    time_str = i18n.translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), f"{seconds:.1f}")
                 elif minutes > 0:
-                    time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), seconds:.1f)
+                    time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), f"{seconds:.1f}")
                 else:
-                    time_str = i18n.translate("{0}秒").format(seconds:.1f)
+                    time_str = i18n.translate("{0}秒").format(f"{seconds:.1f}")
                 print(i18n.translate("\n全体の処理時間: {0}").format(time_str))
                 completion_message = i18n.translate("すべてのセクション({0}/{1})が完了しました。全体の処理時間: {2}").format(total_sections, total_sections, time_str)
                 stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, i18n.translate('処理完了')))))

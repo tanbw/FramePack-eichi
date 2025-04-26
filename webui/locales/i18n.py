@@ -88,9 +88,11 @@ def load_translations():
 
     return translations
 
-def init(args):
+def init(args=None):
     global lang
     global translateContext
 
-    lang = args.lang
+    if args is not None:
+        lang = args.lang
+
     translateContext = load_translations()
