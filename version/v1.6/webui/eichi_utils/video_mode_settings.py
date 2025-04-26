@@ -28,48 +28,6 @@ VIDEO_MODE_SETTINGS = {
             }
         }
     },
-    "2秒": {
-        "frames": 60,                   # 2秒×30FPS
-        "sections": 2,                  # 必要セクション数（正確な計算に基づく）
-        "display_seconds": 2.0,         # UI表示用秒数
-        "important_keyframes": [0],     # 重要なキーフレームのインデックス（0始まり）
-        "copy_patterns": {
-            "通常": {
-                "0": [],                # 短いためコピー不要
-            },
-            "ループ": {
-                "0": [],                # 短いためコピー不要
-            }
-        }
-    },
-    "3秒": {
-        "frames": 90,                   # 3秒×30FPS
-        "sections": 3,                  # 必要セクション数（正確な計算に基づく）
-        "display_seconds": 3.0,         # UI表示用秒数
-        "important_keyframes": [0],     # 重要なキーフレームのインデックス（0始まり）
-        "copy_patterns": {
-            "通常": {
-                "0": [1],               # キーフレーム0→1にコピー
-            },
-            "ループ": {
-                "0": [1],               # キーフレーム0→1にコピー
-            }
-        }
-    },
-    "4秒": {
-        "frames": 120,                  # 4秒×30FPS
-        "sections": 4,                  # 必要セクション数（正確な計算に基づく）
-        "display_seconds": 4.0,         # UI表示用秒数
-        "important_keyframes": [0],     # 重要なキーフレームのインデックス（0始まり）
-        "copy_patterns": {
-            "通常": {
-                "0": [1, 2],            # キーフレーム0→1,2にコピー
-            },
-            "ループ": {
-                "0": [1, 2],            # キーフレーム0→1,2にコピー
-            }
-        }
-    },
     "6秒": {
         "frames": 180,                  # 6秒×30FPS
         "sections": 6,                  # 必要セクション数（正確な計算に基づく）
@@ -98,10 +56,10 @@ VIDEO_MODE_SETTINGS = {
             }
         }
     },
-    "10(5x2)秒": {
-        "frames": 324,                  # 10.8秒×30FPS
+    "10秒": {
+        "frames": 300,                  # 10秒×30FPS
         "sections": 10,                 # 必要セクション数
-        "display_seconds": 10.8,        # UI表示用秒数
+        "display_seconds": 10.0,        # UI表示用秒数（10秒が正確な値）
         "important_keyframes": [0, 4],  # 重要なキーフレームのインデックス
         "copy_patterns": {
             "通常": {
@@ -114,7 +72,7 @@ VIDEO_MODE_SETTINGS = {
             }
         }
     },
-    "12(4x3)秒": {
+    "12秒": {
         "frames": 360,                  # 12秒×30FPS
         "sections": 12,                 # 必要セクション数
         "display_seconds": 12.0,        # UI表示用秒数
@@ -132,10 +90,10 @@ VIDEO_MODE_SETTINGS = {
             }
         }
     },
-    # 新しい16(4x4)秒モード
-    "16(4x4)秒": {
+    # 新しい16秒モード
+    "16秒": {
         "frames": 480,                  # 16秒×30FPS
-        "sections": 15,                 # 必要セクション数（計算に基づく）
+        "sections": 16,                 # 必要セクション数（16秒/1秒フレーム=16セクション）
         "display_seconds": 16.0,        # UI表示用秒数
         "important_keyframes": [0, 3, 6, 9], # 重要なキーフレームのインデックス
         "copy_patterns": {
@@ -153,11 +111,11 @@ VIDEO_MODE_SETTINGS = {
             }
         }
     },
-    # 新しい20(4x5)秒モード
-    "20(4x5)秒": {
-        "frames": 624,                  # 20.8秒×30FPS
-        "sections": 19,                 # 必要セクション数（計算に基づく）
-        "display_seconds": 20.8,        # UI表示用秒数
+    # 新しい20秒モード
+    "20秒": {
+        "frames": 600,                  # 20秒×30FPS
+        "sections": 20,                 # 必要セクション数（20秒/1秒フレーム=20セクション）
+        "display_seconds": 20.0,        # UI表示用秒数（20秒が正確な値）
         "important_keyframes": [0, 3, 6, 9, 12], # 重要なキーフレームのインデックス
         "copy_patterns": {
             "通常": {
@@ -188,51 +146,96 @@ def clear_html_cache():
 
 # ユーティリティ関数
 def get_video_modes():
-    """利用可能なビデオモードのリストを取得"""
-    return list(VIDEO_MODE_SETTINGS.keys())
+    """利用可能なビデオモードのリストを取得、カッコを除去した名称を返す"""
+    # 内部キーを取得
+    mode_keys = list(VIDEO_MODE_SETTINGS.keys())
+    # 表示用にカッコを除去した名称を生成
+    return [key.split('(')[0] + key.split(')')[-1] if '(' in key else key for key in mode_keys]
+
+
+def _find_original_key(mode_key):
+
+    # 元キーがそのまま存在する場合
+    if mode_key in VIDEO_MODE_SETTINGS:
+        return mode_key
+    
+    # 見つからない場合
+    return None
 
 
 def get_video_frames(mode_key):
     """モード名から総フレーム数を取得"""
-    if mode_key not in VIDEO_MODE_SETTINGS:
+    original_key = _find_original_key(mode_key)
+    
+    if original_key is None:
         raise ValueError(f"Unknown video mode: {mode_key}")
-    return VIDEO_MODE_SETTINGS[mode_key]["frames"]
+        
+    return VIDEO_MODE_SETTINGS[original_key]["frames"]
 
 
 def get_video_seconds(mode_key):
     """モード名から表示用秒数を取得"""
-    if mode_key not in VIDEO_MODE_SETTINGS:
+    original_key = _find_original_key(mode_key)
+    
+    if original_key is None:
         raise ValueError(f"Unknown video mode: {mode_key}")
-    return VIDEO_MODE_SETTINGS[mode_key]["display_seconds"]
+        
+    return VIDEO_MODE_SETTINGS[original_key]["display_seconds"]
 
 
 def get_important_keyframes(mode_key):
     """重要なキーフレームのインデックスを取得"""
-    if mode_key not in VIDEO_MODE_SETTINGS:
+    original_key = _find_original_key(mode_key)
+    
+    if original_key is None:
         raise ValueError(f"Unknown video mode: {mode_key}")
-    return VIDEO_MODE_SETTINGS[mode_key]["important_keyframes"]
+        
+    return VIDEO_MODE_SETTINGS[original_key]["important_keyframes"]
 
 
 def get_total_sections(mode_key):
-    """モード名からセクション数を取得"""
-    if mode_key not in VIDEO_MODE_SETTINGS:
+    """モード名からセクション数を取得
+    注意: レガシー互換性のために維持されていますが、calculate_dynamic_sections_countの使用が推奨されます
+    """
+    original_key = _find_original_key(mode_key)
+    
+    if original_key is None:
         raise ValueError(f"Unknown video mode: {mode_key}")
-    return VIDEO_MODE_SETTINGS[mode_key]["sections"]
+        
+    return VIDEO_MODE_SETTINGS[original_key]["sections"]
+
+
+def calculate_dynamic_sections_count(total_second_length, latent_window_size=9):
+    """動画の秒数とフレームサイズから動的にセクション数を計算
+    endframe_ichi.pyの計算ロジックと同一の方法で計算します
+    
+    Args:
+        total_second_length: 動画の長さ（秒）
+        latent_window_size: レイテントウィンドウサイズ（1秒=9, 0.5秒=5）
+    
+    Returns:
+        int: 計算されたセクション数
+    """
+    total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
+    total_latent_sections = int(max(round(total_latent_sections), 1))
+    return total_latent_sections
 
 
 def get_copy_targets(mode, mode_key, keyframe_index):
     """指定キーフレームからのコピー先を取得"""
-    if mode_key not in VIDEO_MODE_SETTINGS:
+    original_key = _find_original_key(mode_key)
+    
+    if original_key is None:
         raise ValueError(f"Unknown video mode: {mode_key}")
     
-    if mode not in VIDEO_MODE_SETTINGS[mode_key]["copy_patterns"]:
+    if mode not in VIDEO_MODE_SETTINGS[original_key]["copy_patterns"]:
         return []
     
     str_keyframe_index = str(keyframe_index)
-    if str_keyframe_index not in VIDEO_MODE_SETTINGS[mode_key]["copy_patterns"][mode]:
+    if str_keyframe_index not in VIDEO_MODE_SETTINGS[original_key]["copy_patterns"][mode]:
         return []
     
-    return VIDEO_MODE_SETTINGS[mode_key]["copy_patterns"][mode][str_keyframe_index]
+    return VIDEO_MODE_SETTINGS[original_key]["copy_patterns"][mode][str_keyframe_index]
 
 
 def get_max_keyframes_count():
@@ -278,27 +281,8 @@ def generate_keyframe_guide_html():
     if "keyframe_guide" in _html_cache:
         return _html_cache["keyframe_guide"]
     
-    html = """
-    <div style="margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">
-        <span style="display: inline-block; margin-bottom: 5px; font-weight: bold;">■ キーフレーム画像設定ガイド:</span>
-        <ul style="margin: 0; padding-left: 20px;">
-    """
-    
-    # 各モードの説明を動的に生成
-    for length, settings in VIDEO_MODE_SETTINGS.items():
-        if length == "6秒" or length == "8秒":
-            continue  # 基本モードは説明不要
-        
-        important_kfs = [kf+1 for kf in settings["important_keyframes"]]  # 1始まりに変換
-        html += f'<li><span style="color: #ff3860; font-weight: bold;">{length}</span> モードでは、'
-        html += f'<span style="color: #ff3860; font-weight: bold;">キーフレーム画像{", ".join(map(str, important_kfs))}</span> が重要です</li>'
-    
-    html += """
-        <li><span style="color: #ff3860; font-weight: bold;">ループモード</span>では、常に<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1</span>が重要です</li>
-        </ul>
-        <div style="margin-top: 5px; font-size: 0.9em; color: #666;">※ 重要なキーフレームは赤枠で強調表示されます</div>
-    </div>
-    """
+    # キーフレームガイドは削除されました
+    html = ""
     
     # キャッシュに保存
     _html_cache["keyframe_guide"] = html
