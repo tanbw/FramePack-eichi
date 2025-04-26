@@ -376,7 +376,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Text encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Text encoding ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Text encoding ...")))))
 
         if not high_vram:
             fake_diffusers_current_device(text_encoder, gpu)  # since we only encode one text - that is one model move and one encode, offload is same time consumption since it is also one load and one encode.
@@ -394,7 +394,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Processing input image
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ...")))))
 
         def preprocess_image(img):
             H, W, C = img.shape
@@ -409,7 +409,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # VAE encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("VAE encoding ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("VAE encoding ...")))))
 
         if not high_vram:
             load_model_as_complete(vae, target_device=gpu)
@@ -434,7 +434,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # CLIP Vision
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("CLIP Vision encoding ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("CLIP Vision encoding ...")))))
 
         if not high_vram:
             load_model_as_complete(image_encoder, target_device=gpu)
@@ -452,7 +452,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
         # Sampling
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Start sampling ..."))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Start sampling ...")))))
 
         rnd = torch.Generator("cpu").manual_seed(seed)
         num_frames = latent_window_size * 4 - 3
@@ -757,11 +757,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 minutes, seconds = divmod(remainder, 60)
                 time_str = ""
                 if hours > 0:
-                    time_str = i18n.translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), seconds:.1f)
+                    time_str = i18n.translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), f"{seconds:.1f}")
                 elif minutes > 0:
-                    time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), seconds:.1f)
+                    time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), f"{seconds:.1f}")
                 else:
-                    time_str = i18n.translate("{0}秒").format(seconds:.1f)
+                    time_str = i18n.translate("{0}秒").format(f"{seconds:.1f}")
                 print(i18n.translate("\n全体の処理時間: {0}").format(time_str))
                 completion_message = i18n.translate("すべてのセクション({0}/{1})が完了しました。全体の処理時間: {2}").format(total_sections, total_sections, time_str)
                 stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, i18n.translate('処理完了')))))
@@ -1231,13 +1231,13 @@ with block:
                 section_range = f"0～{total_sections-2}" if total_sections > 1 else "0"
 
                 # 計算詳細を表示するHTMLを生成
-                html = i18n.translate("""<div style='padding: 10px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px;'>
-                <strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections-1}
+                html = i18n.translate("""<div style='padding: 10px; border-radius: 5px; font-size: 14px;'>
+                <strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}
                 <br>
-                動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections-1}</strong>
+                動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong>
                 <br>
                 <span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span>
-                </div>""").format(length=length, frame_size=frame_size, total_frames=total_frames, frame_count=frame_count, total_sections=total_sections, section_range=section_range)
+                </div>""").format(length=length, frame_size=frame_size, total_frames=total_frames, frame_count=frame_count, total_sections=total_sections - 1, section_range=section_range)
 
                 # デバッグ用ログ
                 # print(i18n.translate("計算結果: モード={0}, フレームサイズ={1}, latent_window_size={2}, 総フレーム数={3}, 必要セクション数={4}, セクション番号範囲: {5}").format(length, frame_size, latent_window_size, total_frames, total_sections, section_range))
