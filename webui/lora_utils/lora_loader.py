@@ -10,6 +10,8 @@ import traceback
 import safetensors.torch as sf
 from typing import Dict, List, Union, Optional, Any, Tuple
 
+from locales import i18n
+
 # ロギング設定
 logger = logging.getLogger("lora_loader")
 handler = logging.StreamHandler()
@@ -24,76 +26,76 @@ _lora_cache = {}
 def load_lora_weights(lora_path: str) -> Dict[str, torch.Tensor]:
     """
     LoRAファイルから重みを読み込む（キャッシュ機能付き）
-    
+
     Args:
         lora_path: LoRAファイルへのパス (.safetensors, .pt, .bin)
-    
+
     Returns:
         Dict[str, torch.Tensor]: LoRAの状態辞書
     """
     global _lora_cache
-    
+
     # キャッシュチェック
     if lora_path in _lora_cache:
-        logger.info(f"キャッシュからLoRAを読み込み中: {os.path.basename(lora_path)}")
+        logger.info(i18n.translate("キャッシュからLoRAを読み込み中: {lora_path}").format(lora_path=lora_path))
         return _lora_cache[lora_path]
-    
-    logger.info(f"LoRAファイルを読み込み中: {lora_path}")
-    
+
+    logger.info(i18n.translate("LoRAファイルを読み込み中: {lora_path}").format(lora_path=lora_path))
+
     if not os.path.exists(lora_path):
-        raise FileNotFoundError(f"LoRAファイルが見つかりません: {lora_path}")
-    
+        raise FileNotFoundError(i18n.translate("LoRAファイルが見つかりません: {lora_path}").format(lora_path=lora_path))
+
     _, ext = os.path.splitext(lora_path.lower())
-    
+
     try:
         if ext == '.safetensors':
             state_dict = sf.load_file(lora_path)
-            logger.info(f"safetensorsフォーマットからロード完了")
+            logger.info(i18n.translate("safetensorsフォーマットからロード完了"))
         else:  # .pt, .bin
             state_dict = torch.load(lora_path, map_location='cpu')
             if isinstance(state_dict, torch.nn.Module):
                 state_dict = state_dict.state_dict()
-            logger.info(f"Torchフォーマットからロード完了")
-        
+            logger.info(i18n.translate("Torchフォーマットからロード完了"))
+
         # キーの種類を確認してフォーマットを自動判定
         format_type = detect_lora_format(state_dict)
-        logger.info(f"検出されたLoRAフォーマット: {format_type}")
-        
+        logger.info(i18n.translate("検出されたLoRAフォーマット: {format_type}").format(format_type=format_type))
+
         # キャッシュに保存
         _lora_cache[lora_path] = state_dict
-        
+
         return state_dict
     except Exception as e:
-        logger.error(f"LoRAファイル読み込みエラー: {e}")
+        logger.error(i18n.translate("LoRAファイル読み込みエラー: {error}").format(error=str(e)))
         logger.error(traceback.format_exc())
         raise
 
 def detect_lora_format(state_dict: Dict[str, torch.Tensor]) -> str:
     """
     状態辞書からLoRAフォーマットを検出する
-    
+
     Args:
         state_dict: LoRAの状態辞書
-    
+
     Returns:
         str: フォーマットタイプ ('diffusers', 'hunyuan', 'kohya', 'musubi', 'unknown')
     """
     # キーのサンプルを取得
     keys = list(state_dict.keys())
     sample_keys = keys[:min(10, len(keys))]
-    
+
     # Diffusersフォーマットの検出
     diffusers_pattern = any(['lora_A' in k or 'lora_B' in k for k in sample_keys])
-    
+
     # Hunyuanフォーマットの検出
     hunyuan_pattern = any(['hunyuan_video' in k.lower() for k in sample_keys])
-    
+
     # Kohyaフォーマットの検出
     kohya_pattern = any(['lora_down' in k or 'lora_up' in k for k in sample_keys])
-    
+
     # Musubiフォーマットの検出
     musubi_pattern = any(['lora_unet_' in k and ('alpha' in k or 'lora_down' in k or 'lora_up' in k) for k in sample_keys])
-    
+
     if musubi_pattern:
         return 'musubi'
     elif diffusers_pattern:
@@ -108,16 +110,16 @@ def detect_lora_format(state_dict: Dict[str, torch.Tensor]) -> str:
 def convert_diffusers_lora_to_hunyuan(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     """
     DiffusersフォーマットのLoRAをHunyuan互換形式に変換
-    
+
     Args:
         state_dict: Diffusersフォーマットの状態辞書
-    
+
     Returns:
         Dict[str, torch.Tensor]: Hunyuan互換の状態辞書
     """
     logger.info("DiffusersフォーマットからHunyuanフォーマットへ変換中...")
     converted_dict = {}
-    
+
     # フォーマット変換ロジック
     for key, value in state_dict.items():
         if 'lora_A' in key:
@@ -128,24 +130,24 @@ def convert_diffusers_lora_to_hunyuan(state_dict: Dict[str, torch.Tensor]) -> Di
             converted_dict[new_key] = value
         else:
             converted_dict[key] = value
-    
-    logger.info(f"変換完了: {len(converted_dict)} パラメータ")
+
+    logger.info(i18n.translate("変換完了: {count} パラメータ").format(count=len(converted_dict)))
     return converted_dict
 
 def check_for_musubi(lora_weights: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     """
     Musubiフォーマットを検出して変換
-    
+
     Args:
         lora_weights: LoRA重み
-    
+
     Returns:
         Dict[str, torch.Tensor]: 変換後のLoRA重み
     """
     prefix = "lora_unet_"
     musubi = False
     lora_alphas = {}
-    
+
     # Musubiフォーマット検出
     for key, value in lora_weights.items():
         if key.startswith(prefix):
@@ -153,13 +155,13 @@ def check_for_musubi(lora_weights: Dict[str, torch.Tensor]) -> Dict[str, torch.T
             if lora_name not in lora_alphas and "alpha" in key:
                 lora_alphas[lora_name] = value
                 musubi = True
-    
+
     if not musubi:
         return lora_weights
-        
-    logger.info("Musubiチューナーフォーマットのロード中...")
+
+    logger.info(i18n.translate("Musubiチューナーフォーマットのロード中..."))
     converted_lora = {}
-    
+
     for key, weight in lora_weights.items():
         if key.startswith(prefix):
             if "alpha" in key:
@@ -173,7 +175,7 @@ def check_for_musubi(lora_weights: Dict[str, torch.Tensor]) -> Dict[str, torch.T
             module_name = module_name.replace("txt.", "txt_")  # fix txt
             module_name = module_name.replace("attn.", "attn_")  # fix attn
             diffusers_prefix = "diffusion_model"
-            
+
             if "lora_down" in key:
                 new_key = f"{diffusers_prefix}.{module_name}.lora_down"
                 dim = weight.shape[0]
@@ -181,20 +183,20 @@ def check_for_musubi(lora_weights: Dict[str, torch.Tensor]) -> Dict[str, torch.T
                 new_key = f"{diffusers_prefix}.{module_name}.lora_up"
                 dim = weight.shape[1]
             else:
-                logger.info(f"予期しないキー: {key} (Musubiフォーマット)")
+                logger.info(i18n.translate("予期しないキー: {key} (Musubiフォーマット)").format(key=key))
                 continue
-                
+
             # スケーリング
             if lora_name in lora_alphas:
                 scale = lora_alphas[lora_name] / dim
                 scale = scale.sqrt()
                 weight = weight * scale
             else:
-                logger.info(f"alpha情報が見つかりません: {lora_name}")
-                
+                logger.info(i18n.translate("alpha情報が見つかりません: {lora_name}").format(lora_name=lora_name))
+
             converted_lora[new_key] = weight
-    
-    logger.info(f"Musubi変換完了: {len(converted_lora)} パラメータ")
+
+    logger.info(i18n.translate("Musubi変換完了: {count} パラメータ").format(count=len(converted_lora)))
     return converted_lora
 
 def load_and_apply_lora(
@@ -205,35 +207,35 @@ def load_and_apply_lora(
 ) -> torch.nn.Module:
     """
     LoRAをロードしてモデルに適用する便利関数
-    
+
     Args:
         model: ベースモデル
         lora_path: LoRAファイルへのパス
         scale: LoRAの適用強度 (0.0-1.0)
         is_diffusers: Diffusersフォーマットかどうか
-        
+
     Returns:
         torch.nn.Module: LoRAが適用されたモデル
     """
-    logger.info(f"LoRAを読み込み・適用: {lora_path}, スケール: {scale}")
-    
+    logger.info(i18n.translate("LoRAを読み込み・適用: {lora_path}, スケール: {scale}").format(lora_path=lora_path, scale=scale))
+
     # LoRAの読み込み
     lora_state_dict = load_lora_weights(lora_path)
-    
+
     # 明示的なフォーマット指定（オプション）
     format_type = 'diffusers' if is_diffusers else None
     format_type = format_type or detect_lora_format(lora_state_dict)
-    
+
     # フォーマットに応じて変換
     if format_type == 'diffusers':
         lora_state_dict = convert_diffusers_lora_to_hunyuan(lora_state_dict)
     elif format_type == 'musubi':
         lora_state_dict = check_for_musubi(lora_state_dict)
-        
+
     # モデルの現在の状態を保存
     original_state = {}
     modified_modules = []
-    
+
     try:
         # LoRAの適用
         with torch.no_grad():
@@ -241,43 +243,43 @@ def load_and_apply_lora(
                 # LoRAに対応するキーを探す
                 lora_down_key = f"{name}.lora_down"
                 lora_up_key = f"{name}.lora_up"
-                
+
                 if lora_down_key in lora_state_dict and lora_up_key in lora_state_dict:
                     # 元の値を保存
                     original_state[name] = param.data.clone()
-                    
+
                     # LoRAの重みを取得
                     lora_down = lora_state_dict[lora_down_key].to(param.device)
                     lora_up = lora_state_dict[lora_up_key].to(param.device)
-                    
+
                     # LoRAの演算
                     delta = torch.matmul(lora_up, lora_down) * scale
-                    
+
                     # 形状を確認して調整
                     if delta.shape != param.shape:
-                        logger.warning(f"形状不一致: {delta.shape} != {param.shape}, スキップ: {name}")
+                        logger.warning(i18n.translate("形状不一致: {delta_shape} != {param_shape}, スキップ: {name}").format(delta_shape=delta.shape, param_shape=param.shape, name=name))
                         continue
-                    
+
                     # 元のパラメータに適用
                     param.data += delta
                     modified_modules.append(name)
-        
+
         # _lora_appliedフラグを設定（診断用）
         model._lora_applied = True
         model._lora_source = "direct_application"
-        
-        logger.info(f"LoRA適用完了: {len(modified_modules)} モジュールが修正されました")
+
+        logger.info(i18n.translate("LoRA適用完了: {count} モジュールが修正されました").format(count=len(modified_modules)))
         return model
-    
+
     except Exception as e:
         # エラー時には元の状態に戻す
-        logger.error(f"LoRA適用エラー: {e}")
+        logger.error(i18n.translate("LoRA適用エラー: {error}").format(error=str(e)))
         logger.error(traceback.format_exc())
-        
+
         with torch.no_grad():
             for name, original_data in original_state.items():
                 param = dict(model.named_parameters())[name]
                 param.data.copy_(original_data)
-        
-        logger.info("エラーにより元の状態に復元しました")
+
+        logger.info(i18n.translate("エラーにより元の状態に復元しました"))
         raise
