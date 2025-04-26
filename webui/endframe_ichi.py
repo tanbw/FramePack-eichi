@@ -543,11 +543,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     
                     print(f"LoRAを読み込み中: {os.path.basename(lora_path)} (スケール: {lora_scale})")
                     
-                    # セクション処理前に明示的にメモリを解放
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                        torch.cuda.empty_cache()
-                        print(f"メモリクリア: 空き={torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
+                    # COMMENTED OUT: セクション処理前のメモリ解放（処理速度向上のため）
+                    # if torch.cuda.is_available():
+                    #     torch.cuda.synchronize()
+                    #     torch.cuda.empty_cache()
+                    #     print(f"メモリクリア: 空き={torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
                     
                     # transformerモデルのコピーを作成（元のモデルを維持するため）
                     transformer_lora = copy.deepcopy(transformer)
@@ -583,13 +583,13 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     # エラー時は元のtransformerを使用
                     transformer_obj = transformer
                     
-                    # エラー発生時の追加メモリクリア
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                        torch.cuda.empty_cache()
-                        import gc
-                        gc.collect()
-                        print("エラー後のメモリクリア完了")
+                    # COMMENTED OUT: エラー発生時の追加メモリクリア（処理速度向上のため）
+                    # if torch.cuda.is_available():
+                    #     torch.cuda.synchronize()
+                    #     torch.cuda.empty_cache()
+                    #     import gc
+                    #     gc.collect()
+                    #     print("エラー後のメモリクリア完了")
             else:
                 # LoRA未使用時は元のtransformerを使用
                 transformer_obj = transformer
@@ -601,10 +601,10 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 else:
                     print("LoRAは使用されません。通常モードで続行します。")
 
-            # セクション処理前に明示的にメモリを解放
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
+            # COMMENTED OUT: セクション処理前のメモリ解放（処理速度向上のため）
+            # if torch.cuda.is_available():
+            #     torch.cuda.synchronize()
+            #     torch.cuda.empty_cache()
                 
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
@@ -692,11 +692,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
-            # VAEデコードの前に同期とメモリクリア（改良）
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-                print(f"VAEデコード前メモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+            # COMMENTED OUT: VAEデコード前のメモリクリア（処理速度向上のため）
+            # if torch.cuda.is_available():
+            #     torch.cuda.synchronize()
+            #     torch.cuda.empty_cache()
+            #     print(f"VAEデコード前メモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
 
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
@@ -707,11 +707,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
                 history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
                 
-            # 明示的なCPU転送と不要テンソルの削除（改良）
-            if torch.cuda.is_available():
-                # 必要なデコード後、明示的にキャッシュをクリア
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
+            # COMMENTED OUT: 明示的なCPU転送と不要テンソルの削除（処理速度向上のため）
+            # if torch.cuda.is_available():
+            #     # 必要なデコード後、明示的にキャッシュをクリア
+            #     torch.cuda.synchronize()
+            #     torch.cuda.empty_cache()
 
             # 各セクションの最終フレームを静止画として保存（セクション番号付き）
             if save_section_frames and history_pixels is not None:
@@ -742,15 +742,15 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
 
-            # セクション処理後の明示的なメモリ解放
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-                import gc
-                gc.collect()
-                memory_allocated = torch.cuda.memory_allocated()/1024**3
-                memory_reserved = torch.cuda.memory_reserved()/1024**3
-                print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
+            # COMMENTED OUT: セクション処理後の明示的なメモリ解放（処理速度向上のため）
+            # if torch.cuda.is_available():
+            #     torch.cuda.synchronize()
+            #     torch.cuda.empty_cache()
+            #     import gc
+            #     gc.collect()
+            #     memory_allocated = torch.cuda.memory_allocated()/1024**3
+            #     memory_reserved = torch.cuda.memory_reserved()/1024**3
+            #     print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
 
             print(f"\u25a0 セクション{i_section}の処理完了")
             print(f"  - 現在の累計フレーム数: {int(max(0, total_generated_latent_frames * 4 - 3))}フレーム")
@@ -1386,10 +1386,28 @@ with block:
                     outputs=[section_title]
                 )
                 
-                # フレームサイズ変更時にセクションUIも更新する
+                # セクションの表示/非表示のみを制御する関数
+                def update_section_visibility(mode, length, frame_size=None):
+                    """画像は初期化せずにセクションの表示/非表示のみを制御する関数"""
+                    # フレームサイズに基づくセクション数計算
+                    seconds = get_video_seconds(length)
+                    latent_window_size_value = 5 if frame_size == "0.5秒 (17フレーム)" else 9
+                    frame_count = latent_window_size_value * 4 - 3
+                    total_frames = int(seconds * 30)
+                    total_sections = int(max(round(total_frames / frame_count), 1))
+                    
+                    # 各セクションの表示/非表示だけを更新
+                    section_updates = []
+                    for i in range(len(section_row_groups)):
+                        section_updates.append(gr.update(visible=(i < total_sections)))
+                    
+                    # セクション表示の更新のみを行い、画像は初期化しない
+                    return [gr.update()] * 2 + [gr.update()] * len(section_image_inputs) + [gr.update(value=seconds)] + section_updates
+                
+                # フレームサイズ変更時にセクションの表示/非表示のみを更新する
                 frame_size_radio.change(
-                    fn=lambda frame_size, mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups, frame_size),
-                    inputs=[frame_size_radio, mode_radio, length_radio],
+                    fn=update_section_visibility,
+                    inputs=[mode_radio, length_radio, frame_size_radio],
                     outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
                 )
                 
@@ -1428,10 +1446,10 @@ with block:
                     outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
                 )
                 
-                # 動画長変更時の処理
+                # 動画長変更時にセクションの表示/非表示のみを更新する
                 length_radio.change(
-                    fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups),
-                    inputs=[mode_radio, length_radio],
+                    fn=update_section_visibility,
+                    inputs=[mode_radio, length_radio, frame_size_radio],
                     outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
                 )
                 
