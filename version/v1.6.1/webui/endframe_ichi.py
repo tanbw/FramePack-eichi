@@ -1371,34 +1371,26 @@ with block:
                 # 通常モードでセクションにコピーする処理はコメント化したまま
                 # ループモードのLastにコピーする処理のみ復活
                 
-                # ループモード専用の入力画像ハンドラ関数
-                def loop_mode_image_handler(img, mode, length):
-                    """input_imageの変更時、ループモードの場合のみコピーを行う関数"""
+                # 終端フレームハンドラ関数（FinalからImageへのコピーのみ実装）
+                def loop_mode_final_handler(img, mode, length):
+                    """end_frameの変更時、ループモードの場合のみコピーを行う関数"""
                     if img is None:
                         # 画像が指定されていない場合は何もしない
-                        section_count = get_max_keyframes_count()
-                        return [gr.update()] + [gr.update() for _ in range(section_count)]
+                        return gr.update()
                     
                     # ループモードかどうかで処理を分岐
                     if mode == MODE_TYPE_LOOP:
-                        # ループモード: FinalFrameに入力画像をコピー
-                        updates = [gr.update(value=img)]  # end_frame
-                        
-                        # キーフレーム画像は更新なし
-                        section_count = get_max_keyframes_count()
-                        updates.extend([gr.update() for _ in range(section_count)])
+                        # ループモード: ImageにFinalFrameをコピー
+                        return gr.update(value=img)  # input_imageにコピー
                     else:
                         # 通常モード: 何もしない
-                        section_count = get_max_keyframes_count()
-                        updates = [gr.update()] + [gr.update() for _ in range(section_count)]
-                    
-                    return updates
+                        return gr.update()
                 
-                # ループモード専用ハンドラを使用
-                input_image.change(
-                    fn=loop_mode_image_handler,
-                    inputs=[input_image, mode_radio, length_radio],
-                    outputs=[end_frame] + section_image_inputs
+                # 終端フレームの変更ハンドラを登録
+                end_frame.change(
+                    fn=loop_mode_final_handler,
+                    inputs=[end_frame, mode_radio, length_radio],
+                    outputs=[input_image]
                 )
                 
                 # 各キーフレーム画像の変更イベントを個別に設定
