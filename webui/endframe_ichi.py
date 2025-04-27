@@ -290,8 +290,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                         sec_num = int(row[0])
                         img = row[1]
                         prm = row[2] if len(row) > 2 else ""
-                        result[sec_num] = (img, prm)
-                        # print(i18n.translate("[デバッグ] セクションマッピング: セクション番号={0}, 画像有無={1}, プロンプト長={2}").format(sec_num, img is not None, len(prm) if prm else 0))
+                        if sec_num not in result:
+                            result[sec_num] = (img, prm)
+                            # print(i18n.translate("[デバッグ] セクションマッピング: セクション番号={0}, 画像有無={1}, プロンプト長={2}").format(sec_num, img is not None, len(prm) if prm else 0))
 
                 # print(i18n.translate("[デバッグ] セクションマップ作成結果: キー一覧={0}").format(sorted(list(result.keys()), reverse=True)))
             return result
