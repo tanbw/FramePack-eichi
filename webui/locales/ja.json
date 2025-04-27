@@ -226,5 +226,8 @@
   "6秒": "6秒",
   "8秒": "8秒",
 
-  "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>": "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>"
+  "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>": "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>",
+
+  "セクション: {0}/{1}": "セクション: {0}/{1}",
+  "{section_info} Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ...": "{section_info} Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ..."
 }

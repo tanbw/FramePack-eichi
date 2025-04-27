@@ -226,5 +226,8 @@
   "6秒": "6秒",
   "8秒": "8秒",
 
-  "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>": "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>詳細計算</strong>: 模式={length}, 幀大小={frame_size}, 總幀數={total_frames}, 每關鍵幀幀數={frame_count}幀, 必要關鍵幀數={total_sections}<br>動畫模式 '{length}' 和幀大小 '{frame_size}' 所需關鍵幀數: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>關鍵幀範圍: {section_range}</span></div>"
+  "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}<br>動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>セクション番号範囲: {section_range}</span></div>": "<div style='padding: 10px; border-radius: 5px; font-size: 14px;'><strong>詳細計算</strong>: 模式={length}, 幀大小={frame_size}, 總幀數={total_frames}, 每關鍵幀幀數={frame_count}幀, 必要關鍵幀數={total_sections}<br>動畫模式 '{length}' 和幀大小 '{frame_size}' 所需關鍵幀數: <strong>{total_sections}</strong><br><span style='color: #ff3860; font-weight: bold;'>關鍵幀範圍: {section_range}</span></div>",
+
+  "セクション: {0}/{1}": "セクション: {0}/{1}",
+  "{section_info} Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ...": "{section_info} 總共產生幀數：{total_generated_latent_frames}，影片長度：{video_length} 秒 (FPS-30)。影片正在延長…"
 }
