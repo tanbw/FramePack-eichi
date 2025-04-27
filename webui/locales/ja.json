@@ -286,5 +286,7 @@
   "状態復元エラー {name}: {error}": "状態復元エラー {name}: {error}",
   "エラーにより元の状態に復元しました": "エラーにより元の状態に復元しました",
 
+  "📂 保存および出力フォルダを開く": "📂 保存および出力フォルダを開く",
+
   "計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}": "計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}"
 }

@@ -1282,7 +1282,7 @@ with block:
                             placeholder="outputs"
                         )
                     with gr.Column(scale=1, min_width=100):
-                        open_folder_btn = gr.Button(value="📂 保存および出力フォルダを開く", size="sm")
+                        open_folder_btn = gr.Button(value=i18n.translate("📂 保存および出力フォルダを開く"), size="sm")
 
                 # 実際の出力パスを表示
                 with gr.Row(visible=False):

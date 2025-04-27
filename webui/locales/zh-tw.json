@@ -286,5 +286,7 @@
   "状態復元エラー {name}: {error}": "狀態恢復錯誤 {name}: {error}",
   "エラーにより元の状態に復元しました": "因錯誤恢復到原始狀態",
 
+  "📂 保存および出力フォルダを開く": "📂 開啟儲存與輸出資料夾",
+
   "計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}": "計算詳情: 模式={mode_key}, 幀大小={frame_size_setting}, 總幀數={total_frames}, 每區域幀數={frames_per_section}幀, 所需區域數={required_sections}"
 }
