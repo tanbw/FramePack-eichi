@@ -1,4 +1,4 @@
-from diffusers_helper.hf_login import login
+from submodules.FramePack.diffusers_helper.hf_login import login
 
 import os
 import random
