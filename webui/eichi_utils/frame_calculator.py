@@ -39,7 +39,7 @@ def calculate_sections_for_mode_and_size(mode_key, frame_size_setting=None):
     total_frames = VIDEO_MODE_SETTINGS[mode_key]["frames"]
 
     # フレームサイズ設定からlatent_window_sizeを判定
-    if frame_size_setting == "0.5秒 (17フレーム)":
+    if frame_size_setting == i18n.translate("0.5秒 (17フレーム)"):
         latent_window_size = 5  # 0.5秒モード
     else:
         latent_window_size = 9  # 1秒モードがデフォルト
@@ -49,7 +49,7 @@ def calculate_sections_for_mode_and_size(mode_key, frame_size_setting=None):
 
     # デバッグ情報
     frames_per_section = calculate_frames_per_section(latent_window_size)
-    print(f"計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}")
+    print(i18n.translate("計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}").format(mode_key=mode_key, frame_size_setting=frame_size_setting, total_frames=total_frames, frames_per_section=frames_per_section, required_sections=required_sections))
 
     # 結果を返す
     return required_sections

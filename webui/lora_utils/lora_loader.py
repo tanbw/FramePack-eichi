@@ -342,8 +342,8 @@ def load_and_apply_lora(
 
         # 適用率の計算と表示
         application_ratio = applied_params / total_params if total_params > 0 else 0
-        logger.info(f"LoRA適用完了: {applied_params}/{total_params} パラメータ ({application_ratio:.2%})")
-        logger.info(f"修正されたモジュール数: {len(modified_modules)}")
+        logger.info(i18n.translate("LoRA適用完了: {applied_params}/{total_params} パラメータ ({application_ratio:.2%})").format(applied_params=applied_params, total_params=total_params, application_ratio=application_ratio))
+        logger.info(i18n.translate("修正されたモジュール数: {count}").format(count=len(modified_modules)))
 
         # 明示的なGCとキャッシュクリア
         if torch.cuda.is_available():
@@ -364,7 +364,7 @@ def load_and_apply_lora(
             try:
                 allocated = torch.cuda.memory_allocated() / 1024**2
                 reserved = torch.cuda.memory_reserved() / 1024**2
-                logger.error(f"CUDA メモリ (エラー時): 割当={allocated:.2f}MB, 予約={reserved:.2f}MB")
+                logger.error(i18n.translate("CUDA メモリ (エラー時): 割当={allocated:.2f}MB, 予約={reserved:.2f}MB").format(allocated=allocated, reserved=reserved))
             except:
                 pass
 
@@ -374,7 +374,7 @@ def load_and_apply_lora(
                     param = dict(model.named_parameters())[name]
                     param.data.copy_(original_data)
                 except Exception as rollback_error:
-                    logger.error(f"状態復元エラー {name}: {rollback_error}")
+                    logger.error(i18n.translate("状態復元エラー {name}: {error}").format(name=name, error=str(rollback_error)))
 
         # 明示的なメモリクリーンアップ
         if torch.cuda.is_available():
@@ -386,6 +386,6 @@ def load_and_apply_lora(
             except:
                 pass
 
-        logger.info("エラーにより元の状態に復元しました")
+        logger.info(i18n.translate("エラーにより元の状態に復元しました"))
         # スタックトレースとともに再度エラーを発生させる
         raise

@@ -289,12 +289,12 @@ def generate_keyframe_guide_html():
 
     # 各モードの説明を動的に生成
     for length, settings in VIDEO_MODE_SETTINGS.items():
-        if length == "6秒" or length == "8秒":
+        if length == i18n.translate("6秒") or length == i18n.translate("8秒"):
             continue  # 基本モードは説明不要
 
         important_kfs = [kf+1 for kf in settings["important_keyframes"]]  # 1始まりに変換
-        html += f'<li><span style="color: #ff3860; font-weight: bold;">{length}</span> モードでは、'
-        html += f'<span style="color: #ff3860; font-weight: bold;">キーフレーム画像{", ".join(map(str, important_kfs))}</span> が重要です</li>'
+        html += i18n.translate("<li><span style=\"color: #ff3860; font-weight: bold;\">{length}</span> モードでは、").format(length=length)
+        html += i18n.translate("キーフレーム画像{important_kfs}</span> が重要です</li>").format(important_kfs=", ".join(map(str, important_kfs)))
 
     html += """
         <li><span style="color: #ff3860; font-weight: bold;">ループモード</span>では、常に<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1</span>が重要です</li>

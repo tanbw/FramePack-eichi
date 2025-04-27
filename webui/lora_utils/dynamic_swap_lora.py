@@ -274,14 +274,14 @@ class DynamicSwapLoRAManager:
             self.original_states[name][param_name] = param.data.detach().cpu().clone()
             saved_params += 1
             # デバッグレベルに変更し、ログの量を減らす
-            logger.debug(f"パラメータ保存: {full_param_name} (スコア: {score})")
+            logger.debug(i18n.translate("パラメータ保存: {full_param_name} (スコア: {score})").format(full_param_name=full_param_name, score=score))
 
             # 100件ごとにメモリ状態をログ出力
             if saved_params % 100 == 0 and torch.cuda.is_available():
                 memory_allocated = torch.cuda.memory_allocated()/1024**3
-                logger.info(f"保存進捗: {saved_params}/{len(selected_matches)} - メモリ使用: {memory_allocated:.2f}GB")
+                logger.info(i18n.translate("保存進捗: {saved_params}/{len(selected_matches)} - メモリ使用: {memory_allocated:.2f}GB").format(saved_params=saved_params, len(selected_matches=len(selected_matches), memory_allocated=memory_allocated)))
 
-        logger.info(f"元の状態を保存: {saved_params}パラメータ（最大{self.max_parameters}個まで処理）")
+        logger.info(i18n.translate("元の状態を保存: {saved_params}パラメータ（最大{self.max_parameters}個まで処理）").format(saved_params=saved_params, max_parameters=self.max_parameters))
 
         # 明示的なメモリクリア
         if torch.cuda.is_available():
@@ -478,7 +478,7 @@ class DynamicSwapLoRAManager:
             # メモリ使用状況を記録（改良）
             if torch.cuda.is_available() and layer_name.endswith("0"):  # 主要レイヤーのみログ出力
                 memory_allocated = torch.cuda.memory_allocated()/1024**3
-                logger.info(f"レイヤー適用前メモリ: {layer_name}, 使用中={memory_allocated:.2f}GB")
+                logger.info(i18n.translate("レイヤー適用前メモリ: {layer_name}, 使用中={memory_allocated:.2f}GB").format(layer_name=layer_name, memory_allocated=memory_allocated))
 
             applied_count = 0
             with torch.no_grad():
@@ -512,31 +512,31 @@ class DynamicSwapLoRAManager:
 
                             # 形状を確認して調整
                             if delta.shape != param.shape:
-                                logger.warning(f"形状不一致: {delta.shape} != {param.shape}, スキップ: {full_param_name}")
+                                logger.warning(i18n.translate("形状不一致: {delta.shape} != {param.shape}, スキップ: {full_param_name}").format(delta.shape=delta.shape, param.shape=param.shape, full_param_name=full_param_name))
                                 continue
 
                             # 元のパラメータに適用
                             param.data += delta
                             applied_count += 1
-                            logger.debug(f"LoRA適用: {full_param_name}")
+                            logger.debug(i18n.translate("LoRA適用: {full_param_name}").format(full_param_name=full_param_name))
 
                             # deltaも不要になったので削除
                             del delta
 
                         except Exception as param_error:
-                            logger.warning(f"パラメータ適用エラー: {full_param_name}, {param_error}")
+                            logger.warning(i18n.translate("パラメータ適用エラー: {full_param_name}, {param_error}").format(full_param_name=full_param_name, param_error=param_error))
 
             # 適用したパラメータがあれば記録
             if applied_count > 0:
                 self.applied_layers.add(layer_name)
-                logger.info(f"レイヤー「{layer_name}」に{applied_count}個のパラメータを適用")
+                logger.info(i18n.translate("レイヤー「{layer_name}」に{applied_count}個のパラメータを適用").format(layer_name=layer_name, applied_count=applied_count))
 
             # メモリ使用状況の記録（適用後）
             if torch.cuda.is_available() and (applied_count > 0 or layer_name.endswith("0")):
                 # 昕やかなメモリ使用状況をデバッグ用に記録
                 torch.cuda.synchronize()  # 特に重要なレイヤーの場合は同期する
                 memory_allocated = torch.cuda.memory_allocated()/1024**3
-                logger.debug(f"レイヤー適用後メモリ: {layer_name}, 使用中={memory_allocated:.2f}GB")
+                logger.debug(i18n.translate("レイヤー適用後メモリ: {layer_name}, 使用中={memory_allocated:.2f}GB").format(layer_name=layer_name, memory_allocated=memory_allocated))
 
             return layer
 

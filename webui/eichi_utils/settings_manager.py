@@ -60,7 +60,7 @@ def load_settings():
                         settings[key] = value
                 return settings
         except Exception as e:
-            print(f"設定読み込みエラー: {e}")
+            print(i18n.translate("設定読み込みエラー: {0}").format(e))
 
     return default_settings
 

@@ -16,7 +16,7 @@ from eichi_utils.video_mode_settings import (
 from eichi_utils.keyframe_handler import code_to_ui_index, get_max_keyframes_count
 from eichi_utils.frame_calculator import calculate_sections_for_mode_and_size
 
-def extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups=None, frame_size_setting="1秒 (33フレーム)"):
+def extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups=None, frame_size_setting=i18n.translate("1秒 (33フレーム)")):
     """モードと動画長の変更を統一的に処理する関数（セクション行の表示/非表示制御を追加）
 
     Args:
@@ -67,7 +67,7 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     if section_row_groups is not None:
         # 動画モードとフレームサイズから必要なセクション数を計算
         required_sections = calculate_sections_for_mode_and_size(length, frame_size_setting)
-        print(f"動画モード '{length}' とフレームサイズ '{frame_size_setting}' で必要なセクション数: {required_sections}")
+        print(i18n.translate("動画モード '{length}' とフレームサイズ '{frame_size_setting}' で必要なセクション数: {required_sections}").format(length=length, frame_size_setting=frame_size_setting, required_sections=required_sections))
 
         # 各セクション行の表示/非表示を設定
         row_updates = []

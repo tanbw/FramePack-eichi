@@ -836,13 +836,13 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 def validate_input_image(input_image):
     """入力画像が有効かどうかを確認し、エラーメッセージを返す"""
     if input_image is None:
-        error_html = """
+        error_html = f"""
         <div style="padding: 15px; border-radius: 10px; background-color: #ffebee; border: 1px solid #f44336; margin: 10px 0;">
-            <h3 style="color: #d32f2f; margin: 0 0 10px 0;">❗️ 入力画像が選択されていません</h3>
-            <p>生成を開始する前に「Image」欄に画像をアップロードしてください。これは叡智の出発点となる重要な画像です。</p>
+            <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{i18n.translate('❗️ 入力画像が選択されていません')}</h3>
+            <p>{i18n.translate('生成を開始する前に「Image」欄に画像をアップロードしてください。これは叡智の出発点となる重要な画像です。')}</p>
         </div>
         """
-        error_bar = make_progress_bar_html(100, '入力画像がありません')
+        error_bar = make_progress_bar_html(100, i18n.translate('入力画像がありません'))
         return False, error_html + error_bar
     return True, ""
 
@@ -859,7 +859,7 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
     else:
         # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
         latent_window_size = 9
-        print(f'フレームサイズを1秒モードに設定: latent_window_size = {latent_window_size}')
+        print(i18n.translate('フレームサイズを1秒モードに設定: latent_window_size = {0}').format(latent_window_size))
 
     # 動画生成の設定情報をログに出力
     frame_count = latent_window_size * 4 - 3
@@ -913,22 +913,22 @@ def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length,
 
     # GPUメモリの設定値をデバッグ出力し、正しい型に変換
     gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
-    print(f'Using GPU memory preservation setting: {gpu_memory_value} GB')
+    print(i18n.translate('Using GPU memory preservation setting: {0} GB').format(gpu_memory_value))
 
     # 出力フォルダが空の場合はデフォルト値を使用
     if not output_dir or not output_dir.strip():
         output_dir = "outputs"
-    print(f'Output directory: {output_dir}')
+    print(i18n.translate('Output directory: {0}').format(output_dir))
 
     # 先に入力データの状態をログ出力（デバッグ用）
     if input_image is not None:
-        print(f"[DEBUG] input_image shape: {input_image.shape}, type: {type(input_image)}")
+        print(i18n.translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
     if end_frame is not None:
-        print(f"[DEBUG] end_frame shape: {end_frame.shape}, type: {type(end_frame)}")
+        print(i18n.translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
     if section_settings is not None:
-        print(f"[DEBUG] section_settings count: {len(section_settings)}")
+        print(i18n.translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
         valid_images = sum(1 for s in section_settings if s and s[1] is not None)
-        print(f"[DEBUG] Valid section images: {valid_images}")
+        print(i18n.translate("[DEBUG] Valid section images: {0}").format(valid_images))
 
     async_run(worker, input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, save_section_frames, keep_section_videos, output_dir, section_settings, use_lora, lora_file, lora_scale, lora_format, end_frame_strength, use_all_padding, all_padding_value)
 
@@ -1094,15 +1094,15 @@ with block:
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
-            length_radio = gr.Radio(choices=get_video_modes(), value="1秒", label=i18n.translate("動画長"), info=i18n.translate("キーフレーム画像のコピー範囲と動画の長さを設定"))
+            length_radio = gr.Radio(choices=get_video_modes(), value=i18n.translate("1秒"), label=i18n.translate("動画長"), info=i18n.translate("キーフレーム画像のコピー範囲と動画の長さを設定"))
 
     with gr.Row():
         with gr.Column():
             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
 
             with gr.Row():
-                start_button = gr.Button(value="Start Generation")
-                end_button = gr.Button(value="End Generation", interactive=False)
+                start_button = gr.Button(value=i18n.translate("Start Generation"))
+                end_button = gr.Button(value=i18n.translate("End Generation"), interactive=False)
 
             # セクション入力用のリストを初期化
             section_number_inputs = []
@@ -1127,7 +1127,7 @@ with block:
             # 現在のセクション数に応じたMarkdownを返す関数
             def generate_section_title(total_sections):
                 last_section = total_sections - 1
-                return f"### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。"
+                return f"{i18n.translate('### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。').format(total_sections=total_sections)}"
 
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
@@ -1164,7 +1164,7 @@ with block:
 
             input_image = gr.Image(sources='upload', type="numpy", label="Image", height=320)
 
-            prompt = gr.Textbox(label="Prompt", value=get_default_startup_prompt(), lines=6)
+            prompt = gr.Textbox(label=i18n.translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
             with gr.Row():
                 gr.Markdown(i18n.translate("※プリセット名を空にして「保存」すると起動時デフォルトになります"))
@@ -1180,16 +1180,16 @@ with block:
                 # 計算結果を表示するエリア
                 section_calc_display = gr.HTML("", label="")
 
-                use_teacache = gr.Checkbox(label='Use TeaCache', value=True, info='Faster speed, but often makes hands and fingers slightly worse.')
+                use_teacache = gr.Checkbox(label=i18n.translate('Use TeaCache'), value=True, info=i18n.translate('Faster speed, but often makes hands and fingers slightly worse.'))
 
                 # Use Random Seedの初期値
                 use_random_seed_default = True
                 seed_default = random.randint(0, 2**32 - 1) if use_random_seed_default else 1
 
-                use_random_seed = gr.Checkbox(label="Use Random Seed", value=use_random_seed_default)
+                use_random_seed = gr.Checkbox(label=i18n.translate('Use Random Seed'), value=use_random_seed_default)
 
-                n_prompt = gr.Textbox(label="Negative Prompt", value="", visible=False)  # Not used
-                seed = gr.Number(label="Seed", value=seed_default, precision=0)
+                n_prompt = gr.Textbox(label=i18n.translate('Negative Prompt'), value="", visible=False)  # Not used
+                seed = gr.Number(label=i18n.translate('Seed'), value=seed_default, precision=0)
 
                 def set_random_seed(is_checked):
                     if is_checked:
@@ -1198,46 +1198,46 @@ with block:
                         return gr.update()
                 use_random_seed.change(fn=set_random_seed, inputs=use_random_seed, outputs=seed)
 
-                total_second_length = gr.Slider(label="Total Video Length (Seconds)", minimum=1, maximum=120, value=1, step=1)
-                latent_window_size = gr.Slider(label="Latent Window Size", minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
-                steps = gr.Slider(label="Steps", minimum=1, maximum=100, value=25, step=1, info='Changing this value is not recommended.')
+                total_second_length = gr.Slider(label=i18n.translate('Total Video Length (Seconds)'), minimum=1, maximum=120, value=1, step=1)
+                latent_window_size = gr.Slider(label=i18n.translate('Latent Window Size'), minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
+                steps = gr.Slider(label=i18n.translate('Steps'), minimum=1, maximum=100, value=25, step=1, info='Changing this value is not recommended.')
 
-                cfg = gr.Slider(label="CFG Scale", minimum=1.0, maximum=32.0, value=1.0, step=0.01, visible=False)  # Should not change
-                gs = gr.Slider(label="Distilled CFG Scale", minimum=1.0, maximum=32.0, value=10.0, step=0.01, info='Changing this value is not recommended.')
-                rs = gr.Slider(label="CFG Re-Scale", minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)  # Should not change
+                cfg = gr.Slider(label=i18n.translate('CFG Scale'), minimum=1.0, maximum=32.0, value=1.0, step=0.01, visible=False)  # Should not change
+                gs = gr.Slider(label=i18n.translate('Distilled CFG Scale'), minimum=1.0, maximum=32.0, value=10.0, step=0.01, info='Changing this value is not recommended.')
+                rs = gr.Slider(label=i18n.translate('CFG Re-Scale'), minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)  # Should not change
 
-                gpu_memory_preservation = gr.Slider(label="GPU Memory to Preserve (GB) (smaller = more VRAM usage)", minimum=6, maximum=128, value=10, step=0.1, info="空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全")
+                gpu_memory_preservation = gr.Slider(label=i18n.translate('GPU Memory to Preserve (GB) (smaller = more VRAM usage)'), minimum=6, maximum=128, value=10, step=0.1, info=i18n.translate("空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全"))
 
                 # セクションごとの動画保存チェックボックスを追加（デフォルトOFF）
-                keep_section_videos = gr.Checkbox(label="完了時にセクションごとの動画を残す", value=False, info="チェックがない場合は最終動画のみ保存されます（デフォルトOFF）")
+                keep_section_videos = gr.Checkbox(label=i18n.translate('完了時にセクションごとの動画を残す'), value=False, info=i18n.translate("チェックがない場合は最終動画のみ保存されます（デフォルトOFF）"))
 
                 # セクションごとの静止画保存チェックボックスを追加（デフォルトOFF）
-                save_section_frames = gr.Checkbox(label="セクションごとの静止画を保存", value=False, info="各セクションの最終フレームを静止画として保存します（デフォルトOFF）")
+                save_section_frames = gr.Checkbox(label=i18n.translate('セクションごとの静止画を保存'), value=False, info=i18n.translate("各セクションの最終フレームを静止画として保存します（デフォルトOFF）"))
 
                 # キーフレームコピー機能のオンオフ切り替え
-                enable_keyframe_copy = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=False, info="オンにするとキーフレーム間の自動コピーが行われます")
+                enable_keyframe_copy = gr.Checkbox(label=i18n.translate('キーフレーム自動コピー機能を有効にする'), value=False, info=i18n.translate("オンにするとキーフレーム間の自動コピーが行われます"))
 
                 # LoRA設定グループを追加
                 with gr.Group(visible=has_lora_support) as lora_settings_group:
-                    gr.Markdown("### LoRA設定")
+                    gr.Markdown(i18n.translate("### LoRA設定"))
 
                     # LoRA使用有無のチェックボックス
-                    use_lora = gr.Checkbox(label="LoRAを使用する", value=False, info="チェックをオンにするとLoRAを使用します（要16GB VRAM以上）")
+                    use_lora = gr.Checkbox(label=i18n.translate('LoRAを使用する'), value=False, info=i18n.translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
 
                     # LoRA設定コンポーネント（初期状態では非表示）
-                    lora_file = gr.File(label="LoRAファイル (.safetensors, .pt, .bin)",
+                    lora_file = gr.File(label=i18n.translate('LoRAファイル (.safetensors, .pt, .bin)'),
                                 file_types=[".safetensors", ".pt", ".bin"],
                                 visible=False)
-                    lora_scale = gr.Slider(label="LoRA適用強度", minimum=0.0, maximum=1.0,
+                    lora_scale = gr.Slider(label=i18n.translate('LoRA適用強度'), minimum=0.0, maximum=1.0,
                                value=0.8, step=0.01, visible=False)
-                    lora_format = gr.Radio(label="LoRAフォーマット",
+                    lora_format = gr.Radio(label=i18n.translate('LoRAフォーマット'),
                                choices=["HunyuanVideo", "Diffusers"],
                                value="HunyuanVideo", visible=False)
                     lora_blocks_type = gr.Dropdown(
-                        label="LoRAブロック選択",
+                        label=i18n.translate('LoRAブロック選択'),
                         choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
                         value="all",
-                        info="選択するブロックタイプ（all=すべて、その他=メモリ節約）",
+                        info=i18n.translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
                         visible=False
                     )
 
@@ -1260,25 +1260,25 @@ with block:
 
                 # EndFrame影響度調整スライダー
                 with gr.Group():
-                    gr.Markdown("### EndFrame影響度調整")
+                    gr.Markdown(i18n.translate("### EndFrame影響度調整"))
                     end_frame_strength = gr.Slider(
-                        label="EndFrame影響度",
+                        label=i18n.translate('EndFrame影響度'),
                         minimum=0.01,
                         maximum=1.00,
                         value=1.00,
                         step=0.01,
-                        info="最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。"
+                        info=i18n.translate("最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。"))
                     )
 
                 # 出力フォルダ設定
-                gr.Markdown("※ 出力先は `webui` 配下に限定されます")
+                gr.Markdown(i18n.translate("※ 出力先は `webui` 配下に限定されます"))
                 with gr.Row(equal_height=True):
                     with gr.Column(scale=4):
                         # フォルダ名だけを入力欄に設定
                         output_dir = gr.Textbox(
-                            label="出力フォルダ名",
+                            label=i18n.translate('出力フォルダ名'),
                             value=output_folder_name,  # 設定から読み込んだ値を使用
-                            info="動画やキーフレーム画像の保存先フォルダ名",
+                            info=i18n.translate("動画やキーフレーム画像の保存先フォルダ名"),
                             placeholder="outputs"
                         )
                     with gr.Column(scale=1, min_width=100):
@@ -1287,7 +1287,7 @@ with block:
                 # 実際の出力パスを表示
                 with gr.Row(visible=False):
                     path_display = gr.Textbox(
-                        label="出力フォルダの完全パス",
+                        label=i18n.translate('出力フォルダの完全パス'),
                         value=os.path.join(base_path, output_folder_name),
                         interactive=False
                     )
@@ -1313,7 +1313,7 @@ with block:
                             global output_folder_name, outputs_folder
                             output_folder_name = folder_name
                             outputs_folder = folder_path
-                        print(f"出力フォルダ設定を保存しました: {folder_name}")
+                        print(i18n.translate('出力フォルダ設定を保存しました: {0}').format(folder_name))
 
                     # フォルダを開く
                     open_output_folder(folder_path)
@@ -1354,7 +1354,7 @@ with block:
                     seconds = get_video_seconds(length)
 
                     # latent_window_sizeを設定
-                    latent_window_size = 5 if frame_size == "0.5秒 (17フレーム)" else 9
+                    latent_window_size = 5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
                     frame_count = latent_window_size * 4 - 3
 
                     # セクション数を計算
@@ -1363,13 +1363,13 @@ with block:
 
                     # 計算詳細を表示するHTMLを生成
                     html = f"""<div style='padding: 10px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px;'>
-                    <strong>計算詳細</strong>: モード={length}, フレームサイズ={frame_size}, 総フレーム数={total_frames}, セクションあたり={frame_count}フレーム, 必要セクション数={total_sections}
+                    {i18n.translate('<strong>計算詳細</strong>: モード={0}, フレームサイズ={1}, 総フレーム数={2}, セクションあたり={3}フレーム, 必要セクション数={4}').format(length, frame_size, total_frames, frame_count, total_sections)}
                     <br>
-                    動画モード '{length}' とフレームサイズ '{frame_size}' で必要なセクション数: <strong>{total_sections}</strong>
+                    {i18n.translate('動画モード {0} とフレームサイズ {1} で必要なセクション数: <strong>{2}</strong>').format(length, frame_size, total_sections)}
                     </div>"""
 
                     # デバッグ用ログ
-                    print(f"計算結果: モード={length}, フレームサイズ={frame_size}, latent_window_size={latent_window_size}, 総フレーム数={total_frames}, 必要セクション数={total_sections}")
+                    print(i18n.translate("計算結果: モード={0}, フレームサイズ={1}, latent_window_size={2}, 総フレーム数={3}, 必要セクション数={4}").format(length, frame_size, latent_window_size, total_frames, total_sections))
 
                     return html
 
@@ -1396,7 +1396,7 @@ with block:
                     """画像は初期化せずにセクションの表示/非表示のみを制御する関数"""
                     # フレームサイズに基づくセクション数計算
                     seconds = get_video_seconds(length)
-                    latent_window_size_value = 5 if frame_size == "0.5秒 (17フレーム)" else 9
+                    latent_window_size_value = 5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
                     frame_count = latent_window_size_value * 4 - 3
                     total_frames = int(seconds * 30)
                     total_sections = int(max(round(total_frames / frame_count), 1))
@@ -1516,7 +1516,7 @@ with block:
 
             # プロンプト管理パネルの追加
             with gr.Group(visible=True) as prompt_management:
-                gr.Markdown(f"### {i18n.translate('プロンプト管理')}")
+                gr.Markdown(i18n.translate('### プロンプト管理'))
 
                 # 編集画面を常時表示する
                 with gr.Group(visible=True):
@@ -1562,7 +1562,7 @@ with block:
 
         if not is_valid:
             # 画像が無い場合はエラーメッセージを表示して終了
-            yield None, gr.update(visible=False), "エラー: 入力画像が選択されていません", error_message, gr.update(interactive=True), gr.update(interactive=False), gr.update()
+            yield None, gr.update(visible=False), i18n.translate("エラー: 入力画像が選択されていません"), error_message, gr.update(interactive=True), gr.update(interactive=False), gr.update()
             return
 
         # 画像がある場合は通常の処理を実行
