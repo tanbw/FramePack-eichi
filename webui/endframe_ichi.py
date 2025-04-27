@@ -1151,12 +1151,12 @@ with block:
                         with gr.Row(visible=(i < initial_sections_count), elem_classes="section-row") as row_group:
                             # 左側にセクション番号とプロンプトを配置
                             with gr.Column(scale=1):
-                                section_number = gr.Number(label=i18n.translate("セクション番号{0}".format(i)), value=i, precision=0)
-                                section_prompt = gr.Textbox(label=i18n.translate("セクションプロンプト{0}".format(i)), placeholder=i18n.translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), lines=2)
+                                section_number = gr.Number(label=i18n.translate("セクション番号 {0}").format(i), value=i, precision=0)
+                                section_prompt = gr.Textbox(label=i18n.translate("セクションプロンプト {0}").format(i), placeholder=i18n.translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), lines=2)
 
                             # 右側にキーフレーム画像のみ配置
                             with gr.Column(scale=2):
-                                section_image = gr.Image(label=i18n.translate("キーフレーム画像{0}").format(i), sources="upload", type="numpy", height=200)
+                                section_image = gr.Image(label=i18n.translate("キーフレーム画像 {0}").format(i), sources="upload", type="numpy", height=200)
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
                             section_prompt_inputs.append(section_prompt)
