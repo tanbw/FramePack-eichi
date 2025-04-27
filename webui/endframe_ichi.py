@@ -635,7 +635,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     hint = i18n.translate("Sampling {current_step}/{steps}").format(current_step=current_step, steps=steps)
                     # セクション情報を追加（現在のセクション/全セクション）
                     section_info = i18n.translate("セクション: {0}/{1}").format(i_section+1, total_sections)
-                    desc = i18n.translate("{section_info}Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ...").format(
+                    desc = i18n.translate("{section_info} Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ...").format(
                         section_info=section_info,
                         total_generated_latent_frames=int(max(0, total_generated_latent_frames * 4 - 3)),
                         video_length=max(0, (total_generated_latent_frames * 4 - 3) / 30)
@@ -648,7 +648,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     percentage = int(100.0 * current_step / steps)
                     hint = i18n.translate("Sampling {current_step}/{steps}").format(current_step=current_step, steps=steps)
                     section_info = i18n.translate("セクション: {0}/{1}").format(i_section+1, total_sections)
-                    desc = i18n.translate("{section_info}Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ...").format(
+                    desc = i18n.translate("{section_info} Total generated frames: {total_generated_latent_frames}, Video length: {video_length} seconds (FPS-30). The video is being extended now ...").format(
                         section_info=section_info,
                         total_generated_latent_frames=int(max(0, total_generated_latent_frames * 4 - 3)),
                         video_length=max(0, (total_generated_latent_frames * 4 - 3) / 30)
