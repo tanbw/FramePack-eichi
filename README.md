@@ -50,6 +50,90 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 - VRAM管理の基準値が変更され（60GB→100GB）、より多くのユーザーが低VRAMモードで動作可能に
 - 使用にはVRAM16GBでも少し厳しめだが、処理自体よりも開始前のディスク読込の方が長い。メモリは多め推奨
 
+## 💻 インストール方法
+
+### 前提条件
+
+- Windows 10/11（Linux/Macでも基本機能は多分動作可能）
+- NVIDIA GPU (RTX 30/40シリーズ推奨、最低8GB VRAM)
+- CUDA Toolkit 12.6
+- Python 3.10.x
+- 最新のNVIDIA GPU ドライバー
+
+※ Linuxでの動作はv1.2で強化され、オープン機能も追加されましたが、一部機能に制限がある場合があります。
+
+### 手順
+
+#### 公式パッケージのインストール
+
+まず、元のFramePackをインストールする必要があります。
+
+1. [公式FramePack](https://github.com/lllyasviel/FramePack?tab=readme-ov-file#installation)からWindowsワンインストーラーをダウンロードします。
+   「Click Here to Download One-Click Package (CUDA 12.6 + Pytorch 2.6)」をクリックします。
+
+2. ダウンロードしたパッケージを解凍し、`update.bat`を実行してから`run.bat`で起動します。
+   `update.bat`の実行は重要です。これを行わないと、潜在的なバグが修正されていない以前のバージョンを使用することになります。
+
+3. 初回起動時に必要なモデルが自動的にダウンロードされます（約30GB）。
+   既にダウンロード済みのモデルがある場合は、`framepack\webui\hf_download`フォルダに配置してください。
+
+4. この時点で動作しますが、高速化ライブラリ（Xformers、Flash Attn、Sage Attn）が未インストールの場合、処理が遅くなります。
+   ```
+   Currently enabled native sdp backends: ['flash', 'math', 'mem_efficient', 'cudnn']
+   Xformers is not installed!
+   Flash Attn is not installed!
+   Sage Attn is not installed!
+   ```
+   
+   処理時間の違い: ※RAM:32GB、RXT4060Ti(16GB)の場合
+   - ライブラリ未インストール時: 約4分46秒/25ステップ
+   - ライブラリインストール時: 約3分17秒〜3分25秒/25ステップ
+
+5. 高速化ライブラリをインストールするには、[Issue #138](https://github.com/lllyasviel/FramePack/issues/138)から`package_installer.zip`をダウンロードし、解凍してルートディレクトリで`package_installer.bat`を実行します（コマンドプロンプト内でEnterを押す）。
+
+6. 再度起動してライブラリがインストールされたことを確認します:
+   ```
+   Currently enabled native sdp backends: ['flash', 'math', 'mem_efficient', 'cudnn']
+   Xformers is installed!
+   Flash Attn is not installed!
+   Sage Attn is installed!
+   ```
+   作者が実行した場合、Flash Attnはインストールされませんでした。
+   注: Flash Attnがインストールされていなくても、処理速度にはほとんど影響がありません。テスト結果によると、Flash Attnの有無による速度差はわずかで、「Flash Attn is not installed!」の状態でも約3分17秒/25ステップと、すべてインストールされている場合（約3分25秒/25ステップ）とほぼ同等の処理速度を維持できます。
+   Xformersが入っているかどうかが一番影響が大きいと思います。
+
+#### FramePack-eichiのインストール
+
+1. `run_endframe_ichi.bat`をFramePackのルートディレクトリに配置します。
+2. 以下のファイルとフォルダを`webui`フォルダに配置します：
+   - `endframe_ichi.py` - メインアプリケーションファイル
+   - `eichi_utils` フォルダ - ユーティリティモジュール（v1.3.1で見直し、v1.6.2でUI関連モジュール追加）
+     - `__init__.py`
+     - `frame_calculator.py` - フレームサイズ計算モジュール
+     - `keyframe_handler.py` - キーフレーム処理モジュール
+     - `keyframe_handler_extended.py` - キーフレーム処理モジュール
+     - `preset_manager.py` - プリセット管理モジュール
+     - `settings_manager.py` - 設定管理モジュール
+     - `ui_styles.py` - UIスタイル定義モジュール（v1.6.2で追加）
+     - `video_mode_settings.py` - 動画モード設定モジュール
+   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加、v1.3.2で改良）
+     - `__init__.py`
+     - `dynamic_swap_lora.py` - LoRA管理モジュール（フック方式は廃止され、直接適用方式のみサポート）
+     - `lora_loader.py` - LoRAローダーモジュール
+     - `lora_check_helper.py` - LoRA適用状況確認モジュール（v1.3.2で追加）
+
+3. `run_endframe_ichi.bat`を実行すると、FramePack-eichiのWebUIが起動します。
+
+#### Linux向けインストール方法
+
+Linuxでは、以下の手順で実行可能です：
+
+1. 上記の必要なファイルとフォルダをダウンロードして配置します。
+2. ターミナルで次のコマンドを実行します：
+   ```bash
+   python endframe_ichi.py
+   ```
+
 ## 🚀 使い方
 
 ### 基本的な動画生成　※既存機能
@@ -432,89 +516,6 @@ else:
 
 EndFrame影響度とパディング値は、料理に例えると「最初に使う調味料の量」と「各工程での前の段階からの参照量」のような関係です。両方を適切に組み合わせることで、あなたが目指す理想的な動きを実現できます。
 
-## 💻 インストール方法
-
-### 前提条件
-
-- Windows 10/11（Linux/Macでも基本機能は多分動作可能）
-- NVIDIA GPU (RTX 30/40シリーズ推奨、最低8GB VRAM)
-- CUDA Toolkit 12.6
-- Python 3.10.x
-- 最新のNVIDIA GPU ドライバー
-
-※ Linuxでの動作はv1.2で強化され、オープン機能も追加されましたが、一部機能に制限がある場合があります。
-
-### 手順
-
-#### 公式パッケージのインストール
-
-まず、元のFramePackをインストールする必要があります。
-
-1. [公式FramePack](https://github.com/lllyasviel/FramePack?tab=readme-ov-file#installation)からWindowsワンインストーラーをダウンロードします。
-   「Click Here to Download One-Click Package (CUDA 12.6 + Pytorch 2.6)」をクリックします。
-
-2. ダウンロードしたパッケージを解凍し、`update.bat`を実行してから`run.bat`で起動します。
-   `update.bat`の実行は重要です。これを行わないと、潜在的なバグが修正されていない以前のバージョンを使用することになります。
-
-3. 初回起動時に必要なモデルが自動的にダウンロードされます（約30GB）。
-   既にダウンロード済みのモデルがある場合は、`framepack\webui\hf_download`フォルダに配置してください。
-
-4. この時点で動作しますが、高速化ライブラリ（Xformers、Flash Attn、Sage Attn）が未インストールの場合、処理が遅くなります。
-   ```
-   Currently enabled native sdp backends: ['flash', 'math', 'mem_efficient', 'cudnn']
-   Xformers is not installed!
-   Flash Attn is not installed!
-   Sage Attn is not installed!
-   ```
-   
-   処理時間の違い: ※RAM:32GB、RXT4060Ti(16GB)の場合
-   - ライブラリ未インストール時: 約4分46秒/25ステップ
-   - ライブラリインストール時: 約3分17秒〜3分25秒/25ステップ
-
-5. 高速化ライブラリをインストールするには、[Issue #138](https://github.com/lllyasviel/FramePack/issues/138)から`package_installer.zip`をダウンロードし、解凍してルートディレクトリで`package_installer.bat`を実行します（コマンドプロンプト内でEnterを押す）。
-
-6. 再度起動してライブラリがインストールされたことを確認します:
-   ```
-   Currently enabled native sdp backends: ['flash', 'math', 'mem_efficient', 'cudnn']
-   Xformers is installed!
-   Flash Attn is not installed!
-   Sage Attn is installed!
-   ```
-   作者が実行した場合、Flash Attnはインストールされませんでした。
-   注: Flash Attnがインストールされていなくても、処理速度にはほとんど影響がありません。テスト結果によると、Flash Attnの有無による速度差はわずかで、「Flash Attn is not installed!」の状態でも約3分17秒/25ステップと、すべてインストールされている場合（約3分25秒/25ステップ）とほぼ同等の処理速度を維持できます。
-   Xformersが入っているかどうかが一番影響が大きいと思います。
-
-#### FramePack-eichiのインストール
-
-1. `run_endframe_ichi.bat`をFramePackのルートディレクトリに配置します。
-2. 以下のファイルとフォルダを`webui`フォルダに配置します：
-   - `endframe_ichi.py` - メインアプリケーションファイル
-   - `eichi_utils` フォルダ - ユーティリティモジュール（v1.3.1で見直し、v1.6.2でUI関連モジュール追加）
-     - `__init__.py`
-     - `frame_calculator.py` - フレームサイズ計算モジュール
-     - `keyframe_handler.py` - キーフレーム処理モジュール
-     - `keyframe_handler_extended.py` - キーフレーム処理モジュール
-     - `preset_manager.py` - プリセット管理モジュール
-     - `settings_manager.py` - 設定管理モジュール
-     - `ui_styles.py` - UIスタイル定義モジュール（v1.6.2で追加）
-     - `video_mode_settings.py` - 動画モード設定モジュール
-   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加、v1.3.2で改良）
-     - `__init__.py`
-     - `dynamic_swap_lora.py` - LoRA管理モジュール（フック方式は廃止され、直接適用方式のみサポート）
-     - `lora_loader.py` - LoRAローダーモジュール
-     - `lora_check_helper.py` - LoRA適用状況確認モジュール（v1.3.2で追加）
-
-3. `run_endframe_ichi.bat`を実行すると、FramePack-eichiのWebUIが起動します。
-
-#### Linux向けインストール方法
-
-Linuxでは、以下の手順で実行可能です：
-
-1. 上記の必要なファイルとフォルダをダウンロードして配置します。
-2. ターミナルで次のコマンドを実行します：
-   ```bash
-   python endframe_ichi.py
-   ```
 
 ## 🛠️ 設定情報
 
