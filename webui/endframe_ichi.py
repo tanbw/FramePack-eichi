@@ -1,4 +1,8 @@
-from submodules.FramePack.diffusers_helper.hf_login import login
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './submodules/FramePack'))))
+
+from diffusers_helper.hf_login import login
 
 import os
 import random
