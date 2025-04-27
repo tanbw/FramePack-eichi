@@ -571,7 +571,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     # フックインストール前にメモリ状態をログ出力
-                    print(i18n.translate("フック設置前メモリ状態: 使用中={0}GB").format(torch.cuda.memory_allocated()/1024**3:.2f))
+                    print(i18n.translate("フック設置前メモリ状態: 使用中={0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
                     lora_manager.install_hooks(transformer_lora)
                     print(i18n.translate("DynamicSwapLoRAによるLoRAを適用しました (スケール: {0})").format(lora_scale))
 

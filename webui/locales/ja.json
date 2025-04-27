@@ -40,7 +40,7 @@
   "latent_padding_size = {0}, is_last_section = {1}": "latent_padding_size = {0}, is_last_section = {1}",
   "CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})": "CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})",
   "LoRAを読み込み中: {0} (スケール: {1})": "LoRAを読み込み中: {0} (スケール: {1})",
-  "フック設置前メモリ状態: 使用中={0}GB": "フック設置前メモリ状態: 使用中={0}GB",
+  "フック設置前メモリ状態: 使用中={0..2f}GB": "フック設置前メモリ状態: 使用中={0..2f}GB",
   "DynamicSwapLoRAによるLoRAを適用しました (スケール: {0})": "DynamicSwapLoRAによるLoRAを適用しました (スケール: {0})",
   "LoRA適用状況: {0}, 適用方法: {1}": "LoRA適用状況: {0}, 適用方法: {1}",
   "LoRA診断エラー: {0}": "LoRA診断エラー: {0}",
