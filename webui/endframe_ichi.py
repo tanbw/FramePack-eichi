@@ -1127,7 +1127,7 @@ with block:
             # 現在のセクション数に応じたMarkdownを返す関数
             def generate_section_title(total_sections):
                 last_section = total_sections - 1
-                return f"{i18n.translate('### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。').format(total_sections=total_sections)}"
+                return i18n.translate("### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。").format(total_sections=total_sections)
 
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
