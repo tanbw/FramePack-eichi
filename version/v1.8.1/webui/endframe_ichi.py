@@ -1590,14 +1590,32 @@ with block:
             gr.Markdown(i18n.translate("**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**"))
             end_frame = gr.Image(sources='upload', type="numpy", label=i18n.translate("Final Frame (Optional)"), height=320)
 
-            gr.Markdown(i18n.translate("### テンソルデータの使い方"))
-            tensor_data_input = gr.File(
-                label=i18n.translate("テンソルデータアップロード (.safetensors) - 生成動画の後方(末尾)に結合されます"),
-                file_types=[".safetensors"]
-            )
-
-            gr.Markdown(i18n.translate("※ テンソルデータをアップロードすると通常の動画生成後に、その動画の後方（末尾）に結合されます。\n結合した動画は「元のファイル名_combined.mp4」として保存されます。\n※ テンソルデータの保存機能を有効にすると、生成とアップロードのテンソルを結合したデータも保存されます。\n※ テンソルデータの結合は別ツール `python eichi_utils/tensor_combiner.py --ui` でもできます。"))
-
+            # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
+            with gr.Group():
+                gr.Markdown(i18n.translate("### テンソルデータ設定"))
+                
+                # テンソルデータ使用有無のチェックボックス
+                use_tensor_data = gr.Checkbox(label=i18n.translate("テンソルデータを使用する"), value=False, info=i18n.translate("チェックをオンにするとテンソルデータをアップロードできます"))
+                
+                # テンソルデータ設定コンポーネント（初期状態では非表示）
+                with gr.Group(visible=False) as tensor_data_group:
+                    tensor_data_input = gr.File(
+                        label=i18n.translate("テンソルデータアップロード (.safetensors) - 生成動画の後方(末尾)に結合されます"),
+                        file_types=[".safetensors"]
+                    )
+                    
+                    gr.Markdown(i18n.translate("※ テンソルデータをアップロードすると通常の動画生成後に、その動画の後方（末尾）に結合されます。\n結合した動画は「元のファイル名_combined.mp4」として保存されます。\n※ テンソルデータの保存機能を有効にすると、生成とアップロードのテンソルを結合したデータも保存されます。\n※ テンソルデータの結合は別ツール `python eichi_utils/tensor_combiner.py --ui` でもできます。"))
+                
+                # チェックボックスの状態によってテンソルデータ設定の表示/非表示を切り替える関数
+                def toggle_tensor_data_settings(use_tensor):
+                    return gr.update(visible=use_tensor)
+                
+                # チェックボックスの変更イベントに関数を紐づけ
+                use_tensor_data.change(
+                    fn=toggle_tensor_data_settings,
+                    inputs=[use_tensor_data],
+                    outputs=[tensor_data_group]
+                )
             with gr.Row():
                 start_button = gr.Button(value=i18n.translate("Start Generation"))
                 end_button = gr.Button(value=i18n.translate("End Generation"), interactive=False)
