@@ -111,7 +111,7 @@
   "動画長": "Video length",
   "キーフレーム画像のコピー範囲と動画の長さを設定": "Set keyframe image copy range and video length",
   "**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**": "**Final is the last image, Image is the first image (one of the final keyframe images is required).**",
-  "### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。総数{total_sections}。最終キーフレームの画像は、Image(始点)より優先されます。": "### Section Settings (Reverse Order)\n\nSections are displayed in reverse chronological order. Image(start) is required, and images should be set from Final(end) backwards. Total {total_sections}. The final keyframe image takes precedence over Image(start).",
+  "### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。**最終キーフレームの画像は、Image(始点)より優先されます。総数{0}**": "### Section Settings (Reverse Order)\n\nSections are displayed in reverse chronological order. Image(start) is required, and images should be set from Final(end) backwards. **The final keyframe image takes precedence over Image(start). Total {0}.**",
   "セクション設定": "Section settings",
   "セクション番号 {0}": "Section number {0}",
   "セクションプロンプト {0}": "Section prompt {0}",
