@@ -653,7 +653,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 hint = i18n.translate('Sampling {0}/{1}').format(current_step, steps)
                 # セクション情報を追加（現在のセクション/全セクション）
                 section_info = i18n.translate('セクション: {0}/{1}').format(i_section+1, total_sections)
-                desc = f'{section_info} Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 30) :.2f} seconds (FPS-30). The video is being extended now ...'
+                desc = f"{section_info} " + i18n.translate('生成フレーム数: {total_generated_latent_frames}, 動画長: {video_length:.2f} 秒 (FPS-30). 動画が生成中です ...').format(section_info=section_info, total_generated_latent_frames=int(max(0, total_generated_latent_frames * 4 - 3)), video_length=max(0, (total_generated_latent_frames * 4 - 3) / 30))
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
