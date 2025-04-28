@@ -77,7 +77,7 @@ def load_translations():
     translations = {}
     locales_dir = os.path.join(os.path.dirname(__file__), './')
 
-    for locale in ["ja", "zh-tw"]:
+    for locale in ["en", "ja", "zh-tw"]:
         json_file = os.path.join(locales_dir, f"{locale}.json")
         if os.path.exists(json_file):
             with open(json_file, 'r', encoding='utf-8') as f:

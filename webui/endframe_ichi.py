@@ -18,7 +18,7 @@ parser.add_argument('--share', action='store_true')
 parser.add_argument("--server", type=str, default='127.0.0.1')
 parser.add_argument("--port", type=int, default=8001)
 parser.add_argument("--inbrowser", action='store_true')
-parser.add_argument("--lang", type=str, default='ja', help="Language: ja, zh-tw")
+parser.add_argument("--lang", type=str, default='ja', help="Language: ja, zh-tw, en")
 args = parser.parse_args()
 
 # Load translations from JSON files
@@ -1199,10 +1199,10 @@ with block:
 
                 total_second_length = gr.Slider(label=i18n.translate('Total Video Length (Seconds)'), minimum=1, maximum=120, value=1, step=1)
                 latent_window_size = gr.Slider(label=i18n.translate('Latent Window Size'), minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
-                steps = gr.Slider(label=i18n.translate('Steps'), minimum=1, maximum=100, value=25, step=1, info='Changing this value is not recommended.')
+                steps = gr.Slider(label=i18n.translate('Steps'), minimum=1, maximum=100, value=25, step=1, info=i18n.translate('Changing this value is not recommended.'))
 
                 cfg = gr.Slider(label=i18n.translate('CFG Scale'), minimum=1.0, maximum=32.0, value=1.0, step=0.01, visible=False)  # Should not change
-                gs = gr.Slider(label=i18n.translate('Distilled CFG Scale'), minimum=1.0, maximum=32.0, value=10.0, step=0.01, info='Changing this value is not recommended.')
+                gs = gr.Slider(label=i18n.translate('Distilled CFG Scale'), minimum=1.0, maximum=32.0, value=10.0, step=0.01, info=i18n.translate('Changing this value is not recommended.'))
                 rs = gr.Slider(label=i18n.translate('CFG Re-Scale'), minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)  # Should not change
 
                 gpu_memory_preservation = gr.Slider(label=i18n.translate('GPU Memory to Preserve (GB) (smaller = more VRAM usage)'), minimum=6, maximum=128, value=10, step=0.1, info=i18n.translate("空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全"))
