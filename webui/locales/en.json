@@ -133,6 +133,7 @@
   "CFG Re-Scale": "CFG Re-Scale",
   "GPU Memory to Preserve (GB) (smaller = more VRAM usage)": "GPU Memory to Preserve (GB) (smaller = more VRAM usage)",
   "空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全": "Specify amount of GPU memory to reserve. Smaller value = more VRAM available = faster, larger value = less VRAM used = safer",
+  "数値が小さいほど高品質になります。0は無圧縮。黒画面が出る場合は16に設定してください。": "Lower values result in higher quality. 0 is uncompressed. If black screens appear, set to 16.",
   "完了時にセクションごとの動画を残す": "Keep section videos after completion",
   "チェックがない場合は最終動画のみ保存されます（デフォルトOFF）": "If unchecked, only the final video will be saved (default OFF)",
   "セクションごとの静止画を保存": "Save still images for each section",

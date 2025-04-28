@@ -1208,7 +1208,7 @@ with block:
                 gpu_memory_preservation = gr.Slider(label=i18n.translate('GPU Memory to Preserve (GB) (smaller = more VRAM usage)'), minimum=6, maximum=128, value=10, step=0.1, info=i18n.translate("空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全"))
 
                 # MP4圧縮設定スライダーを追加
-                mp4_crf = gr.Slider(label="MP4 Compression", minimum=0, maximum=100, value=16, step=1, info="数値が小さいほど高品質になります。0は無圧縮。黒画面が出る場合は16に設定してください。")
+                mp4_crf = gr.Slider(label="MP4 Compression", minimum=0, maximum=100, value=16, step=1, info=i18n.translate("数値が小さいほど高品質になります。0は無圧縮。黒画面が出る場合は16に設定してください。"))
 
                 # セクションごとの動画保存チェックボックスを追加（デフォルトOFF）
                 keep_section_videos = gr.Checkbox(label=i18n.translate('完了時にセクションごとの動画を残す'), value=False, info=i18n.translate("チェックがない場合は最終動画のみ保存されます（デフォルトOFF）"))
