@@ -2,6 +2,16 @@
 
 FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/lllyasviel/FramePack)のフォークであるnirvash氏の[nirvash/FramePack](https://github.com/nirvash/FramePack)を元にして作成された機能追加バージョンです。nirvash氏の先駆的な改良に基づき、細かい機能が多数搭載されています。
 
+[https://github.com/hinablue](https://github.com/hinablue) **Hina Chen氏**より多言語対応の協力をいただき非常に感謝しております。
+
+感謝您 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** 對多語言支援的協助。
+
+Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for the multilingual support contribution.
+
+[繁体字中文版说明文档请点击此处](README_zh.md)
+
+> 注意: 現在、一部のドキュメントが繁体字中国語でも利用可能です。英語版READMEおよびその他の言語版は後日追加予定です。現在の翻訳はv1.7.1時点の機能をカバーしており、最新のv1.8機能の翻訳は現在進行中です。
+
 ![FramePack-eichi画面1](images/framepack_eichi_screenshot1.png)
 
 ## 📘 名称の由来
@@ -16,6 +26,8 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 つまり叡智な差分画像から動画を作成することに特化した現地改修仕様です。
 
 ## 🌟 主な機能
+
+- **多言語対応（i18n）**: 日本語、英語、繁体字中国語のUIをサポート　※v1.8.1で追加
 
 - **高品質な動画生成**: 単一画像から自然な動きの動画を生成　※既存機能
 - **柔軟な動画長設定**: 1〜20秒の各セクションモードに対応　※独自機能
@@ -34,7 +46,22 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 
 ![FramePack-eichi画面2](images/framepack_eichi_screenshot2.png)
 
-## 📝 最新アップデート情報 (v1.8)
+## 📝 最新アップデート情報 (v1.8.1)
+
+### 主要な変更点
+
+#### 1. 多言語対応（i18n）の実装
+- **対応言語**: 日本語、英語、繁体字中国語の3言語をサポート
+- **言語切替**: 以下の実行ファイルで言語を切り替え可能
+  - `run_endframe_ichi.bat` - 日本語版（デフォルト）
+  - `run_endframe_ichi_en.bat` - 英語版
+  - `run_endframe_ichi_zh-tw.bat` - 繁体字中国語版
+- **UIの国際化**: ボタン、ラベル、メッセージなど、UIのほぼすべての要素が多言語化
+- **表示言語の保存**: コマンドラインパラメータで言語選択可能（例: `--lang en`）
+
+※ 現在は1.7.1時点の機能に対応しており、1.8の機能については今後翻訳を追加予定です。
+
+## 📝 アップデート情報 (v1.8)
 
 ### 主要な変更点
 
@@ -164,7 +191,11 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 
 #### FramePack-eichiのインストール
 
-1. `run_endframe_ichi.bat`をFramePackのルートディレクトリに配置します。
+1. 実行ファイルをFramePackのルートディレクトリに配置します：
+   - `run_endframe_ichi.bat` - 日本語版用（デフォルト）
+   - `run_endframe_ichi_en.bat` - 英語版用（v1.8.1で追加）
+   - `run_endframe_ichi_zh-tw.bat` - 繁体字中国語版用（v1.8.1で追加）
+
 2. 以下のファイルとフォルダを`webui`フォルダに配置します：
    - `endframe_ichi.py` - メインアプリケーションファイル
    - `eichi_utils` フォルダ - ユーティリティモジュール（v1.3.1で見直し、v1.6.2でUI関連モジュール追加）
@@ -181,8 +212,23 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
      - `dynamic_swap_lora.py` - LoRA管理モジュール（フック方式は廃止され、直接適用方式のみサポート）
      - `lora_loader.py` - LoRAローダーモジュール
      - `lora_check_helper.py` - LoRA適用状況確認モジュール（v1.3.2で追加）
+   - `locales` フォルダ - 多言語対応モジュール（v1.8.1で追加）
+     - `i18n.py` - 国際化（i18n）機能のコア実装
+     - `ja.json` - 日本語の翻訳ファイル（デフォルト言語）
+     - `en.json` - 英語の翻訳ファイル
+     - `zh-tw.json` - 繁体字中国語の翻訳ファイル
 
-3. `run_endframe_ichi.bat`を実行すると、FramePack-eichiのWebUIが起動します。
+3. 希望する言語の実行ファイルを実行すると、対応する言語でFramePack-eichiのWebUIが起動します：
+   - 日本語版：`run_endframe_ichi.bat`
+   - 英語版：`run_endframe_ichi_en.bat`
+   - 繁体字中国語版：`run_endframe_ichi_zh-tw.bat`
+
+   または、コマンドラインから直接言語を指定して起動することも可能です：
+   ```bash
+   python endframe_ichi.py --lang en  # 英語で起動
+   python endframe_ichi.py --lang zh-tw  # 繁体字中国語で起動
+   python endframe_ichi.py  # 日本語で起動（デフォルト）
+   ```
 
 #### Linux向けインストール方法
 
@@ -227,6 +273,22 @@ Linuxでは、以下の手順で実行可能です：
 [続きはこちら](README_column.md#-高度な設定)
 
 ## 🛠️ 設定情報
+
+### 言語設定
+
+1. **実行ファイルによる言語選択**:
+   - `run_endframe_ichi.bat` - 日本語版（デフォルト）
+   - `run_endframe_ichi_en.bat` - 英語版
+   - `run_endframe_ichi_zh-tw.bat` - 繁体字中国語版
+
+2. **コマンドラインによる言語指定**:
+   ```
+   python endframe_ichi.py --lang en  # 英語で起動
+   python endframe_ichi.py --lang zh-tw  # 繁体字中国語で起動
+   python endframe_ichi.py  # 日本語で起動（デフォルト）
+   ```
+
+※ READMEの多言語版も順次対応予定です。繁体字中国語版は[README_zh.md](README_zh.md)をご参照ください。
 
 設定に関する詳細情報は[こちら](README_column.md#-%EF%B8%8F-設定情報)をご覧ください。
 
@@ -288,6 +350,14 @@ Traceback (most recent call last):
 
 
 ## 📝 更新履歴
+
+### 2025-04-29: バージョン1.8.1
+- **多言語対応（i18n）の実装**:
+  - 日本語、英語、繁体字中国語の3言語に対応
+  - 言語別実行ファイル（`run_endframe_ichi_en.bat`、`run_endframe_ichi_zh-tw.bat`）の追加
+  - UIテキスト、ログメッセージ、エラーメッセージを含むすべての要素の多言語化
+  - JSONファイルベースの翻訳システムによる拡張性の向上
+  - ※1.7.1時点の機能を中心に翻訳対応。1.8の機能は今後追加予定
 
 ### 2025-04-28: バージョン1.8
 - **テンソルデータの結合機能を追加**:
