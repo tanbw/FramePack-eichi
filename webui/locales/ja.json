@@ -52,6 +52,7 @@
   "Setting transformer memory preservation to: {0} GB": "Transformerメモリ保存を設定: {0} GB",
   "Sampling {0}/{1}": "サンプリング {0}/{1}",
   "セクション: {0}/{1}": "セクション: {0}/{1}",
+  "生成フレーム数: {total_generated_latent_frames}, 動画長: {video_length:.2f} 秒 (FPS-30). 動画が生成中です ...": "生成フレーム数: {total_generated_latent_frames}, 動画長: {video_length:.2f} 秒 (FPS-30). 動画が生成中です ...",
   "Offloading transformer with memory preservation: {0} GB": "Transformerをメモリ保存付きでオフロード: {0} GB",
   "[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}": "[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}",
   "Decoded. Current latent shape {0}; pixel shape {1}": "デコード完了。現在の潜在変数形状 {0}; ピクセル形状 {1}",
