@@ -1569,16 +1569,16 @@ with block:
             # 計算結果を表示するエリア
             section_calc_display = gr.HTML("", label="")
 
-            use_teacache = gr.Checkbox(label='Use TeaCache', value=True, info='Faster speed, but often makes hands and fingers slightly worse.')
+            use_teacache = gr.Checkbox(label=i18n.translate('Use TeaCache'), value=True, info=i18n.translate('Faster speed, but often makes hands and fingers slightly worse.'))
 
             # Use Random Seedの初期値
             use_random_seed_default = True
             seed_default = random.randint(0, 2**32 - 1) if use_random_seed_default else 1
 
-            use_random_seed = gr.Checkbox(label="Use Random Seed", value=use_random_seed_default)
+            use_random_seed = gr.Checkbox(label=i18n.translate("Use Random Seed"), value=use_random_seed_default)
 
-            n_prompt = gr.Textbox(label="Negative Prompt", value="", visible=False)  # Not used
-            seed = gr.Number(label="Seed", value=seed_default, precision=0)
+            n_prompt = gr.Textbox(label=i18n.translate("Negative Prompt"), value="", visible=False)  # Not used
+            seed = gr.Number(label=i18n.translate("Seed"), value=seed_default, precision=0)
 
             def set_random_seed(is_checked):
                 if is_checked:

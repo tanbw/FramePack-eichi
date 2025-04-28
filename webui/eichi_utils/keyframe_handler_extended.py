@@ -32,9 +32,9 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     # 通常モードでは全ての赤枠青枠を強制的に非表示にする処理を追加
     is_loop_mode = (mode == MODE_TYPE_LOOP)
     if not is_loop_mode:
-        print(f"[keyframe_handler_extended] 通常モードで強制的に赤枠/青枠を非表示に設定")
+        print(i18n.translate("[keyframe_handler_extended] 通常モードで強制的に赤枠/青枠を非表示に設定"))
     else:
-        print(f"[keyframe_handler_extended] ループモードで赤枠/青枠を表示可能に設定")
+        print(i18n.translate("[keyframe_handler_extended] ループモードで赤枠/青枠を表示可能に設定"))
     # 基本要素のクリア（入力画像と終了フレーム）
     updates = [gr.update(value=None) for _ in range(2)]
 
