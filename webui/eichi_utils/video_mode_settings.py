@@ -35,6 +35,23 @@ VIDEO_MODE_SETTINGS = {
             }
         }
     },
+    "1 second": {
+        "frames": 30,                   # 1秒×30FPS
+        "sections": 1,                  # 必要セクション数（正確な計算に基づく）
+        "display_seconds": 1.0,         # UI表示用秒数
+        "important_keyframes": [0, 1],  # 重要なキーフレームのインデックス（0=赤枠、1=青枠）
+        "keyframe_styles": {0: "red", 1: "blue"},  # キーフレームの枠線スタイル
+        "copy_patterns": {
+            MODE_TYPE_NORMAL: {
+                "0": [],                # 短いためコピー不要
+                "1": []                 # 短いためコピー不要
+            },
+            MODE_TYPE_LOOP: {
+                "0": [],                # 短いためコピー不要
+                "1": []                 # 短いためコピー不要
+            }
+        }
+    },
     "2秒": {
         "frames": 60,                   # 2秒×30FPS
         "sections": 2,                  # 必要セクション数（正確な計算に基づく）

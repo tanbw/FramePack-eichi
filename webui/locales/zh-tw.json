@@ -302,5 +302,17 @@
   "[keyframe_handler] 赤枠(セクション0)からのコピー先がありません。セクション数が少ない可能性があります。": "[keyframe_handler] 紅色方塊（第 0 區段）中沒有要複製的目的地。 區段數量可能偏低。",
   "[keyframe_handler] 青枠(セクション1)から奇数番号へのコピーターゲット: {targets} (動的セクション数: {sections})": "[keyframe_handler] 從藍色方塊 (區段 1) 複製目標到奇數：{target} (動態區段的數量：{sections})",
   "[keyframe_handler] 青枠(セクション1)からのコピー先がありません。セクション数が少ない可能性があります。": "[keyframe_handler] 藍色方塊（第 1 區段）中沒有要複製的目的地。 區段數量可能偏低。",
-  "[keyframe_handler] セクション{i}へ画像をコピーします": "[keyframe_handler] 將圖像複製到區段 {i}"
+  "[keyframe_handler] セクション{i}へ画像をコピーします": "[keyframe_handler] 將圖像複製到區段 {i}",
+  "_KEY_MODE_NORMAL": "常規",
+  "_KEY_MODE_LOOP": "循環",
+  "_KEY_VIDEO_LENGTH_1SEC": "1秒",
+  "_KEY_VIDEO_LENGTH_2SEC": "2秒",
+  "_KEY_VIDEO_LENGTH_3SEC": "3秒",
+  "_KEY_VIDEO_LENGTH_4SEC": "4秒",
+  "_KEY_VIDEO_LENGTH_6SEC": "6秒",
+  "_KEY_VIDEO_LENGTH_8SEC": "8秒",
+  "_KEY_VIDEO_LENGTH_10SEC": "10秒",
+  "_KEY_VIDEO_LENGTH_12SEC": "12秒",
+  "_KEY_VIDEO_LENGTH_16SEC": "16秒",
+  "_KEY_VIDEO_LENGTH_20SEC": "20秒"
 }
