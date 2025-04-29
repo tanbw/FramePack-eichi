@@ -891,26 +891,27 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             stream.output_queue.push(('file', output_filename))
 
             if is_last_section:
+                combined_output_filename = None
                 # 全セクション処理完了後、テンソルデータを後方に結合
                 if uploaded_tensor is not None:
                     try:
                         original_frames = real_history_latents.shape[2]  # 元のフレーム数を記録
                         uploaded_frames = uploaded_tensor.shape[2]  # アップロードされたフレーム数
 
-                        print(f"テンソルデータを後方に結合します: アップロードされたフレーム数 = {uploaded_frames}")
+                        print(i18n.translate("テンソルデータを後方に結合します: アップロードされたフレーム数 = {uploaded_frames}").format(uploaded_frames=uploaded_frames))
                         # UI上で進捗状況を更新
-                        stream.output_queue.push(('progress', (None, f"テンソルデータ({uploaded_frames}フレーム)の結合を開始します...", make_progress_bar_html(80, 'テンソルデータ結合準備'))))
+                        stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ({uploaded_frames}フレーム)の結合を開始します...").format(uploaded_frames=uploaded_frames), make_progress_bar_html(80, i18n.translate('テンソルデータ結合準備')))))
 
                         # テンソルデータを後方に結合する前に、互換性チェック
                         # デバッグログを追加して詳細を出力
-                        print(f"[DEBUG] テンソルデータの形状: {uploaded_tensor.shape}, 生成データの形状: {real_history_latents.shape}")
-                        print(f"[DEBUG] テンソルデータの型: {uploaded_tensor.dtype}, 生成データの型: {real_history_latents.dtype}")
-                        print(f"[DEBUG] テンソルデータのデバイス: {uploaded_tensor.device}, 生成データのデバイス: {real_history_latents.device}")
+                        print(i18n.translate("[DEBUG] テンソルデータの形状: {0}, 生成データの形状: {1}").format(uploaded_tensor.shape, real_history_latents.shape))
+                        print(i18n.translate("[DEBUG] テンソルデータの型: {0}, 生成データの型: {1}").format(uploaded_tensor.dtype, real_history_latents.dtype))
+                        print(i18n.translate("[DEBUG] テンソルデータのデバイス: {0}, 生成データのデバイス: {1}").format(uploaded_tensor.device, real_history_latents.device))
 
                         if uploaded_tensor.shape[3] != real_history_latents.shape[3] or uploaded_tensor.shape[4] != real_history_latents.shape[4]:
-                            print(f"警告: テンソルサイズが異なります: アップロード={uploaded_tensor.shape}, 現在の生成={real_history_latents.shape}")
-                            print(f"テンソルサイズの不一致のため、前方結合をスキップします")
-                            stream.output_queue.push(('progress', (None, "テンソルサイズの不一致のため、前方結合をスキップしました", make_progress_bar_html(85, '互換性エラー'))))
+                            print(i18n.translate("警告: テンソルサイズが異なります: アップロード={0}, 現在の生成={1}").format(uploaded_tensor.shape, real_history_latents.shape))
+                            print(i18n.translate("テンソルサイズの不一致のため、前方結合をスキップします"))
+                            stream.output_queue.push(('progress', (None, i18n.translate("テンソルサイズの不一致のため、前方結合をスキップしました"), make_progress_bar_html(85, i18n.translate('互換性エラー')))))
                         else:
                             # デバイスとデータ型を合わせる
                             processed_tensor = uploaded_tensor.clone()
@@ -922,7 +923,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             # 元の動画を品質を保ちつつ保存
                             original_output_filename = os.path.join(outputs_folder, f'{job_id}_original.mp4')
                             save_bcthw_as_mp4(history_pixels, original_output_filename, fps=30, crf=mp4_crf)
-                            print(f"元の動画を保存しました: {original_output_filename}")
+                            print(i18n.translate("元の動画を保存しました: {original_output_filename}").format(original_output_filename=original_output_filename))
 
                             # 元データのコピーを取得
                             combined_history_latents = real_history_latents.clone()
@@ -934,11 +935,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 torch.cuda.empty_cache()
                                 import gc
                                 gc.collect()
-                                print(f"[MEMORY] チャンク処理前のGPUメモリ確保状態: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+                                print(i18n.translate("[MEMORY] チャンク処理前のGPUメモリ確保状態: {memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3))
 
                             # VAEをGPUに移動
                             if not high_vram and vae.device != torch.device('cuda'):
-                                print(f"[SETUP] VAEをGPUに移動: {vae.device} → cuda")
+                                print(i18n.translate("[SETUP] VAEをGPUに移動: {0} → cuda").format(vae.device))
                                 vae.to('cuda')
 
                             # 各チャンクを処理
@@ -949,15 +950,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             num_chunks = (uploaded_frames + chunk_size - 1) // chunk_size
 
                             # テンソルデータの詳細を出力
-                            print(f"[DEBUG] テンソルデータの詳細分析:")
-                            print(f"  - 形状: {processed_tensor.shape}")
-                            print(f"  - 型: {processed_tensor.dtype}")
-                            print(f"  - デバイス: {processed_tensor.device}")
-                            print(f"  - 値範囲: 最小={processed_tensor.min().item():.4f}, 最大={processed_tensor.max().item():.4f}, 平均={processed_tensor.mean().item():.4f}")
-                            print(f"  - チャンク数: {num_chunks}, チャンクサイズ: {chunk_size}")
+                            print(i18n.translate("[DEBUG] テンソルデータの詳細分析:"))
+                            print(i18n.translate("  - 形状: {0}").format(processed_tensor.shape))
+                            print(i18n.translate("  - 型: {0}").format(processed_tensor.dtype))
+                            print(i18n.translate("  - デバイス: {0}").format(processed_tensor.device))
+                            print(i18n.translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(processed_tensor.min().item(), processed_tensor.max().item(), processed_tensor.mean().item()))
+                            print(i18n.translate("  - チャンク数: {0}, チャンクサイズ: {1}").format(num_chunks, chunk_size))
                             tensor_size_mb = (processed_tensor.element_size() * processed_tensor.nelement()) / (1024 * 1024)
-                            print(f"  - テンソルデータ全体サイズ: {tensor_size_mb:.2f} MB")
-                            print(f"  - フレーム数: {uploaded_frames}フレーム（制限無し）")
+                            print(i18n.translate("  - テンソルデータ全体サイズ: {0:.2f} MB").format(tensor_size_mb))
+                            print(i18n.translate("  - フレーム数: {0}フレーム（制限無し）").format(uploaded_frames))
                             # 各チャンクを処理
                             for chunk_idx in range(num_chunks):
                                 chunk_start = chunk_idx * chunk_size
@@ -966,16 +967,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                 # 進捗状況を更新
                                 chunk_progress = (chunk_idx + 1) / num_chunks * 100
-                                progress_message = f"テンソルデータ結合中: チャンク {chunk_idx+1}/{num_chunks} (フレーム {chunk_start+1}-{chunk_end}/{uploaded_frames})"
-                                stream.output_queue.push(('progress', (None, progress_message, make_progress_bar_html(int(80 + chunk_progress * 0.1), 'テンソルデータ処理中'))))
+                                progress_message = i18n.translate("テンソルデータ結合中: チャンク {0}/{1} (フレーム {2}-{3}/{4})").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames)
+                                stream.output_queue.push(('progress', (None, progress_message, make_progress_bar_html(int(80 + chunk_progress * 0.1), i18n.translate('テンソルデータ処理中')))))
 
                                 # 現在のチャンクを取得
                                 current_chunk = processed_tensor[:, :, chunk_start:chunk_end, :, :]
-                                print(f"チャンク{chunk_idx+1}/{num_chunks}処理中: フレーム {chunk_start+1}-{chunk_end}/{uploaded_frames}")
+                                print(i18n.translate("チャンク{0}/{1}処理中: フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
 
                                 # メモリ状態を出力
                                 if torch.cuda.is_available():
-                                    print(f"[MEMORY] チャンク{chunk_idx+1}処理前のGPUメモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
+                                    print(i18n.translate("[MEMORY] チャンク{0}処理前のGPUメモリ: {1:.2f}GB/{2:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
                                     # メモリキャッシュをクリア
                                     torch.cuda.empty_cache()
 
@@ -988,40 +989,40 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                         gc.collect()
                                     # チャンクをデコード
                                     # VAEデコードは時間がかかるため、進行中であることを表示
-                                    print(f"チャンク{chunk_idx+1}のVAEデコード開始...")
-                                    stream.output_queue.push(('progress', (None, f"チャンク{chunk_idx+1}/{num_chunks}のVAEデコード中...", make_progress_bar_html(int(80 + chunk_progress * 0.1), 'デコード処理'))))
+                                    print(i18n.translate("チャンク{0}のVAEデコード開始...").format(chunk_idx+1))
+                                    stream.output_queue.push(('progress', (None, i18n.translate("チャンク{0}/{1}のVAEデコード中...").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(80 + chunk_progress * 0.1), i18n.translate('デコード処理')))))
 
                                     # VAEデコード前にテンソル情報を詳しく出力
-                                    print(f"[DEBUG] チャンク{chunk_idx+1}のデコード前情報:")
-                                    print(f"  - 形状: {current_chunk.shape}")
-                                    print(f"  - 型: {current_chunk.dtype}")
-                                    print(f"  - デバイス: {current_chunk.device}")
-                                    print(f"  - 値範囲: 最小={current_chunk.min().item():.4f}, 最大={current_chunk.max().item():.4f}, 平均={current_chunk.mean().item():.4f}")
+                                    print(i18n.translate("[DEBUG] チャンク{0}のデコード前情報:").format(chunk_idx+1))
+                                    print(i18n.translate("  - 形状: {0}").format(current_chunk.shape))
+                                    print(i18n.translate("  - 型: {0}").format(current_chunk.dtype))
+                                    print(i18n.translate("  - デバイス: {0}").format(current_chunk.device))
+                                    print(i18n.translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(current_chunk.min().item(), current_chunk.max().item(), current_chunk.mean().item()))
 
                                     # 明示的にデバイスを合わせる
                                     if current_chunk.device != vae.device:
-                                        print(f"  - デバイスをVAEと同じに変更: {current_chunk.device} → {vae.device}")
+                                        print(i18n.translate("  - デバイスをVAEと同じに変更: {0} → {1}").format(current_chunk.device, vae.device))
                                         current_chunk = current_chunk.to(vae.device)
 
                                     # 型を明示的に合わせる
                                     if current_chunk.dtype != torch.float16:
-                                        print(f"  - データ型をfloat16に変更: {current_chunk.dtype} → torch.float16")
+                                        print(i18n.translate("  - データ型をfloat16に変更: {0} → torch.float16").format(current_chunk.dtype))
                                         current_chunk = current_chunk.to(dtype=torch.float16)
 
                                     # VAEデコード処理
                                     chunk_pixels = vae_decode(current_chunk, vae).cpu()
-                                    print(f"チャンク{chunk_idx+1}のVAEデコード完了 (フレーム数: {chunk_frames})")
+                                    print(i18n.translate("チャンク{0}のVAEデコード完了 (フレーム数: {1})").format(chunk_idx+1, chunk_frames))
 
                                     # デコード後のピクセルデータ情報を出力
-                                    print(f"[DEBUG] チャンク{chunk_idx+1}のデコード結果:")
-                                    print(f"  - 形状: {chunk_pixels.shape}")
-                                    print(f"  - 型: {chunk_pixels.dtype}")
-                                    print(f"  - デバイス: {chunk_pixels.device}")
-                                    print(f"  - 値範囲: 最小={chunk_pixels.min().item():.4f}, 最大={chunk_pixels.max().item():.4f}, 平均={chunk_pixels.mean().item():.4f}")
+                                    print(i18n.translate("[DEBUG] チャンク{0}のデコード結果:").format(chunk_idx+1))
+                                    print(i18n.translate("  - 形状: {0}").format(chunk_pixels.shape))
+                                    print(i18n.translate("  - 型: {0}").format(chunk_pixels.dtype))
+                                    print(i18n.translate("  - デバイス: {0}").format(chunk_pixels.device))
+                                    print(i18n.translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(chunk_pixels.min().item(), chunk_pixels.max().item(), chunk_pixels.mean().item()))
 
                                     # メモリ使用量を出力
                                     if torch.cuda.is_available():
-                                        print(f"[MEMORY] チャンク{chunk_idx+1}デコード後のGPUメモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+                                        print(i18n.translate("[MEMORY] チャンク{0}デコード後のGPUメモリ: {1:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3))
 
                                     # 結合する
                                     if combined_history_pixels is None:
@@ -1029,13 +1030,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                         combined_history_pixels = chunk_pixels
                                     else:
                                         # 2回目以降は結合
-                                        print(f"[DEBUG] 結合前の情報:")
-                                        print(f"  - 既存: {combined_history_pixels.shape}, 型: {combined_history_pixels.dtype}, デバイス: {combined_history_pixels.device}")
-                                        print(f"  - 新規: {chunk_pixels.shape}, 型: {chunk_pixels.dtype}, デバイス: {chunk_pixels.device}")
+                                        print(i18n.translate("[DEBUG] 結合前の情報:"))
+                                        print(i18n.translate("  - 既存: {0}, 型: {1}, デバイス: {2}").format(combined_history_pixels.shape, combined_history_pixels.dtype, combined_history_pixels.device))
+                                        print(i18n.translate("  - 新規: {0}, 型: {1}, デバイス: {2}").format(chunk_pixels.shape, chunk_pixels.dtype, chunk_pixels.device))
 
                                         # 既存データと新規データで型とデバイスを揃える
                                         if combined_history_pixels.dtype != chunk_pixels.dtype:
-                                            print(f"  - データ型の不一致を修正: {combined_history_pixels.dtype} → {chunk_pixels.dtype}")
+                                            print(i18n.translate("  - データ型の不一致を修正: {0} → {1}").format(combined_history_pixels.dtype, chunk_pixels.dtype))
                                             combined_history_pixels = combined_history_pixels.to(dtype=chunk_pixels.dtype)
 
                                         # 両方とも必ずCPUに移動してから結合
@@ -1049,38 +1050,38 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                     # 結合後のフレーム数を確認
                                     current_total_frames = combined_history_pixels.shape[2]
-                                    print(f"チャンク{chunk_idx+1}の結合完了: 現在の組み込みフレーム数 = {current_total_frames}")
+                                    print(i18n.translate("チャンク{0}の結合完了: 現在の組み込みフレーム数 = {1}").format(chunk_idx+1, current_total_frames))
 
                                     # 中間結果の保存（チャンクごとに保存すると効率が悪いので、最終チャンクのみ保存）
                                     if chunk_idx == num_chunks - 1 or (chunk_idx > 0 and (chunk_idx + 1) % 5 == 0):
                                         # 5チャンクごと、または最後のチャンクで保存
                                         interim_output_filename = os.path.join(outputs_folder, f'{job_id}_combined_interim_{chunk_idx+1}.mp4')
-                                        print(f"中間結果を保存中: チャンク{chunk_idx+1}/{num_chunks}")
-                                        stream.output_queue.push(('progress', (None, f"中間結果のMP4変換中... (チャンク{chunk_idx+1}/{num_chunks})", make_progress_bar_html(int(85 + chunk_progress * 0.1), 'MP4保存中'))))
+                                        print(i18n.translate("中間結果を保存中: チャンク{0}/{1}").format(chunk_idx+1, num_chunks))
+                                        stream.output_queue.push(('progress', (None, i18n.translate("中間結果のMP4変換中... (チャンク{0}/{1})").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(85 + chunk_progress * 0.1), i18n.translate('MP4保存中')))))
 
                                         # MP4として保存
                                         save_bcthw_as_mp4(combined_history_pixels, interim_output_filename, fps=30, crf=mp4_crf)
-                                        print(f"中間結果を保存しました: {interim_output_filename}")
+                                        print(i18n.translate("中間結果を保存しました: {0}").format(interim_output_filename))
 
                                         # 結合した動画をUIに反映するため、出力フラグを立てる
                                         stream.output_queue.push(('file', interim_output_filename))
                                 except Exception as e:
-                                    print(f"チャンク{chunk_idx+1}の処理中にエラーが発生しました: {e}")
+                                    print(i18n.translate("チャンク{0}の処理中にエラーが発生しました: {1}").format(chunk_idx+1, e))
                                     traceback.print_exc()
 
                                     # エラー情報の詳細な出力
-                                    print("[ERROR] 詳細エラー情報:")
-                                    print(f"  - チャンク情報: {chunk_idx+1}/{num_chunks}, フレーム {chunk_start+1}-{chunk_end}/{uploaded_frames}")
+                                    print(i18n.translate("[ERROR] 詳細エラー情報:"))
+                                    print(i18n.translate("  - チャンク情報: {0}/{1}, フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
                                     if 'current_chunk' in locals():
-                                        print(f"  - current_chunk: shape={current_chunk.shape}, dtype={current_chunk.dtype}, device={current_chunk.device}")
+                                        print(i18n.translate("  - current_chunk: shape={0}, dtype={1}, device={2}").format(current_chunk.shape, current_chunk.dtype, current_chunk.device))
                                     if 'vae' in globals():
-                                        print(f"  - VAE情報: device={vae.device}, dtype={next(vae.parameters()).dtype}")
+                                        print(i18n.translate("  - VAE情報: device={0}, dtype={1}").format(vae.device, next(vae.parameters()).dtype))
 
                                     # GPUメモリ情報
                                     if torch.cuda.is_available():
-                                        print(f"  - GPU使用量: {torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
+                                        print(i18n.translate("  - GPU使用量: {0:.2f}GB/{1:.2f}GB").format(torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
 
-                                    stream.output_queue.push(('progress', (None, f"エラー: チャンク{chunk_idx+1}の処理に失敗しました - {str(e)}", make_progress_bar_html(90, 'エラー'))))
+                                    stream.output_queue.push(('progress', (None, i18n.translate("エラー: チャンク{0}の処理に失敗しました - {1}").format(chunk_idx+1, str(e)), make_progress_bar_html(90, i18n.translate('エラー')))))
                                     break
 
                             # 処理完了後に明示的にメモリ解放
@@ -1089,29 +1090,29 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 torch.cuda.empty_cache()
                                 import gc
                                 gc.collect()
-                                print(f"[MEMORY] チャンク処理後のGPUメモリ確保状態: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+                                print(i18n.translate("[MEMORY] チャンク処理後のGPUメモリ確保状態: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
 
                             # 全チャンクの処理が完了したら、最終的な結合動画を保存
                             if combined_history_pixels is not None:
                                 # 結合された最終結果の情報を出力
-                                print(f"[DEBUG] 最終結合結果:")
-                                print(f"  - 形状: {combined_history_pixels.shape}")
-                                print(f"  - 型: {combined_history_pixels.dtype}")
-                                print(f"  - デバイス: {combined_history_pixels.device}")
+                                print(i18n.translate("[DEBUG] 最終結合結果:"))
+                                print(i18n.translate("  - 形状: {0}").format(combined_history_pixels.shape))
+                                print(i18n.translate("  - 型: {0}").format(combined_history_pixels.dtype))
+                                print(i18n.translate("  - デバイス: {0}").format(combined_history_pixels.device))
                                 # 最終結果の保存
-                                print(f"最終結果を保存中: 全{num_chunks}チャンク完了")
-                                stream.output_queue.push(('progress', (None, "結合した動画をMP4に変換中...", make_progress_bar_html(95, '最終MP4変換処理'))))
+                                print(i18n.translate("最終結果を保存中: 全{0}チャンク完了").format(num_chunks))
+                                stream.output_queue.push(('progress', (None, i18n.translate("結合した動画をMP4に変換中..."), make_progress_bar_html(95, i18n.translate('最終MP4変換処理')))))
 
                                 # 最終的な結合ファイル名
                                 combined_output_filename = os.path.join(outputs_folder, f'{job_id}_combined.mp4')
 
                                 # MP4として保存
                                 save_bcthw_as_mp4(combined_history_pixels, combined_output_filename, fps=30, crf=mp4_crf)
-                                print(f"最終結果を保存しました: {combined_output_filename}")
-                                print(f"結合動画の保存場所: {os.path.abspath(combined_output_filename)}")
+                                print(i18n.translate("最終結果を保存しました: {0}").format(combined_output_filename))
+                                print(i18n.translate("結合動画の保存場所: {0}").format(os.path.abspath(combined_output_filename)))
 
                                 # 中間ファイルの削除処理
-                                print(f"中間ファイルの削除を開始します...")
+                                print(i18n.translate("中間ファイルの削除を開始します..."))
                                 deleted_files = []
                                 try:
                                     # 現在のジョブIDに関連する中間ファイルを正規表現でフィルタリング
@@ -1124,19 +1125,19 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                             try:
                                                 os.remove(interim_path)
                                                 deleted_files.append(filename)
-                                                print(f"  - 中間ファイルを削除しました: {filename}")
+                                                print(i18n.translate("  - 中間ファイルを削除しました: {0}").format(filename))
                                             except Exception as e:
-                                                print(f"  - ファイル削除エラー ({filename}): {e}")
+                                                print(i18n.translate("  - ファイル削除エラー ({0}): {1}").format(filename, e))
 
                                     if deleted_files:
-                                        print(f"合計 {len(deleted_files)} 個の中間ファイルを削除しました")
+                                        print(i18n.translate("合計 {0} 個の中間ファイルを削除しました").format(len(deleted_files)))
                                         # 削除ファイル名をユーザーに表示
                                         files_str = ', '.join(deleted_files)
-                                        stream.output_queue.push(('progress', (None, f"中間ファイルを削除しました: {files_str}", make_progress_bar_html(97, 'クリーンアップ完了'))))
+                                        stream.output_queue.push(('progress', (None, i18n.translate("中間ファイルを削除しました: {0}").format(files_str), make_progress_bar_html(97, i18n.translate('クリーンアップ完了')))))
                                     else:
-                                        print(f"削除対象の中間ファイルは見つかりませんでした")
+                                        print(i18n.translate("削除対象の中間ファイルは見つかりませんでした"))
                                 except Exception as e:
-                                    print(f"中間ファイル削除中にエラーが発生しました: {e}")
+                                    print(i18n.translate("中間ファイル削除中にエラーが発生しました: {0}").format(e))
                                     traceback.print_exc()
 
                                 # 結合した動画をUIに反映するため、出力フラグを立てる
@@ -1145,15 +1146,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 # 結合後の全フレーム数を計算して表示
                                 combined_frames = combined_history_pixels.shape[2]
                                 combined_size_mb = (combined_history_pixels.element_size() * combined_history_pixels.nelement()) / (1024 * 1024)
-                                print(f"結合完了情報: テンソルデータ({uploaded_frames}フレーム) + 新規動画({original_frames}フレーム) = 合計{combined_frames}フレーム")
-                                print(f"結合動画の再生時間: {combined_frames / 30:.2f}秒")
-                                print(f"データサイズ: {combined_size_mb:.2f} MB（制限無し）")
+                                print(i18n.translate("結合完了情報: テンソルデータ({0}フレーム) + 新規動画({1}フレーム) = 合計{2}フレーム").format(uploaded_frames, original_frames, combined_frames))
+                                print(i18n.translate("結合動画の再生時間: {0:.2f}秒").format(combined_frames / 30))
+                                print(i18n.translate("データサイズ: {0:.2f} MB（制限無し）").format(combined_size_mb))
 
                                 # UI上で完了メッセージを表示
-                                stream.output_queue.push(('progress', (None, f"テンソルデータ({uploaded_frames}フレーム)と動画({original_frames}フレーム)の結合が完了しました。\n合計フレーム数: {combined_frames}フレーム ({combined_frames / 30:.2f}秒) - サイズ制限なし", make_progress_bar_html(100, '結合完了'))))
+                                stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ({0}フレーム)と動画({1}フレーム)の結合が完了しました。\n合計フレーム数: {2}フレーム ({3:.2f}秒) - サイズ制限なし").format(uploaded_frames, original_frames, combined_frames, combined_frames / 30), make_progress_bar_html(100, i18n.translate('結合完了')))))
                             else:
-                                print("テンソルデータの結合に失敗しました。")
-                                stream.output_queue.push(('progress', (None, "テンソルデータの結合に失敗しました。", make_progress_bar_html(100, 'エラー'))))
+                                print(i18n.translate("テンソルデータの結合に失敗しました。"))
+                                stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータの結合に失敗しました。"), make_progress_bar_html(100, i18n.translate('エラー')))))
 
                             # 正しく結合された動画はすでに生成済みなので、ここでの処理は不要
 
@@ -1172,16 +1173,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             # 結合後の全フレーム数を計算して表示
                             combined_frames = combined_history_pixels.shape[2]
                             combined_size_mb = (combined_history_pixels.element_size() * combined_history_pixels.nelement()) / (1024 * 1024)
-                            print(f"結合完了情報: テンソルデータ({uploaded_frames}フレーム) + 新規動画({original_frames}フレーム) = 合計{combined_frames}フレーム")
-                            print(f"結合動画の再生時間: {combined_frames / 30:.2f}秒")
-                            print(f"データサイズ: {combined_size_mb:.2f} MB（制限無し）")
+                            print(i18n.translate("結合完了情報: テンソルデータ({0}フレーム) + 新規動画({1}フレーム) = 合計{2}フレーム").format(uploaded_frames, original_frames, combined_frames))
+                            print(i18n.translate("結合動画の再生時間: {0:.2f}秒").format(combined_frames / 30))
+                            print(i18n.translate("データサイズ: {0:.2f} MB（制限無し）").format(combined_size_mb))
 
                             # UI上で完了メッセージを表示
-                            stream.output_queue.push(('progress', (None, f"テンソルデータ({uploaded_frames}フレーム)と動画({original_frames}フレーム)の結合が完了しました。\n合計フレーム数: {combined_frames}フレーム ({combined_frames / 30:.2f}秒)", make_progress_bar_html(100, '結合完了'))))
+                            stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ({0}フレーム)と動画({1}フレーム)の結合が完了しました。\n合計フレーム数: {2}フレーム ({3:.2f}秒)").format(uploaded_frames, original_frames, combined_frames, combined_frames / 30), make_progress_bar_html(100, i18n.translate('結合完了')))))
                     except Exception as e:
-                        print(f"テンソルデータ結合中にエラーが発生しました: {e}")
+                        print(i18n.translate("テンソルデータ結合中にエラーが発生しました: {0}").format(e))
                         traceback.print_exc()
-                        stream.output_queue.push(('progress', (None, f"エラー: テンソルデータ結合に失敗しました - {str(e)}", make_progress_bar_html(100, 'エラー'))))
+                        stream.output_queue.push(('progress', (None, i18n.translate("エラー: テンソルデータ結合に失敗しました - {0}").format(str(e)), make_progress_bar_html(100, i18n.translate('エラー')))))
 
                 # 処理終了時に通知
                 if HAS_WINSOUND:
@@ -1195,7 +1196,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     torch.cuda.empty_cache()
                     import gc
                     gc.collect()
-                    print(f"[MEMORY] 処理完了後のメモリクリア: {torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
+                    print(i18n.translate("[MEMORY] 処理完了後のメモリクリア: {memory:.2f}GB/{total_memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3, total_memory=torch.cuda.get_device_properties(0).total_memory/1024**3))
 
                 # テンソルデータの保存処理
                 if save_tensor_data:
@@ -1204,8 +1205,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         tensor_file_path = os.path.join(outputs_folder, f'{job_id}.safetensors')
 
                         # 保存するデータを準備
-                        print(f"=== テンソルデータ保存処理開始 ===")
-                        print(f"保存対象フレーム数: {real_history_latents.shape[2]}")
+                        print(i18n.translate("=== テンソルデータ保存処理開始 ==="))
+                        print(i18n.translate("保存対象フレーム数: {frames}").format(frames=real_history_latents.shape[2]))
 
                         # サイズ制限を完全に撤廃し、全フレームを保存
                         tensor_to_save = real_history_latents.clone().cpu()
@@ -1213,8 +1214,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         # テンソルデータの保存サイズの概算
                         tensor_size_mb = (tensor_to_save.element_size() * tensor_to_save.nelement()) / (1024 * 1024)
 
-                        print(f"テンソルデータを保存中... shape: {tensor_to_save.shape}, フレーム数: {tensor_to_save.shape[2]}, サイズ: {tensor_size_mb:.2f} MB")
-                        stream.output_queue.push(('progress', (None, f'テンソルデータを保存中... ({tensor_to_save.shape[2]}フレーム)', make_progress_bar_html(95, 'テンソルデータの保存'))))
+                        print(i18n.translate("テンソルデータを保存中... shape: {shape}, フレーム数: {frames}, サイズ: {size:.2f} MB").format(shape=tensor_to_save.shape, frames=tensor_to_save.shape[2], size=tensor_size_mb))
+                        stream.output_queue.push(('progress', (None, i18n.translate('テンソルデータを保存中... ({frames}フレーム)').format(frames=tensor_to_save.shape[2]), make_progress_bar_html(95, i18n.translate('テンソルデータの保存')))))
 
                         # メタデータの準備（フレーム数も含める）
                         metadata = torch.tensor([height, width, tensor_to_save.shape[2]], dtype=torch.int32)
@@ -1226,10 +1227,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         }
                         sf.save_file(tensor_dict, tensor_file_path)
 
-                        print(f"テンソルデータを保存しました: {tensor_file_path}")
-                        print(f"保存済みテンソルデータ情報: {tensor_to_save.shape[2]}フレーム, {tensor_size_mb:.2f} MB")
-                        print(f"=== テンソルデータ保存処理完了 ===")
-                        stream.output_queue.push(('progress', (None, f"テンソルデータが保存されました: {os.path.basename(tensor_file_path)} ({tensor_to_save.shape[2]}フレーム, {tensor_size_mb:.2f} MB)", make_progress_bar_html(100, '処理完了'))))
+                        print(i18n.translate("テンソルデータを保存しました: {path}").format(path=tensor_file_path))
+                        print(i18n.translate("保存済みテンソルデータ情報: {frames}フレーム, {size:.2f} MB").format(frames=tensor_to_save.shape[2], size=tensor_size_mb))
+                        print(i18n.translate("=== テンソルデータ保存処理完了 ==="))
+                        stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータが保存されました: {path} ({frames}フレーム, {size:.2f} MB)").format(path=os.path.basename(tensor_file_path), frames=tensor_to_save.shape[2], size=tensor_size_mb), make_progress_bar_html(100, i18n.translate('処理完了')))))
 
                         # アップロードされたテンソルデータがあれば、それも結合したものを保存する
                         if tensor_data_input is not None and uploaded_tensor is not None:
@@ -1238,10 +1239,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 uploaded_tensor_filename = os.path.basename(tensor_data_input.name)
                                 tensor_combined_path = os.path.join(outputs_folder, f'{job_id}_combined_tensors.safetensors')
 
-                                print(f"=== テンソルデータ結合処理開始 ===")
-                                print(f"生成テンソルと入力テンソルを結合して保存します")
-                                print(f"生成テンソル: {tensor_to_save.shape[2]}フレーム")
-                                print(f"入力テンソル: {uploaded_tensor.shape[2]}フレーム")
+                                print(i18n.translate("=== テンソルデータ結合処理開始 ==="))
+                                print(i18n.translate("生成テンソルと入力テンソルを結合して保存します"))
+                                print(i18n.translate("生成テンソル: {frames}フレーム").format(frames=tensor_to_save.shape[2]))
+                                print(i18n.translate("入力テンソル: {frames}フレーム").format(frames=uploaded_tensor.shape[2]))
 
                                 # データ型とデバイスを統一
                                 if uploaded_tensor.dtype != tensor_to_save.dtype:
@@ -1251,7 +1252,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                 # サイズチェック
                                 if uploaded_tensor.shape[3] != tensor_to_save.shape[3] or uploaded_tensor.shape[4] != tensor_to_save.shape[4]:
-                                    print(f"警告: テンソルサイズが一致しないため結合できません: {uploaded_tensor.shape} vs {tensor_to_save.shape}")
+                                    print(i18n.translate("警告: テンソルサイズが一致しないため結合できません: {uploaded_shape} vs {tensor_shape}").format(uploaded_shape=uploaded_tensor.shape, tensor_shape=tensor_to_save.shape))
                                 else:
                                     # 結合（生成テンソルの後にアップロードされたテンソルを追加）
                                     combined_tensor = torch.cat([tensor_to_save, uploaded_tensor], dim=2)
@@ -1268,17 +1269,17 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                     }
                                     sf.save_file(combined_tensor_dict, tensor_combined_path)
 
-                                    print(f"結合テンソルを保存しました: {tensor_combined_path}")
-                                    print(f"結合テンソル情報: 合計{combined_frames}フレーム ({tensor_to_save.shape[2]}+{uploaded_tensor.shape[2]}), {combined_size_mb:.2f} MB")
-                                    print(f"=== テンソルデータ結合処理完了 ===")
-                                    stream.output_queue.push(('progress', (None, f"テンソルデータ結合が保存されました: 合計{combined_frames}フレーム", make_progress_bar_html(100, '結合テンソル保存完了'))))
+                                    print(i18n.translate("結合テンソルを保存しました: {path}").format(path=tensor_combined_path))
+                                    print(i18n.translate("結合テンソル情報: 合計{0}フレーム ({1}+{2}), {3:.2f} MB").format(frames, tensor_to_save.shape[2], uploaded_tensor.shape[2], size))
+                                    print(i18n.translate("=== テンソルデータ結合処理完了 ==="))
+                                    stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ結合が保存されました: 合計{frames}フレーム").format(frames=combined_frames), make_progress_bar_html(100, i18n.translate('結合テンソル保存完了')))))
                             except Exception as e:
-                                print(f"テンソルデータ結合保存エラー: {e}")
+                                print(i18n.translate("テンソルデータ結合保存エラー: {0}").format(e))
                                 traceback.print_exc()
                     except Exception as e:
-                        print(f"テンソルデータ保存エラー: {e}")
+                        print(i18n.translate("テンソルデータ保存エラー: {0}").format(e))
                         traceback.print_exc()
-                        stream.output_queue.push(('progress', (None, f"テンソルデータの保存中にエラーが発生しました。", make_progress_bar_html(100, '処理完了'))))
+                        stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータの保存中にエラーが発生しました。"), make_progress_bar_html(100, i18n.translate('処理完了')))))
 
                 # 全体の処理時間を計算
                 process_end_time = time.time()
@@ -1291,21 +1292,21 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 elif minutes > 0:
                     time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), f"{seconds:.1f}")
                 else:
-                    time_str = f"{seconds:.1f}秒"
-                print(f"\n全体の処理時間: {time_str}")
+                    time_str = i18n.translate("{0:.1f}秒").format(seconds)
+                print(i18n.translate("\n全体の処理時間: {0}").format(time_str))
 
                 # 完了メッセージの設定（結合有無によって変更）
                 if combined_output_filename is not None:
                     # テンソル結合が成功した場合のメッセージ
                     combined_filename_only = os.path.basename(combined_output_filename)
-                    completion_message = f"すべてのセクション({total_sections}/{total_sections})が完了しました。テンソルデータとの後方結合も完了しました。結合ファイル名: {combined_filename_only}\n全体の処理時間: {time_str}"
+                    completion_message = i18n.translate("すべてのセクション({sections}/{total_sections})が完了しました。テンソルデータとの後方結合も完了しました。結合ファイル名: {filename}\n全体の処理時間: {time}").format(sections=sections, total_sections=total_sections, filename=combined_filename_only, time=time_str)
                     # 最終的な出力ファイルを結合したものに変更
                     output_filename = combined_output_filename
                 else:
                     # 通常の完了メッセージ
-                    completion_message = f"すべてのセクション({total_sections}/{total_sections})が完了しました。全体の処理時間: {time_str}"
+                    completion_message = i18n.translate("すべてのセクション({sections}/{total_sections})が完了しました。全体の処理時間: {time}").format(sections=total_sections, total_sections=total_sections, time=time_str)
 
-                stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, '処理完了'))))
+                stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, i18n.translate('処理完了')))))
 
                 # 中間ファイルの削除処理
                 if not keep_section_videos:
