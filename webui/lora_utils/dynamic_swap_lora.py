@@ -67,7 +67,7 @@ class DynamicSwapLoRAManager:
             elif format_type == 'musubi':
                 lora_state_dict = check_for_musubi(lora_state_dict)
 
-            logger.info(i18n.translate("読み込み完了: {len(lora_state_dict)} パラメータ").format(len(lora_state_dict)))
+            logger.info(i18n.translate("読み込み完了: {0} パラメータ").format(len(lora_state_dict)))
 
             # 最終的な状態設定
             self.lora_state_dict = lora_state_dict
@@ -108,7 +108,7 @@ class DynamicSwapLoRAManager:
 
         # モデルの元の状態を保存
         self.save_original_states(model)
-        logger.info(i18n.translate("元の状態を保存: {len(self.original_states)} パラメータ").format(len(self.original_states)))
+        logger.info(i18n.translate("元の状態を保存: {0} パラメータ").format(len(self.original_states)))
 
         # 読み込み前フックを定義（LoRA適用）
         def pre_load_hook(module, hook_name):
@@ -200,7 +200,7 @@ class DynamicSwapLoRAManager:
             applicable_modules = len(self.original_states)
 
             logger.info(i18n.translate("診断結果: {applicable_modules}モジュール中の{applicable_params}パラメータにLoRA適用").format(applicable_modules=applicable_modules, applicable_params=applicable_params))
-            logger.info(i18n.translate("全体の適用可能パラメータ数: {total_potential_params} (制限数: {self.max_parameters})").format(total_potential_params=total_potential_params, self=self))
+            logger.info(i18n.translate("全体の適用可能パラメータ数: {total_potential_params} (制限数: {max_parameters})").format(total_potential_params=total_potential_params, max_parameters=self.max_parameters))
 
             if applicable_layers:
                 logger.info(i18n.translate("適用層の例: {applicable_layers}...").format(applicable_layers=list(applicable_layers)[:3]))
@@ -279,9 +279,9 @@ class DynamicSwapLoRAManager:
             # 100件ごとにメモリ状態をログ出力
             if saved_params % 100 == 0 and torch.cuda.is_available():
                 memory_allocated = torch.cuda.memory_allocated()/1024**3
-                logger.info(i18n.translate("保存進捗: {saved_params}/{len(selected_matches)} - メモリ使用: {memory_allocated:.2f}GB").format(saved_params=saved_params, len(selected_matches=len(selected_matches), memory_allocated=memory_allocated)))
+                logger.info(i18n.translate("保存進捗: {saved_params}/{selected_matches} - メモリ使用: {memory_allocated:.2f}GB").format(saved_params=saved_params, selected_matches=len(selected_matches), memory_allocated=memory_allocated))
 
-        logger.info(i18n.translate("元の状態を保存: {saved_params}パラメータ（最大{self.max_parameters}個まで処理）").format(saved_params=saved_params, max_parameters=self.max_parameters))
+        logger.info(i18n.translate("元の状態を保存: {saved_params}パラメータ（最大{max_parameters}個まで処理）").format(saved_params=saved_params, max_parameters=self.max_parameters))
 
         # 明示的なメモリクリア
         if torch.cuda.is_available():
@@ -311,7 +311,7 @@ class DynamicSwapLoRAManager:
         # すべてのLoRAキーをログに出力（初回のみ）
         if not hasattr(self, "_logged_keys"):
             self._logged_keys = True
-            logger.info(i18n.translate("LoRAキーの例（最在5個）: {down_keys[:5]}").format(down_keys=down_keys))
+            logger.info(i18n.translate("LoRAキーの例（最在5個）: {0}").format(down_keys[:5]))
 
         # 完全一致を最初に試す（最も信頼性が高い）
         lora_down_key = f"{param_name}.lora_down"
@@ -429,7 +429,7 @@ class DynamicSwapLoRAManager:
             self.key_mapping_cache[param_name] = best_match
             # スコアが高いマッチをログに出力
             if best_score >= 4:  # 良いマッチを見つけた場合はログに出力
-                logger.info(i18n.translate("良いマッチを発見: {param_name} -> {best_match[0]} (スコア: {best_score})").format(param_name=param_name, best_match=best_match, best_score=best_score))
+                logger.info(i18n.translate("良いマッチを発見: {param_name} -> {best_match} (スコア: {best_score})").format(param_name=param_name, best_match=best_match[0], best_score=best_score))
             return best_match
 
         # 最後の手段: 単純なリストベースのマッピング
@@ -512,7 +512,7 @@ class DynamicSwapLoRAManager:
 
                             # 形状を確認して調整
                             if delta.shape != param.shape:
-                                logger.warning(i18n.translate("形状不一致: {delta.shape} != {param.shape}, スキップ: {full_param_name}").format(delta.shape=delta.shape, param.shape=param.shape, full_param_name=full_param_name))
+                                logger.warning(i18n.translate("形状不一致: {0} != {1}, スキップ: {2}").format(delta.shape, param.shape, full_param_name))
                                 continue
 
                             # 元のパラメータに適用
