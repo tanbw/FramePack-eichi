@@ -442,26 +442,26 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if tensor_data_input is not None:
             try:
                 tensor_path = tensor_data_input.name
-                print(f"テンソルデータを読み込み: {os.path.basename(tensor_path)}")
-                stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Loading tensor data ...'))))
+                print(i18n.translate("テンソルデータを読み込み: {0}").format(os.path.basename(tensor_path)))
+                stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate('Loading tensor data ...')))))
 
                 # safetensorsからテンソルを読み込み
                 tensor_dict = sf.load_file(tensor_path)
 
                 # テンソルに含まれているキーとシェイプを確認
-                print("テンソルデータの内容:")
+                print(i18n.translate("テンソルデータの内容:"))
                 for key, tensor in tensor_dict.items():
-                    print(f"  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
+                    print("  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
 
                 # history_latentsと呼ばれるキーが存在するか確認
                 if "history_latents" in tensor_dict:
                     uploaded_tensor = tensor_dict["history_latents"]
-                    print(f"テンソルデータ読み込み成功: shape={uploaded_tensor.shape}, dtype={uploaded_tensor.dtype}")
-                    stream.output_queue.push(('progress', (None, f'テンソルデータ読み込み完了: {uploaded_tensor.shape[2]}フレーム', make_progress_bar_html(10, 'Tensor data loaded successfully!'))))
+                    print(i18n.translate("テンソルデータ読み込み成功: shape={0}, dtype={1}").format(uploaded_tensor.shape, uploaded_tensor.dtype))
+                    stream.output_queue.push(('progress', (None, i18n.translate('Tensor data loaded successfully!'), make_progress_bar_html(10, i18n.translate('Tensor data loaded successfully!')))))
                 else:
-                    print(f"警告: テンソルデータに 'history_latents' キーが見つかりません")
+                    print(i18n.translate("警告: テンソルデータに 'history_latents' キーが見つかりません"))
             except Exception as e:
-                print(f"テンソルデータ読み込みエラー: {e}")
+                print(i18n.translate("テンソルデータ読み込みエラー: {0}").format(e))
                 traceback.print_exc()
 
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ...")))))
@@ -487,7 +487,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # アップロードされたテンソルがあっても、常に入力画像から通常のエンコーディングを行う
         # テンソルデータは後で後付けとして使用するために保持しておく
         if uploaded_tensor is not None:
-            print(f"アップロードされたテンソルデータを検出: 動画生成後に後方に結合します")
+            print(i18n.translate("アップロードされたテンソルデータを検出: 動画生成後に後方に結合します"))
             # 入力画像がNoneの場合、テンソルからデコードして表示画像を生成
             if input_image is None:
                 try:
@@ -506,14 +506,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     input_image = decoded_image
                     # 前処理用のデータも生成
                     input_image_np, input_image_pt, height, width = preprocess_image(input_image)
-                    print(f"テンソルからデコードした画像を生成しました: {height}x{width}")
+                    print(i18n.translate("テンソルからデコードした画像を生成しました: {0}x{1}").format(height, width))
                 except Exception as e:
-                    print(f"テンソルからのデコード中にエラーが発生しました: {e}")
+                    print(i18n.translate("テンソルからのデコード中にエラーが発生しました: {0}").format(e))
                     # デコードに失敗した場合は通常の処理を続行
 
             # UI上でテンソルデータの情報を表示
-            tensor_info = f"テンソルデータ ({uploaded_tensor.shape[2]}フレーム) を検出しました。動画生成後に後方に結合します。"
-            stream.output_queue.push(('progress', (None, tensor_info, make_progress_bar_html(10, 'テンソルデータを後方に結合'))))
+            tensor_info = i18n.translate("テンソルデータ ({0}フレーム) を検出しました。動画生成後に後方に結合します。").format(uploaded_tensor.shape[2])
+            stream.output_queue.push(('progress', (None, tensor_info, make_progress_bar_html(10, i18n.translate('テンソルデータを後方に結合')))))
 
         # 常に入力画像から通常のエンコーディングを行う
         start_latent = vae_encode(input_image_pt, vae)
