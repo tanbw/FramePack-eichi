@@ -1593,23 +1593,23 @@ with block:
             # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
             with gr.Group():
                 gr.Markdown(i18n.translate("### テンソルデータ設定"))
-                
+
                 # テンソルデータ使用有無のチェックボックス
                 use_tensor_data = gr.Checkbox(label=i18n.translate("テンソルデータを使用する"), value=False, info=i18n.translate("チェックをオンにするとテンソルデータをアップロードできます"))
-                
+
                 # テンソルデータ設定コンポーネント（初期状態では非表示）
                 with gr.Group(visible=False) as tensor_data_group:
                     tensor_data_input = gr.File(
                         label=i18n.translate("テンソルデータアップロード (.safetensors) - 生成動画の後方(末尾)に結合されます"),
                         file_types=[".safetensors"]
                     )
-                    
+
                     gr.Markdown(i18n.translate("※ テンソルデータをアップロードすると通常の動画生成後に、その動画の後方（末尾）に結合されます。\n結合した動画は「元のファイル名_combined.mp4」として保存されます。\n※ テンソルデータの保存機能を有効にすると、生成とアップロードのテンソルを結合したデータも保存されます。\n※ テンソルデータの結合は別ツール `python eichi_utils/tensor_combiner.py --ui` でもできます。"))
-                
+
                 # チェックボックスの状態によってテンソルデータ設定の表示/非表示を切り替える関数
                 def toggle_tensor_data_settings(use_tensor):
                     return gr.update(visible=use_tensor)
-                
+
                 # チェックボックスの変更イベントに関数を紐づけ
                 use_tensor_data.change(
                     fn=toggle_tensor_data_settings,
@@ -1643,7 +1643,7 @@ with block:
             # 現在のセクション数に応じたMarkdownを返す関数
             def generate_section_title(total_sections):
                 last_section = total_sections - 1
-                return i18n.translate("### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。**最終キーフレームの画像は、Image(始点)より優先されます。総数{0}**").format(total_sections)
+                return i18n.translate('### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。**最終キーフレームの画像は、Image(始点)より優先されます。総数{0}**').format(total_sections)
 
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
