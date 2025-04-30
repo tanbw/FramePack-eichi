@@ -451,7 +451,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 # テンソルに含まれているキーとシェイプを確認
                 print(translate("テンソルデータの内容:"))
                 for key, tensor in tensor_dict.items():
-                    print("  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
+                    print(f"  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
 
                 # history_latentsと呼ばれるキーが存在するか確認
                 if "history_latents" in tensor_dict:
