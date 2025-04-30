@@ -569,6 +569,116 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # ここでlatent_paddingsを再定義していたのが原因だったため、再定義を削除します
 
+
+        # -------- LoRA 設定 START ---------
+
+
+        # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
+        if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+            old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+            os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+            print(i18n.translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
+
+        # LoRA処理
+        lora_applied = False
+        if use_lora and has_lora_support and lora_file is not None:            
+            # まず元のモデルのコピーを作成
+            transformer_obj = copy.deepcopy(transformer)
+
+            try:
+                # LoRAファイルのパスを取得
+                lora_path = lora_file.name
+
+                # 明示的な同期ポイントの追加
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+
+                # 直接LoRA適用方式を使用
+                from lora_utils.lora_loader import load_and_apply_lora
+                transformer_obj = load_and_apply_lora(
+                    transformer_obj,
+                    lora_path,
+                    lora_scale,
+                    device=gpu
+                )
+                print(i18n.translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
+                lora_applied = True
+
+                # 診断レポートの出力
+                try:
+                    from lora_utils.lora_check_helper import check_lora_applied
+                    has_lora, source = check_lora_applied(transformer_obj)
+                    print(i18n.translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
+                except Exception as diagnostic_error:
+                    print(i18n.translate("LoRA診断エラー: {0}").format(diagnostic_error))
+
+                # FP8最適化処理
+                try:
+                    if fp8_optimization and lora_applied:
+                        # FP8サポートのチェック
+                        from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
+        
+                        has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
+        
+                        if not has_e4m3:
+                            print(i18n.translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
+                        else:
+                            print(i18n.translate("FP8最適化を適用します..."))
+        
+                            # 状態辞書を取得
+                            state_dict = transformer_obj.state_dict()
+        
+                            # 最適化のターゲットと除外キーを設定
+                            TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
+                            EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
+        
+                            # 状態辞書をFP8形式に最適化
+                            print(i18n.translate("FP8形式で状態辞書を最適化しています..."))
+                            state_dict = optimize_state_dict_with_fp8(
+                                state_dict,
+                                gpu,
+                                TARGET_KEYS,
+                                EXCLUDE_KEYS,
+                                move_to_device=False
+                            )
+        
+                            # モンキーパッチの適用
+                            print(i18n.translate("FP8モンキーパッチを適用しています..."))
+                            use_scaled_mm = has_scaled_mm and has_e5m2
+                            apply_fp8_monkey_patch(transformer_obj, state_dict, use_scaled_mm=use_scaled_mm)
+        
+                            # 状態辞書を読み込み
+                            transformer_obj.load_state_dict(state_dict, strict=True)
+        
+                            print(i18n.translate("FP8最適化が適用されました！"))
+                    else:
+                        print(i18n.translate("FP8最適化は無効化されています。"))
+                except Exception as e:
+                    print(i18n.translate("FP8最適化エラー: {0}").format(e))
+                    traceback.print_exc()
+                    print(i18n.translate("FP8最適化に失敗しました。通常モードで続行します。"))
+                    # エラー時は元の状態を使用し続ける
+
+            except Exception as e:
+                print(i18n.translate("LoRA適用エラー: {0}").format(e))
+                traceback.print_exc()
+                print(i18n.translate("LoRA適用に失敗しました。通常モードで続行します。"))
+                # エラー時は元のtransformerのコピーをそのまま使用
+                lora_applied = False
+        else:
+            # LoRA未使用時のメッセージ
+            if use_lora:
+                if not has_lora_support:
+                    print(i18n.translate("LoRAサポートが無効です。lora_utilsモジュールが必要です。"))
+                elif lora_file is None:
+                    print(i18n.translate("LoRAファイルが指定されていません。通常モードで続行します。"))
+            else:
+                print(i18n.translate("LoRAは使用されません。通常モードで続行します。"))
+            
+
+        # -------- LoRA 設定 END ---------
+
+        
         for i_section, latent_padding in enumerate(latent_paddings):
             # 先に変数を定義
             is_first_section = i_section == 0
@@ -649,107 +759,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             print(i18n.translate('latent_padding_size = {0}, is_last_section = {1}').format(latent_padding_size, is_last_section))
 
-            # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
-            if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
-                old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
-                os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-                print(i18n.translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
-
-            # まず元のモデルのコピーを作成
-            transformer_obj = copy.deepcopy(transformer)
-            
-            # LoRA処理
-            lora_applied = False
-            if use_lora and has_lora_support and lora_file is not None:
-                try:
-                    # LoRAファイルのパスを取得
-                    lora_path = lora_file.name
-            
-                    # 明示的な同期ポイントの追加
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    
-                    # 直接LoRA適用方式を使用
-                    from lora_utils.lora_loader import load_and_apply_lora
-                    transformer_obj = load_and_apply_lora(
-                        transformer_obj,
-                        lora_path,
-                        lora_scale,
-                        device=gpu
-                    )
-                    print(i18n.translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
-                    lora_applied = True
-            
-                    # 診断レポートの出力
-                    try:
-                        from lora_utils.lora_check_helper import check_lora_applied
-                        has_lora, source = check_lora_applied(transformer_obj)
-                        print(i18n.translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
-                    except Exception as diagnostic_error:
-                        print(i18n.translate("LoRA診断エラー: {0}").format(diagnostic_error))
-            
-                except Exception as e:
-                    print(i18n.translate("LoRA適用エラー: {0}").format(e))
-                    traceback.print_exc()
-                    print(i18n.translate("LoRA適用に失敗しました。通常モードで続行します。"))
-                    # エラー時は元のtransformerのコピーをそのまま使用
-                    lora_applied = False
-            else:
-                # LoRA未使用時のメッセージ
-                if use_lora:
-                    if not has_lora_support:
-                        print(i18n.translate("LoRAサポートが無効です。lora_utilsモジュールが必要です。"))
-                    elif lora_file is None:
-                        print(i18n.translate("LoRAファイルが指定されていません。通常モードで続行します。"))
-                else:
-                    print(i18n.translate("LoRAは使用されません。通常モードで続行します。"))
-                    
-            # FP8最適化処理
-            try:
-                if fp8_optimization:
-                    # FP8サポートのチェック
-                    from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
-                    
-                    has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
-                    
-                    if not has_e4m3:
-                        print(i18n.translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
-                    else:
-                        print(i18n.translate("FP8最適化を適用します..."))
-                        
-                        # 状態辞書を取得
-                        state_dict = transformer_obj.state_dict()
-                        
-                        # 最適化のターゲットと除外キーを設定
-                        TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
-                        EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
-                        
-                        # 状態辞書をFP8形式に最適化
-                        print(i18n.translate("FP8形式で状態辞書を最適化しています..."))
-                        state_dict = optimize_state_dict_with_fp8(
-                            state_dict, 
-                            gpu, 
-                            TARGET_KEYS, 
-                            EXCLUDE_KEYS, 
-                            move_to_device=False
-                        )
-                        
-                        # モンキーパッチの適用
-                        print(i18n.translate("FP8モンキーパッチを適用しています..."))
-                        use_scaled_mm = has_scaled_mm and has_e5m2
-                        apply_fp8_monkey_patch(transformer_obj, state_dict, use_scaled_mm=use_scaled_mm)
-                        
-                        # 状態辞書を読み込み
-                        transformer_obj.load_state_dict(state_dict, strict=True)
-                        
-                        print(i18n.translate("FP8最適化が適用されました！"))
-                else:
-                    print(i18n.translate("FP8最適化は無効化されています。"))
-            except Exception as e:
-                print(i18n.translate("FP8最適化エラー: {0}").format(e))
-                traceback.print_exc()
-                print(i18n.translate("FP8最適化に失敗しました。通常モードで続行します。"))
-                # エラー時は元の状態を使用し続ける
 
             # COMMENTED OUT: セクション処理前のメモリ解放（処理速度向上のため）
             # if torch.cuda.is_available():
@@ -1794,6 +1803,50 @@ with block:
 
             input_image = gr.Image(sources='upload', type="numpy", label="Image", height=320)
 
+            # LoRA設定グループを追加
+            with gr.Group(visible=has_lora_support) as lora_settings_group:
+                gr.Markdown(i18n.translate("### LoRA設定"))
+
+                # LoRA使用有無のチェックボックス
+                use_lora = gr.Checkbox(label=i18n.translate("LoRAを使用する"), value=False, info=i18n.translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
+
+                # LoRA設定コンポーネント（初期状態では非表示）
+                lora_file = gr.File(label=i18n.translate("LoRAファイル (.safetensors, .pt, .bin)"),
+                            file_types=[".safetensors", ".pt", ".bin"],
+                            visible=False)
+                lora_scale = gr.Slider(label=i18n.translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
+                           value=0.8, step=0.01, visible=False)
+                fp8_optimization = gr.Checkbox(
+                    label=i18n.translate("FP8最適化"),
+                    value=False,
+                    info=i18n.translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
+                    visible=False
+                )
+                lora_blocks_type = gr.Dropdown(
+                    label=i18n.translate("LoRAブロック選択"),
+                    choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
+                    value="all",
+                    info=i18n.translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
+                    visible=False
+                )
+
+                # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
+                def toggle_lora_settings(use_lora):
+                    return [
+                        gr.update(visible=use_lora),  # lora_file
+                        gr.update(visible=use_lora),  # lora_scale
+                        gr.update(visible=use_lora),  # fp8_optimization
+                    ]
+
+                # チェックボックスの変更イベントに関数を紋づけ
+                use_lora.change(fn=toggle_lora_settings,
+                           inputs=[use_lora],
+                           outputs=[lora_file, lora_scale, fp8_optimization])
+
+                # LoRAサポートが無効の場合のメッセージ
+                if not has_lora_support:
+                    gr.Markdown(i18n.translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
+
             prompt = gr.Textbox(label=i18n.translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
             # プロンプト管理パネルの追加
@@ -2165,50 +2218,6 @@ with block:
                     step=0.01,
                     info=i18n.translate("最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。")
                 )
-
-            # LoRA設定グループを追加
-            with gr.Group(visible=has_lora_support) as lora_settings_group:
-                gr.Markdown(i18n.translate("### LoRA設定"))
-
-                # LoRA使用有無のチェックボックス
-                use_lora = gr.Checkbox(label=i18n.translate("LoRAを使用する"), value=False, info=i18n.translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
-
-                # LoRA設定コンポーネント（初期状態では非表示）
-                lora_file = gr.File(label=i18n.translate("LoRAファイル (.safetensors, .pt, .bin)"),
-                            file_types=[".safetensors", ".pt", ".bin"],
-                            visible=False)
-                lora_scale = gr.Slider(label=i18n.translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
-                           value=0.8, step=0.01, visible=False)
-                fp8_optimization = gr.Checkbox(
-                    label=i18n.translate("FP8最適化"),
-                    value=False,
-                    info=i18n.translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
-                    visible=False
-                )
-                lora_blocks_type = gr.Dropdown(
-                    label=i18n.translate("LoRAブロック選択"),
-                    choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
-                    value="all",
-                    info=i18n.translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
-                    visible=False
-                )
-
-                # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
-                def toggle_lora_settings(use_lora):
-                    return [
-                        gr.update(visible=use_lora),  # lora_file
-                        gr.update(visible=use_lora),  # lora_scale
-                        gr.update(visible=use_lora),  # fp8_optimization
-                    ]
-
-                # チェックボックスの変更イベントに関数を紋づけ
-                use_lora.change(fn=toggle_lora_settings,
-                           inputs=[use_lora],
-                           outputs=[lora_file, lora_scale, fp8_optimization])
-
-                # LoRAサポートが無効の場合のメッセージ
-                if not has_lora_support:
-                    gr.Markdown(i18n.translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
 
             # 出力フォルダ設定
             gr.Markdown(i18n.translate("※ 出力先は `webui` 配下に限定されます"))

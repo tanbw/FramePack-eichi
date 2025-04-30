@@ -1803,6 +1803,50 @@ with block:
 
             input_image = gr.Image(sources='upload', type="numpy", label="Image", height=320)
 
+            # LoRA設定グループを追加
+            with gr.Group(visible=has_lora_support) as lora_settings_group:
+                gr.Markdown(i18n.translate("### LoRA設定"))
+
+                # LoRA使用有無のチェックボックス
+                use_lora = gr.Checkbox(label=i18n.translate("LoRAを使用する"), value=False, info=i18n.translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
+
+                # LoRA設定コンポーネント（初期状態では非表示）
+                lora_file = gr.File(label=i18n.translate("LoRAファイル (.safetensors, .pt, .bin)"),
+                            file_types=[".safetensors", ".pt", ".bin"],
+                            visible=False)
+                lora_scale = gr.Slider(label=i18n.translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
+                           value=0.8, step=0.01, visible=False)
+                fp8_optimization = gr.Checkbox(
+                    label=i18n.translate("FP8最適化"),
+                    value=False,
+                    info=i18n.translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
+                    visible=False
+                )
+                lora_blocks_type = gr.Dropdown(
+                    label=i18n.translate("LoRAブロック選択"),
+                    choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
+                    value="all",
+                    info=i18n.translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
+                    visible=False
+                )
+
+                # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
+                def toggle_lora_settings(use_lora):
+                    return [
+                        gr.update(visible=use_lora),  # lora_file
+                        gr.update(visible=use_lora),  # lora_scale
+                        gr.update(visible=use_lora),  # fp8_optimization
+                    ]
+
+                # チェックボックスの変更イベントに関数を紋づけ
+                use_lora.change(fn=toggle_lora_settings,
+                           inputs=[use_lora],
+                           outputs=[lora_file, lora_scale, fp8_optimization])
+
+                # LoRAサポートが無効の場合のメッセージ
+                if not has_lora_support:
+                    gr.Markdown(i18n.translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
+
             prompt = gr.Textbox(label=i18n.translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
             # プロンプト管理パネルの追加
@@ -2174,50 +2218,6 @@ with block:
                     step=0.01,
                     info=i18n.translate("最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。")
                 )
-
-            # LoRA設定グループを追加
-            with gr.Group(visible=has_lora_support) as lora_settings_group:
-                gr.Markdown(i18n.translate("### LoRA設定"))
-
-                # LoRA使用有無のチェックボックス
-                use_lora = gr.Checkbox(label=i18n.translate("LoRAを使用する"), value=False, info=i18n.translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
-
-                # LoRA設定コンポーネント（初期状態では非表示）
-                lora_file = gr.File(label=i18n.translate("LoRAファイル (.safetensors, .pt, .bin)"),
-                            file_types=[".safetensors", ".pt", ".bin"],
-                            visible=False)
-                lora_scale = gr.Slider(label=i18n.translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
-                           value=0.8, step=0.01, visible=False)
-                fp8_optimization = gr.Checkbox(
-                    label=i18n.translate("FP8最適化"),
-                    value=False,
-                    info=i18n.translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
-                    visible=False
-                )
-                lora_blocks_type = gr.Dropdown(
-                    label=i18n.translate("LoRAブロック選択"),
-                    choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
-                    value="all",
-                    info=i18n.translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
-                    visible=False
-                )
-
-                # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
-                def toggle_lora_settings(use_lora):
-                    return [
-                        gr.update(visible=use_lora),  # lora_file
-                        gr.update(visible=use_lora),  # lora_scale
-                        gr.update(visible=use_lora),  # fp8_optimization
-                    ]
-
-                # チェックボックスの変更イベントに関数を紋づけ
-                use_lora.change(fn=toggle_lora_settings,
-                           inputs=[use_lora],
-                           outputs=[lora_file, lora_scale, fp8_optimization])
-
-                # LoRAサポートが無効の場合のメッセージ
-                if not has_lora_support:
-                    gr.Markdown(i18n.translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
 
             # 出力フォルダ設定
             gr.Markdown(i18n.translate("※ 出力先は `webui` 配下に限定されます"))
