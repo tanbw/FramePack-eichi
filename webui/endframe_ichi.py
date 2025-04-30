@@ -1443,13 +1443,13 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting=translate("1秒 (33フレーム)"), keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False):
     global stream
 
     # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
 
     # フレームサイズ設定に応じてlatent_window_sizeを先に調整
-    if frame_size_setting == "0.5秒 (17フレーム)":
+    if frame_size_setting == translate("0.5秒 (17フレーム)"):
         # 0.5秒の場合はlatent_window_size=4.5に設定（実際には4.5*4-3=17フレーム≒0.5秒@30fps）
         latent_window_size = 4.5
         print(translate('フレームサイズを0.5秒モードに設定: latent_window_size = {0}').format(latent_window_size))
@@ -1695,7 +1695,7 @@ with block:
 
                     # セクション番号0の上にコピー機能チェックボックスを追加（ループモード時のみ表示）
                     with gr.Row(visible=(mode_radio.value == MODE_TYPE_LOOP)) as copy_button_row:
-                        keyframe_copy_checkbox = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=True, info="オンにするとキーフレーム間の自動コピーが行われます")
+                        keyframe_copy_checkbox = gr.Checkbox(label=translate("キーフレーム自動コピー機能を有効にする"), value=True, info=translate("オンにするとキーフレーム間の自動コピーが行われます"))
 
                     for i in range(max_keyframes):
                         with gr.Row(visible=(i < initial_sections_count), elem_classes="section-row") as row_group:
@@ -2148,7 +2148,7 @@ with block:
 
             # mode_radio.changeの登録 - 拡張モード変更ハンドラを使用
             mode_radio.change(
-                fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups),
+                fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups, frame_size_radio.value),
                 inputs=[mode_radio, length_radio],
                 outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
             )

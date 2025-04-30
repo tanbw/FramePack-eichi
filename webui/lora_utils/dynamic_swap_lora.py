@@ -43,7 +43,7 @@ class DynamicSwapLoRAManager:
         self.is_active = True
 
         print(_("LoRAファイルがロードされました (非推奨インターフェース): {0}").format(lora_path))
-        print(_("注意: DynamicSwapLoRAManagerは非推奨です。代わりにlora_loader.load_and_apply_lora()を使用してください。"))
+        print(_("注意: ") + _("DynamicSwapLoRAManagerは非推奨です。代わりにlora_loader.load_and_apply_lora()を使用してください。"))
 
     def set_scale(self, scale):
         """

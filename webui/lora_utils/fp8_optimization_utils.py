@@ -35,7 +35,7 @@ def calculate_fp8_maxval(exp_bits=4, mantissa_bits=3, sign_bits=1):
     Returns:
         float: FP8形式で表現可能な最大値
     """
-    assert exp_bits + mantissa_bits + sign_bits == 8, "合計ビット数は8でなければなりません"
+    assert exp_bits + mantissa_bits + sign_bits == 8, _("合計ビット数は8でなければなりません")
 
     # 指数バイアスを計算
     bias = 2 ** (exp_bits - 1) - 1
@@ -122,7 +122,7 @@ def optimize_state_dict_with_fp8(
     elif exp_bits == 5 and mantissa_bits == 2:
         fp8_dtype = torch.float8_e5m2
     else:
-        raise ValueError("サポートされていないFP8形式: E{0}M{1}".format(exp_bits, mantissa_bits))
+        raise ValueError(_("サポートされていないFP8形式: E{0}M{1}").format(exp_bits, mantissa_bits))
 
     # FP8の最大値を計算
     max_value = calculate_fp8_maxval(exp_bits, mantissa_bits)
@@ -143,7 +143,7 @@ def optimize_state_dict_with_fp8(
             target_state_dict_keys.append(key)
 
     # 各キーを処理
-    for key in tqdm(target_state_dict_keys, desc="FP8最適化中"):
+    for key in tqdm(target_state_dict_keys, desc=_("FP8最適化中")):
         value = state_dict[key]
 
         # 元のデバイスとデータ型を保存
@@ -184,7 +184,7 @@ def optimize_state_dict_with_fp8(
         if calc_device is not None and optimized_count % 10 == 0:
             torch.cuda.empty_cache()
 
-    print("最適化された線形レイヤー数: {0}".format(optimized_count))
+    print(_("最適化された線形レイヤー数: {0}").format(optimized_count))
     return state_dict
 
 def fp8_linear_forward_patch(self: nn.Linear, x, use_scaled_mm=False, max_value=None):
@@ -212,7 +212,7 @@ def fp8_linear_forward_patch(self: nn.Linear, x, use_scaled_mm=False, max_value=
         global FP8_E4M3_WARNING_SHOWN
         if weight_dtype != torch.float8_e4m3fn:
             if not FP8_E4M3_WARNING_SHOWN:
-                print(f"\u8b66告: scaled_mmはFP8 E4M3FN形式を必要としますが、{weight_dtype}が検出されました。通常方式にフォールバックします。")
+                print(_("警告: scaled_mmはFP8 E4M3FN形式を必要としますが、{weight_dtype}が検出されました。通常方式にフォールバックします。").format(weight_dtype=weight_dtype))
                 FP8_E4M3_WARNING_SHOWN = True
             # 通常の方式にフォールバック
             return fp8_linear_forward_patch(self, x, False, max_value)
@@ -222,7 +222,7 @@ def fp8_linear_forward_patch(self: nn.Linear, x, use_scaled_mm=False, max_value=
         global FP8_DIMENSIONS_WARNING_SHOWN
         if x.ndim != 3:
             if not FP8_DIMENSIONS_WARNING_SHOWN:
-                print(f"\u8b66告: scaled_mmは3次元入力が必要ですが、{x.ndim}次元が検出されました。通常方式にフォールバックします。")
+                print(_("警告: scaled_mmは3次元入力が必要ですが、{0}次元が検出されました。通常方式にフォールバックします。").format(x.ndim))
                 FP8_DIMENSIONS_WARNING_SHOWN = True
             # 通常の方式にフォールバック
             return fp8_linear_forward_patch(self, x, False, max_value)
@@ -313,7 +313,7 @@ def apply_fp8_monkey_patch(model, optimized_state_dict, use_scaled_mm=False):
 
             patched_count += 1
 
-    print("モンキーパッチ適用済みの線形レイヤー数: {0}".format(patched_count))
+    print(_("モンキーパッチ適用済みの線形レイヤー数: {0}").format(patched_count))
     # モデルにFP8適用済みフラグを設定
     model._fp8_optimized = True
     return model
@@ -333,11 +333,11 @@ def check_fp8_support():
     has_scaled_mm = hasattr(torch, '_scaled_mm')
 
     if has_e4m3 and has_e5m2:
-        print("FP8サポート検出: E4M3およびE5M2フォーマットが利用可能です")
+        print(_("FP8サポート検出: E4M3およびE5M2フォーマットが利用可能です"))
         if has_scaled_mm:
-            print("scaled_mmサポート検出: RTX 40シリーズのGPUでFP8の高速化が可能です")
+            print(_("scaled_mmサポート検出: RTX 40シリーズのGPUでFP8の高速化が可能です"))
     else:
-        print("警告: FP8サポートが検出されませんでした。PyTorch 2.1以上が必要です")
+        print(_("警告: FP8サポートが検出されませんでした。PyTorch 2.1以上が必要です"))
 
     return has_e4m3, has_e5m2, has_scaled_mm
 

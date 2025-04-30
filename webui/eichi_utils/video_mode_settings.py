@@ -430,17 +430,17 @@ def generate_keyframe_guide_html():
     if "keyframe_guide" in _html_cache:
         return _html_cache["keyframe_guide"]
 
-    html = """
-    <div style="margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">
-        <span style="display: inline-block; margin-bottom: 5px; font-weight: bold;">■ キーフレーム画像設定ガイド:</span>
+    html = f"""
+    <div style="margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; background-color: #9a9a9a;">
+        <span style="display: inline-block; margin-bottom: 5px; font-weight: bold;">{translate("■ キーフレーム画像設定ガイド:")}</span>
         <ul style="margin: 0; padding-left: 20px;">
     """
 
     # 新機能の説明を追加
-    html += """
-        <li><span style="color: #ff3860; font-weight: bold;">セクション0</span>: <span style="color: #ff3860; font-weight: bold;">赤枠</span>に画像を設定すると上限までの<span style="color: #ff3860; font-weight: bold;">すべての偶数番号セクション(0,2,4,6...)</span>に自動コピーされます</li>
-        <li><span style="color: #3273dc; font-weight: bold;">セクション1</span>: <span style="color: #3273dc; font-weight: bold;">青枠</span>に画像を設定すると上限までの<span style="color: #3273dc; font-weight: bold;">すべての奇数番号セクション(1,3,5,7...)</span>に自動コピーされます</li>
-        <li>「キーフレーム自動コピー機能を有効にする」チェックボックスで機能のオン/オフを切り替えられます</li>
+    html += f"""
+        <li><span style="color: #ff3860; font-weight: bold;">{translate("セクション0")}</span>: <span style="color: #ff3860; font-weight: bold;">{translate("赤枠")}</span>{translate("に画像を設定すると上限までの")}<span style="color: #ff3860; font-weight: bold;">{translate("すべての偶数番号セクション(0,2,4,6...)")}</span>{translate("に自動コピーされます")}</li>
+        <li><span style="color: #3273dc; font-weight: bold;">{translate("セクション1")}</span>: <span style="color: #3273dc; font-weight: bold;">{translate("青枠")}</span>{translate("に画像を設定すると上限までの")}<span style="color: #3273dc; font-weight: bold;">{translate("すべての奇数番号セクション(1,3,5,7...)")}</span>{translate("に自動コピーされます")}</li>
+        <li>{translate("「キーフレーム自動コピー機能を有効にする」チェックボックスで機能のオン/オフを切り替えられます")}</li>
     """
 
     # 各モードの説明を動的に生成
@@ -469,15 +469,15 @@ def generate_keyframe_guide_html():
 
         html += '</li>'
 
-    html += """
-        <li><span style="color: #ff3860; font-weight: bold;">ループモード</span>では、常に<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1(赤枠)</span>が重要です</li>
+    html += f"""
+        {translate('<li><span style="color: #ff3860; font-weight: bold;">ループモード</span>では、常に<span style="color: #ff3860; font-weight: bold;">キーフレーム画像1(赤枠)</span>が重要です</li>')}
         </ul>
         <div style="margin-top: 5px; font-size: 0.9em; color: #666;">
-            ※ 全モードで拡張されたセクションコピー機能が動作します<br>
-            ※ セクション0(赤枠)に画像を設定すると、すべての偶数セクション(0,2,4,6...)に自動適用されます<br>
-            ※ セクション1(青枠)に画像を設定すると、すべての奇数セクション(1,3,5,7...)に自動適用されます<br>
-            ※ 0.5秒フレームサイズでも動的に正確なセクション数が計算されます<br>
-            ※ セクション設定上部のチェックボックスでキーフレームコピー機能のオン/オフを切り替えられます
+            ※ {translate("全モードで拡張されたセクションコピー機能が動作します")}<br>
+            ※ {translate("セクション0(赤枠)に画像を設定すると、すべての偶数セクション(0,2,4,6...)に自動適用されます")}<br>
+            ※ {translate("セクション1(青枠)に画像を設定すると、すべての奇数セクション(1,3,5,7...)に自動適用されます")}<br>
+            ※ {translate("0.5秒フレームサイズでも動的に正確なセクション数が計算されます")}<br>
+            ※ {translate("セクション設定上部のチェックボックスでキーフレームコピー機能のオン/オフを切り替えられます")}
         </div>
     </div>
     """
