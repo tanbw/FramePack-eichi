@@ -581,9 +581,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # LoRA処理
         lora_applied = False
+        # まず元のモデルのコピーを作成
+        transformer_obj = copy.deepcopy(transformer)
+
         if use_lora and has_lora_support and lora_file is not None:
-            # まず元のモデルのコピーを作成
-            transformer_obj = copy.deepcopy(transformer)
 
             try:
                 # LoRAファイルのパスを取得
