@@ -579,12 +579,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
             print(translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
 
-        # まず元のモデルのコピーを作成
-        transformer_obj = copy.deepcopy(transformer)
-
         # LoRA処理
         lora_applied = False
-        if use_lora and has_lora_support and lora_file is not None:
+        if use_lora and has_lora_support and lora_file is not None:            
+            # まず元のモデルのコピーを作成
+            transformer_obj = copy.deepcopy(transformer)
+
             try:
                 # LoRAファイルのパスを取得
                 lora_path = lora_file.name
@@ -612,6 +612,53 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 except Exception as diagnostic_error:
                     print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
 
+                # FP8最適化処理
+                try:
+                    if fp8_optimization and lora_applied:
+                        # FP8サポートのチェック
+                        from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
+        
+                        has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
+        
+                        if not has_e4m3:
+                            print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
+                        else:
+                            print(translate("FP8最適化を適用します..."))
+        
+                            # 状態辞書を取得
+                            state_dict = transformer_obj.state_dict()
+        
+                            # 最適化のターゲットと除外キーを設定
+                            TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
+                            EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
+        
+                            # 状態辞書をFP8形式に最適化
+                            print(translate("FP8形式で状態辞書を最適化しています..."))
+                            state_dict = optimize_state_dict_with_fp8(
+                                state_dict,
+                                gpu,
+                                TARGET_KEYS,
+                                EXCLUDE_KEYS,
+                                move_to_device=False
+                            )
+        
+                            # モンキーパッチの適用
+                            print(translate("FP8モンキーパッチを適用しています..."))
+                            use_scaled_mm = has_scaled_mm and has_e5m2
+                            apply_fp8_monkey_patch(transformer_obj, state_dict, use_scaled_mm=use_scaled_mm)
+        
+                            # 状態辞書を読み込み
+                            transformer_obj.load_state_dict(state_dict, strict=True)
+        
+                            print(translate("FP8最適化が適用されました！"))
+                    else:
+                        print(translate("FP8最適化は無効化されています。"))
+                except Exception as e:
+                    print(translate("FP8最適化エラー: {0}").format(e))
+                    traceback.print_exc()
+                    print(translate("FP8最適化に失敗しました。通常モードで続行します。"))
+                    # エラー時は元の状態を使用し続ける
+
             except Exception as e:
                 print(translate("LoRA適用エラー: {0}").format(e))
                 traceback.print_exc()
@@ -627,56 +674,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     print(translate("LoRAファイルが指定されていません。通常モードで続行します。"))
             else:
                 print(translate("LoRAは使用されません。通常モードで続行します。"))
-        
+            
+
         # -------- LoRA 設定 END ---------
 
-        # FP8最適化処理
-        try:
-            if fp8_optimization:
-                # FP8サポートのチェック
-                from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
-
-                has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
-
-                if not has_e4m3:
-                    print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
-                else:
-                    print(translate("FP8最適化を適用します..."))
-
-                    # 状態辞書を取得
-                    state_dict = transformer_obj.state_dict()
-
-                    # 最適化のターゲットと除外キーを設定
-                    TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
-                    EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
-
-                    # 状態辞書をFP8形式に最適化
-                    print(translate("FP8形式で状態辞書を最適化しています..."))
-                    state_dict = optimize_state_dict_with_fp8(
-                        state_dict,
-                        gpu,
-                        TARGET_KEYS,
-                        EXCLUDE_KEYS,
-                        move_to_device=False
-                    )
-
-                    # モンキーパッチの適用
-                    print(translate("FP8モンキーパッチを適用しています..."))
-                    use_scaled_mm = has_scaled_mm and has_e5m2
-                    apply_fp8_monkey_patch(transformer_obj, state_dict, use_scaled_mm=use_scaled_mm)
-
-                    # 状態辞書を読み込み
-                    transformer_obj.load_state_dict(state_dict, strict=True)
-
-                    print(translate("FP8最適化が適用されました！"))
-            else:
-                print(translate("FP8最適化は無効化されています。"))
-        except Exception as e:
-            print(translate("FP8最適化エラー: {0}").format(e))
-            traceback.print_exc()
-            print(translate("FP8最適化に失敗しました。通常モードで続行します。"))
-            # エラー時は元の状態を使用し続ける
-
+        
         for i_section, latent_padding in enumerate(latent_paddings):
             # 先に変数を定義
             is_first_section = i_section == 0
