@@ -2,6 +2,8 @@
 
 FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/lllyasviel/FramePack)のフォークであるnirvash氏の[nirvash/FramePack](https://github.com/nirvash/FramePack)を元にして作成された機能追加バージョンです。nirvash氏の先駆的な改良に基づき、細かい機能が多数搭載されています。
 
+v1.9よりKohya Tech氏許諾のもと[kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady)のコードを導入し、LoRA機能の性能と安定性が大幅に向上しています。
+
 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen氏**より多言語対応の協力をいただき非常に感謝しております。
 
 感謝您 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** 對多語言支援的協助。
@@ -45,6 +47,19 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
 - **クロスプラットフォーム対応**: Windows以外の環境でも基本機能が使用可能　※多分
 
 ![FramePack-eichi画面2](images/framepack_eichi_screenshot2.png)
+
+## 📝 最新アップデート情報 (v1.9)
+
+### 主要な変更点
+
+#### 1. kohya-ss/FramePack-LoRAReadyの導入
+- **LoRA機能の大幅な性能向上**: Kohya Tech氏許諾の下、LoRA適用の安定性と一貫性が向上
+- **高VRAMモードと低VRAMモードの統一**: どちらのモードでも同じ直接適用方式を採用
+- **コード複雑性の軽減**: 共通の`load_and_apply_lora`関数使用による保守性向上
+- **DynamicSwapフック方式の廃止**: より安定した直接適用方式への完全移行
+
+#### 2. HunyuanVideo形式への統一
+- **LoRAフォーマットの標準化**: HunyuanVideo形式に統一し、異なるフォーマットの互換性を向上
 
 ## 📝 最新アップデート情報 (v1.8.1)
 
@@ -130,12 +145,13 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
 
 ### Hunyuan LoRA対応状況
 
-暫定対応状態となります：
+v1.9で大幅に改善されました：
 
-- v1.6ではLoRA適用ロジックが統一され、高VRAMモードと低VRAMモードで同じ直接適用方式を使用
-- VRAM管理の基準値が変更され（60GB→100GB）、より多くのユーザーが低VRAMモードで動作可能に
-- 使用にはVRAM16GBでも少し厳しめだが、処理自体よりも開始前のディスク読込の方が長い。メモリは多め推奨
-- VRAMの多いPCで正常に動作しないという問い合わせも来ており、抜本見直しも検討中です
+- kohya-ss/FramePack-LoRAReadyのコードを導入し、LoRA機能の性能と安定性が向上
+- 高VRAMモードと低VRAMモードのLoRA適用方式を直接適用方式に統一
+- 複雑なフック処理を排除し、load_and_apply_lora関数を共通で使用
+- HunyuanVideo形式に統一し、LoRAフォーマットの互換性を向上
+- 使用にはVRAM16GBでも少し厳しめですが、処理自体よりも開始前のディスク読込の方が長いです。メモリは多め推奨
 
 ## 💻 インストール方法
 
@@ -207,11 +223,16 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
      - `settings_manager.py` - 設定管理モジュール
      - `ui_styles.py` - UIスタイル定義モジュール（v1.6.2で追加）
      - `video_mode_settings.py` - 動画モード設定モジュール
-   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加、v1.3.2で改良）
+   - `lora_utils` フォルダ - LoRA関連モジュール（v1.3で追加、v1.9で大幅改善）
      - `__init__.py`
-     - `dynamic_swap_lora.py` - LoRA管理モジュール（フック方式は廃止され、直接適用方式のみサポート）
+     - `dynamic_swap_lora.py` - LoRA管理モジュール（後方互換性用に維持）
      - `lora_loader.py` - LoRAローダーモジュール
-     - `lora_check_helper.py` - LoRA適用状況確認モジュール（v1.3.2で追加）
+     - `lora_check_helper.py` - LoRA適用状況確認モジュール
+     - `lora_utils.py` - LoRA状態辞書マージや変換機能（v1.9で追加）
+     - `fp8_optimization_utils.py` - FP8最適化機能（v1.9で追加）
+   - `diffusers_helper` フォルダ - モデルのメモリ管理改善用ユーティリティ（v1.9で追加）
+     - `memory.py` - メモリ管理機能を提供
+     - **注意**: このディレクトリは既存の本家ツールのソースを差し替えるため、必要に応じてバックアップを取ってください
    - `locales` フォルダ - 多言語対応モジュール（v1.8.1で追加）
      - `i18n.py` - 国際化（i18n）機能のコア実装
      - `ja.json` - 日本語の翻訳ファイル（デフォルト言語）
@@ -342,6 +363,7 @@ Traceback (most recent call last):
 
 - [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack) - 原作者lllyasviel師の素晴らしい技術と革新性に感謝します
 - [nirvash/FramePack](https://github.com/nirvash/FramePack) - nirvash氏の先駆的な改良と拡張に深く感謝します
+- [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) - kohya-ss氏のLoRA対応コードの提供により、v1.9での性能向上が実現しました
 
 ## 📄 ライセンス
 
@@ -350,6 +372,21 @@ Traceback (most recent call last):
 
 
 ## 📝 更新履歴
+
+### 2025-04-30: バージョン1.9
+- **kohya-ss/FramePack-LoRAReadyの導入**:
+  - kohya-ss氏許諾の下、LoRA機能の性能と安定性を大幅に向上
+  - 高VRAMモードと低VRAMモードのLoRA適用方式を直接適用方式に統一
+  - load_and_apply_lora関数を共通で使用することでコードの複雑さが軽減
+- **FP8最適化機能の導入**:
+  - 8ビット浮動小数点形式を使用した量子化によるメモリ使用量と処理速度の最適化
+  - 基本的にはOFFでの使用を推奨（一部環境では警告が出てエラーとなる場合あり）
+  - RTX 40シリーズGPUでの高速化オプションもサポート
+- **ディレクトリ構造の変更**:
+  - diffusers_helper: モデルのメモリ管理改善用ユーティリティを追加
+  - 既存の本家ツールのソースを差し替えるため、必要に応じてバックアップを推奨
+- **HunyuanVideo形式への統一**:
+  - LoRAフォーマットをHunyuanVideo形式に統一し互換性を向上
 
 ### 2025-04-29: バージョン1.8.1
 - **多言語対応（i18n）の実装**:
