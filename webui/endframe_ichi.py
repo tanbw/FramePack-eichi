@@ -209,9 +209,10 @@ os.makedirs(outputs_folder, exist_ok=True)
 
 # キーフレーム処理関数は keyframe_handler.py に移動済み
 
+# v1.9.1テスト実装
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640):
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
     has_any_image = (input_image is not None)
     last_visible_section_image = None
@@ -466,15 +467,23 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("Image processing ...")))))
 
-        def preprocess_image(img):
+        def preprocess_image(img, resolution=640):
+            """入力画像を処理して適切なサイズに変換する"""
+            if img is None:
+                # 画像がない場合は指定解像度の黒い画像を生成
+                img = np.zeros((resolution, resolution, 3), dtype=np.uint8)
+                height = width = resolution
+                return img, img, height, width
+                
             H, W, C = img.shape
-            height, width = find_nearest_bucket(H, W, resolution=640)
+            # 解像度パラメータを使用してサイズを決定
+            height, width = find_nearest_bucket(H, W, resolution=resolution)
             img_np = resize_and_center_crop(img, target_width=width, target_height=height)
             img_pt = torch.from_numpy(img_np).float() / 127.5 - 1
             img_pt = img_pt.permute(2, 0, 1)[None, :, None]
             return img_np, img_pt, height, width
 
-        input_image_np, input_image_pt, height, width = preprocess_image(input_image)
+        input_image_np, input_image_pt, height, width = preprocess_image(input_image, resolution=resolution)
         Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
 
         # VAE encoding
@@ -519,7 +528,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         start_latent = vae_encode(input_image_pt, vae)
         # end_frameも同じタイミングでencode
         if end_frame is not None:
-            end_frame_np, end_frame_pt, _, _ = preprocess_image(end_frame)
+            end_frame_np, end_frame_pt, _, _ = preprocess_image(end_frame, resolution=resolution)
             end_frame_latent = vae_encode(end_frame_pt, vae)
         else:
             end_frame_latent = None
@@ -531,7 +540,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             for sec_num, (img, prm) in section_map.items():
                 if img is not None:
                     # 画像をVAE encode
-                    img_np, img_pt, _, _ = preprocess_image(img)
+                    img_np, img_pt, _, _ = preprocess_image(img, resolution=resolution)
                     section_latents[sec_num] = vae_encode(img_pt, vae)
 
         # CLIP Vision
@@ -1453,7 +1462,7 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640):
     global stream
 
     # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
@@ -1467,6 +1476,16 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
         latent_window_size = 9
         print(translate('フレームサイズを1秒モードに設定: latent_window_size = {0}').format(latent_window_size))
+
+    # 下のように修正：解像度を安全な値に丸めてログ表示
+    from diffusers_helper.bucket_tools import SAFE_RESOLUTIONS
+    if resolution not in SAFE_RESOLUTIONS:
+        closest_resolution = min(SAFE_RESOLUTIONS, key=lambda x: abs(x - resolution))
+        print(translate('安全な解像度値ではないため、{0}から{1}に自動調整しました').format(resolution, closest_resolution))
+        resolution = closest_resolution
+    
+    # 解像度設定を出力
+    print(translate('解像度を設定: {0}').format(resolution))
 
     # 動画生成の設定情報をログに出力
     # 4.5の場合は5として計算するための特別処理
@@ -1543,7 +1562,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         valid_images = sum(1 for s in section_settings if s and s[1] is not None)
         print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
 
-    async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization)
+    async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution)
 
     output_filename = None
 
@@ -1655,6 +1674,19 @@ with block:
                     inputs=[use_tensor_data],
                     outputs=[tensor_data_group]
                 )
+                
+            # テンソルデータ設定の下に解像度スライダーを追加
+            with gr.Group():
+                resolution = gr.Slider(
+                    label=translate("解像度"), 
+                    minimum=512, 
+                    maximum=768, 
+                    value=640, 
+                    step=128, 
+                    info=translate("出力動画の基準解像度。現在は512か640か768のいずれかのみ対応（640推奨）")
+                )
+
+            # 開始・終了ボタン
             with gr.Row():
                 start_button = gr.Button(value=translate("Start Generation"))
                 end_button = gr.Button(value=translate("End Generation"), interactive=False)
@@ -2294,7 +2326,7 @@ with block:
         yield from process(*args)
 
     # 実行ボタンのイベント
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization]
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution]
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process)
 
