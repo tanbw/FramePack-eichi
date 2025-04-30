@@ -9,9 +9,141 @@ import random
 import time
 import subprocess
 import copy  # transformer_loraのディープコピー用
+import gc   # メモリ計測用
+
+# psutilライブラリのインポート（システムリソース監視用）
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+    print("psutilライブラリがインストールされていません。システムメモリ情報は表示されません。")
+    print("インストールするには: pip install psutil")
+
 # クロスプラットフォーム対応のための条件付きインポート
 
 import argparse
+
+# メモリ使用状況の詳細ログ出力関数
+def log_memory_detailed(step_name, model, additional_info=None):
+    """メモリ使用状況の詳細ログを出力する関数
+    
+    Args:
+        step_name (str): 処理ステップの名前
+        model: メモリ使用状況を確認するモデル
+        additional_info (str, optional): 追加情報
+    """
+    print(f"\n==== メモリ詳細 [{step_name}] =====")
+    
+    # 基本情報
+    device_str = "不明"
+    try:
+        device_str = str(next(model.parameters()).device)
+    except:
+        try:
+            device_str = str(model.device)
+        except:
+            pass
+    
+    # モデル情報
+    print(f"モデル情報: type={type(model).__name__}, device={device_str}")
+    
+    if additional_info:
+        print(f"追加情報: {additional_info}")
+    
+    # パラメータ数を計算
+    try:
+        param_count = sum(p.numel() for p in model.parameters())
+        param_size_mb = param_count * 4 / (1024 * 1024)  # float32としてサイズ計算
+        print(f"パラメータ数: {param_count:,} ({param_size_mb:.2f} MB)")
+    except:
+        print("パラメータ数: 計算できません")
+        
+    # メモリ情報 (CUDAが利用可能な場合)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        
+        # 基本的なメモリ情報
+        allocated = torch.cuda.memory_allocated() / (1024**3)
+        reserved = torch.cuda.memory_reserved() / (1024**3)
+        max_allocated = torch.cuda.max_memory_allocated() / (1024**3)
+        
+        print(f"CUDA メモリ: 割当={allocated:.2f}GB, 予約={reserved:.2f}GB, 最大割当={max_allocated:.2f}GB")
+        
+        # キャッシュ情報
+        try:
+            cached = torch.cuda.memory_cached() / (1024**3)
+            max_cached = torch.cuda.max_memory_cached() / (1024**3)
+            print(f"CUDA キャッシュ: 現在={cached:.2f}GB, 最大={max_cached:.2f}GB")
+        except:
+            pass
+        
+        # 空きメモリ
+        try:
+            free = get_cuda_free_memory_gb(gpu)
+            print(f"CUDA 空きメモリ: {free:.2f}GB")
+        except:
+            pass
+    else:
+        print("CUDA は利用できません")
+    
+    # ガベージコレクションの状態
+    collected = gc.collect()
+    print(f"GC回収オブジェクト数: {collected}")
+    
+    # システムメモリ情報（RAMおよびスワップ）
+    if HAS_PSUTIL:
+        # RAM情報
+        virtual_memory = psutil.virtual_memory()
+        ram_total = virtual_memory.total / (1024**3)  # GB単位
+        ram_used = virtual_memory.used / (1024**3)
+        ram_percent = virtual_memory.percent
+        
+        print(f"\nシステムRAM: 合計={ram_total:.2f}GB, 使用中={ram_used:.2f}GB ({ram_percent}%)")
+        
+        # スワップ情報
+        swap_memory = psutil.swap_memory()
+        swap_total = swap_memory.total / (1024**3)
+        swap_used = swap_memory.used / (1024**3)
+        swap_percent = swap_memory.percent
+        
+        print(f"スワップメモリ: 合計={swap_total:.2f}GB, 使用中={swap_used:.2f}GB ({swap_percent}%)")
+        
+        # 追加プロセス情報
+        process = psutil.Process(os.getpid())
+        process_memory = process.memory_info().rss / (1024**3)  # 物理メモリ使用量
+        
+        print(f"現在のプロセスメモリ使用量: {process_memory:.2f}GB")
+        
+        try:
+            # Windowsの場合はページングファイルの信頼性が低いため、別の方法で情報を取得
+            if os.name == 'nt':
+                # Windowsの場合はページフォルト/ページファイルの情報を取得しようと試みる
+                pagefile_in_use = psutil.virtual_memory().used - process_memory * (1024**3)
+                pagefile_in_use_gb = pagefile_in_use / (1024**3)
+                print(f"ページファイル使用量推定: {pagefile_in_use_gb:.2f}GB (概算値)")
+                
+                # 他プロセスのメモリ使用量をサンプルとして確認
+                other_processes = []
+                for proc in psutil.process_iter(['pid', 'name', 'memory_info']):
+                    try:
+                        if proc.pid != os.getpid() and proc.memory_info().rss > 1 * (1024**3):  # 1GB以上使用しているプロセスのみ
+                            other_processes.append((proc.name(), proc.memory_info().rss / (1024**3)))
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        pass
+                
+                # メモリ使用量の多い順に上位5件を表示
+                if other_processes:
+                    other_processes.sort(key=lambda x: x[1], reverse=True)
+                    print("\nメモリ使用量上位プロセス:")
+                    for name, mem in other_processes[:5]:  # 上位5件のみ表示
+                        print(f"  - {name}: {mem:.2f}GB")
+        except Exception as e:
+            print(f"詳細メモリ情報取得中にエラー: {e}")
+    else:
+        print("\npsutilがインストールされていないため、システムメモリ情報は取得できません")
+    
+    print("===========================\n")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--share', action='store_true')
@@ -627,6 +759,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # -------- LoRA 設定 START ---------
 
+
+        # LoRA処理の開始前
+        log_memory_detailed("LoRA処理前", transformer)
+
         # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
         if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
             old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
@@ -641,6 +777,48 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             if transformer_lora_state.is_lora_loaded(lora_path):
                 print(translate("LoRAはすでに適用されています: {0}").format(lora_path))
             else:
+
+        lora_applied = False
+        # モデルコピー前
+        log_memory_detailed("モデルコピー前", transformer)
+
+        # まず元のモデルのコピーを作成
+        transformer_obj = copy.deepcopy(transformer)
+        
+        # モデルコピー後
+        log_memory_detailed("モデルコピー後", transformer_obj)
+
+        if use_lora and has_lora_support and lora_file is not None:
+
+            try:
+                # LoRAファイルのパスを取得
+                lora_path = lora_file.name
+
+                # LoRAファイル読み込み前
+                log_memory_detailed("LoRAファイル読み込み前", transformer_obj, lora_file.name)
+
+                # 明示的な同期ポイントの追加
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+
+                # LoRA適用前
+                log_memory_detailed("LoRA適用前", transformer_obj)
+
+                # 直接LoRA適用方式を使用
+                from lora_utils.lora_loader import load_and_apply_lora
+                transformer_obj = load_and_apply_lora(
+                    transformer_obj,
+                    lora_path,
+                    lora_scale,
+                    device=gpu
+                )
+                print(translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
+                lora_applied = True
+
+                # LoRA適用後
+                log_memory_detailed("LoRA適用後", transformer_obj)
+
+                # 診断レポートの出力
                 try:
                     # 明示的な同期ポイントの追加
                     if torch.cuda.is_available():
