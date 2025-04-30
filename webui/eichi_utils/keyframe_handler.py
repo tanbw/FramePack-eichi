@@ -4,7 +4,7 @@ endframe_ichi.pyから外出しされたキーフレーム関連処理を含む
 """
 
 import gradio as gr
-from locales import i18n
+from locales.i18n_extended import translate
 
 from eichi_utils.video_mode_settings import (
     get_max_keyframes_count,
@@ -40,7 +40,7 @@ def unified_keyframe_change_handler(keyframe_idx, img, mode, length, enable_copy
     # 通常モードでは常にコピー機能を無効化
     if mode != MODE_TYPE_LOOP:
         enable_copy = False
-        print(i18n.translate("[keyframe_handler] 通常モードでコピー機能を強制的に無効化"))
+        print(translate("[keyframe_handler] 通常モードでコピー機能を強制的に無効化"))
 
     if img is None or not enable_copy:
         # 画像が指定されていない、またはコピー機能が無効の場合は何もしない
@@ -52,31 +52,31 @@ def unified_keyframe_change_handler(keyframe_idx, img, mode, length, enable_copy
     # セクション数の決定: 動的に計算された値があればそちらを優先
     if dynamic_sections is not None:
         sections = dynamic_sections
-        print(i18n.translate("[keyframe_handler] 動的に計算されたセクション数を使用: {sections}").format(sections=sections))
+        print(translate("[keyframe_handler] 動的に計算されたセクション数を使用: {sections}").format(sections=sections))
     else:
         # video_mode_settings.pyのデフォルト値を取得
         sections = get_total_sections(length)
-        print(i18n.translate("[keyframe_handler] 設定からのデフォルトセクション数を使用: {sections}").format(sections=sections))
-    print(i18n.translate("[keyframe_handler] 動画長 {length} のセクション数: {sections}").format(length=length, sections=sections))
+        print(translate("[keyframe_handler] 設定からのデフォルトセクション数を使用: {sections}").format(sections=sections))
+    print(translate("[keyframe_handler] 動画長 {length} のセクション数: {sections}").format(length=length, sections=sections))
 
     # 赤枠（セクション0）からのコピー先を計算
     targets = []
     if keyframe_idx == 0:
         # 2から始まる偶数番号を、実際のセクション数の範囲内でリストに追加
         targets = [i for i in range(2, sections) if i % 2 == 0]
-        print(i18n.translate("[keyframe_handler] 赤枠(セクション0)から偶数番号へのコピーターゲット: {targets} (動的セクション数: {sections})").format(targets=targets, sections=sections))
+        print(translate("[keyframe_handler] 赤枠(セクション0)から偶数番号へのコピーターゲット: {targets} (動的セクション数: {sections})").format(targets=targets, sections=sections))
         # コピー先が空の場合はログに出力
         if not targets:
-            print(i18n.translate("[keyframe_handler] 赤枠(セクション0)からのコピー先がありません。セクション数が少ない可能性があります。"))
+            print(translate("[keyframe_handler] 赤枠(セクション0)からのコピー先がありません。セクション数が少ない可能性があります。"))
 
     # 青枠（セクション1）からのコピー先を計算
     elif keyframe_idx == 1:
         # 3から始まる奇数番号を、実際のセクション数の範囲内でリストに追加
         targets = [i for i in range(3, sections) if i % 2 == 1]
-        print(i18n.translate("[keyframe_handler] 青枠(セクション1)から奇数番号へのコピーターゲット: {targets} (動的セクション数: {sections})").format(targets=targets, sections=sections))
+        print(translate("[keyframe_handler] 青枠(セクション1)から奇数番号へのコピーターゲット: {targets} (動的セクション数: {sections})").format(targets=targets, sections=sections))
         # コピー先が空の場合はログに出力
         if not targets:
-            print(i18n.translate("[keyframe_handler] 青枠(セクション1)からのコピー先がありません。セクション数が少ない可能性があります。"))
+            print(translate("[keyframe_handler] 青枠(セクション1)からのコピー先がありません。セクション数が少ない可能性があります。"))
 
     # 結果の更新リスト作成
     max_keyframes = get_max_keyframes_count()
@@ -93,7 +93,7 @@ def unified_keyframe_change_handler(keyframe_idx, img, mode, length, enable_copy
         # iがtargets内にあるかをチェック
         if i in targets:
             # コピー先リストに含まれている場合は画像をコピー
-            print(i18n.translate("[keyframe_handler] セクション{i}へ画像をコピーします").format(i=i))
+            print(translate("[keyframe_handler] セクション{i}へ画像をコピーします").format(i=i))
             updates.append(gr.update(value=img))
         else:
             # 含まれていない場合は変更なし
@@ -204,23 +204,23 @@ def unified_input_image_change_handler(img, mode, length, enable_copy=True):
         copy_targets = []
 
         # 特殊処理のモードでは設定によって異なるキーフレームにコピー
-        if length == i18n.translate("10秒"):
+        if length == translate("10秒"):
             # 10秒の場合は5～8にコピー (インデックス4-7)
             copy_targets = [4, 5, 6, 7]
-        elif length == i18n.translate("12秒"):
+        elif length == translate("12秒"):
             # 12秒の場合は7～9にコピー (インデックス6-8)
             copy_targets = [6, 7, 8]
-        elif length == i18n.translate("16秒"):
+        elif length == translate("16秒"):
             # 16秒の場合は10～12にコピー (インデックス9-11)
             copy_targets = [9, 10, 11]
-        elif length == i18n.translate("20秒"):
+        elif length == translate("20秒"):
             # 20秒の場合は13～15にコピー (インデックス12-14)
             copy_targets = [12, 13, 14]
         else:
             # 通常の動画長の場合は最初のいくつかのキーフレームにコピー
-            if length == i18n.translate("6秒"):
+            if length == translate("6秒"):
                 copy_targets = [0, 1, 2, 3]  # キーフレーム1-4
-            elif length == i18n.translate("8秒"):
+            elif length == translate("8秒"):
                 copy_targets = [0, 1, 2, 3, 4, 5]  # キーフレーム1-6
 
         # キーフレーム画像の更新リスト作成

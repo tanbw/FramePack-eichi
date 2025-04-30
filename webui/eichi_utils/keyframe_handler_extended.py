@@ -5,7 +5,7 @@
 
 import gradio as gr
 
-from locales import i18n, i18n_extended
+from locales.i18n_extended import translate
 
 from eichi_utils.video_mode_settings import (
     get_total_sections,
@@ -16,7 +16,7 @@ from eichi_utils.video_mode_settings import (
 from eichi_utils.keyframe_handler import code_to_ui_index, get_max_keyframes_count
 from eichi_utils.frame_calculator import calculate_sections_for_mode_and_size
 
-def extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups=None, frame_size_setting=i18n.translate("_KEY_FRAME_SIZE_1SEC")):
+def extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups=None, frame_size_setting="_KEY_FRAME_SIZE_1SEC"):
     """モードと動画長の変更を統一的に処理する関数（セクション行の表示/非表示制御を追加）
 
     Args:
@@ -32,9 +32,9 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     # 通常モードでは全ての赤枠青枠を強制的に非表示にする処理を追加
     is_loop_mode = (mode == MODE_TYPE_LOOP)
     if not is_loop_mode:
-        print(i18n.translate("[keyframe_handler_extended] 通常モードで強制的に赤枠/青枠を非表示に設定"))
+        print(translate("[keyframe_handler_extended] 通常モードで強制的に赤枠/青枠を非表示に設定"))
     else:
-        print(i18n.translate("[keyframe_handler_extended] ループモードで赤枠/青枠を表示可能に設定"))
+        print(translate("[keyframe_handler_extended] ループモードで赤枠/青枠を表示可能に設定"))
     # 基本要素のクリア（入力画像と終了フレーム）
     updates = [gr.update(value=None) for _ in range(2)]
 
@@ -80,12 +80,12 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     # ループモードの場合はキーフレーム0も強調（まだ強調されていない場合）
     # セクション0は赤枠にする - ループモードの場合のみ
     if is_loop_mode and 0 not in important_kfs:
-        print(i18n.translate("[keyframe_handler_extended] ループモードでセクション0に赤枠を適用"))
+        print(translate("[keyframe_handler_extended] ループモードでセクション0に赤枠を適用"))
         updates[2] = gr.update(value=None, elem_classes="highlighted-keyframe-red")
         if 0 < len(section_number_inputs):
             section_number_inputs[0].elem_classes = "highlighted-label-red"
     elif not is_loop_mode:
-        print(i18n.translate("[keyframe_handler_extended] 通常モードなのでセクション0の赤枠を適用せず"))
+        print(translate("[keyframe_handler_extended] 通常モードなのでセクション0の赤枠を適用せず"))
         # 通常モードの場合は強制的にクリア
         updates[2] = gr.update(value=None, elem_classes="")
 
@@ -99,7 +99,7 @@ def extended_mode_length_change_handler(mode, length, section_number_inputs, sec
     if section_row_groups is not None:
         # 動画モードとフレームサイズから必要なセクション数を計算
         required_sections = calculate_sections_for_mode_and_size(length, frame_size_setting)
-        print(i18n.translate("動画モード '{length}' とフレームサイズ '{frame_size_setting}' で必要なセクション数: {required_sections}").format(length=length, frame_size_setting=frame_size_setting, required_sections=required_sections))
+        print(translate("動画モード '{length}' とフレームサイズ '{frame_size_setting}' で必要なセクション数: {required_sections}").format(length=length, frame_size_setting=frame_size_setting, required_sections=required_sections))
 
         # 各セクション行の表示/非表示を設定
         row_updates = []

@@ -4,20 +4,7 @@ from safetensors.torch import load_file
 from tqdm import tqdm
 
 # 国際化対応
-try:
-    from locales import i18n
-    HAS_I18N = True
-except ImportError:
-    HAS_I18N = False
-    print("Warning: i18n module not found, using fallback translations")
-
-# 翻訳ヘルパー関数
-def _(text):
-    """国際化対応のためのヘルパー関数"""
-    if HAS_I18N:
-        return i18n.translate(text)
-    return text
-
+from locales.i18n_extended import translate as _
 
 def merge_lora_to_state_dict(
     state_dict: dict[str, torch.Tensor], lora_file: str, multiplier: float, device: torch.device

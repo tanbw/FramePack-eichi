@@ -6,7 +6,7 @@
 import math
 from eichi_utils.video_mode_settings import VIDEO_MODE_SETTINGS
 
-from locales import i18n, i18n_extended
+from locales import i18n_extended
 
 def calculate_frames_per_section(latent_window_size=9):
     """1セクションあたりのフレーム数を計算"""
@@ -50,7 +50,7 @@ def calculate_sections_for_mode_and_size(mode_key, frame_size_setting=None):
 
     # デバッグ情報
     frames_per_section = calculate_frames_per_section(latent_window_size)
-    print(i18n.translate("計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}").format(mode_key=mode_key, frame_size_setting=frame_size_setting, total_frames=total_frames, frames_per_section=frames_per_section, required_sections=required_sections))
+    print(i18n_extended.translate("計算詳細: モード={mode_key}, フレームサイズ={frame_size_setting}, 総フレーム数={total_frames}, セクションあたり={frames_per_section}フレーム, 必要セクション数={required_sections}").format(mode_key=mode_key, frame_size_setting=frame_size_setting, total_frames=total_frames, frames_per_section=frames_per_section, required_sections=required_sections))
 
     # 結果を返す
     return required_sections
