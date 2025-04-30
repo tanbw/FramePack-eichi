@@ -22,8 +22,8 @@ parser.add_argument("--lang", type=str, default='ja', help="Language: ja, zh-tw,
 args = parser.parse_args()
 
 # Load translations from JSON files
-from locales import i18n
-i18n.init(args)
+from locales.i18n_extended import (set_lang, translate)
+set_lang(args.lang)
 
 try:
     import winsound
@@ -41,9 +41,9 @@ has_lora_support = False
 try:
     import lora_utils
     has_lora_support = True
-    print(i18n.translate("LoRAサポートが有効です"))
+    print(translate("LoRAサポートが有効です"))
 except ImportError:
-    print(i18n.translate("LoRAサポートが無効です（lora_utilsモジュールがインストールされていません）"))
+    print(translate("LoRAサポートが無効です（lora_utilsモジュールがインストールされていません）"))
 
 # 設定モジュールをインポート（ローカルモジュール）
 import os.path
@@ -109,8 +109,8 @@ from diffusers_helper.bucket_tools import find_nearest_bucket
 free_mem_gb = get_cuda_free_memory_gb(gpu)
 high_vram = free_mem_gb > 100
 
-print(i18n.translate('Free VRAM {0} GB').format(free_mem_gb))
-print(i18n.translate('High-VRAM Mode: {0}').format(high_vram))
+print(translate('Free VRAM {0} GB').format(free_mem_gb))
+print(translate('High-VRAM Mode: {0}').format(high_vram))
 
 
 # 元のモデル読み込みコード
@@ -121,8 +121,8 @@ try:
     tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
     vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
 except Exception as e:
-    print(i18n.translate("モデル読み込みエラー: {0}").format(e))
-    print(i18n.translate("プログラムを終了します..."))
+    print(translate("モデル読み込みエラー: {0}").format(e))
+    print(translate("プログラムを終了します..."))
     import sys
     sys.exit(1)
 
@@ -132,8 +132,8 @@ try:
     image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
     transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
 except Exception as e:
-    print(i18n.translate("モデル読み込みエラー (追加モデル): {0}").format(e))
-    print(i18n.translate("プログラムを終了します..."))
+    print(translate("モデル読み込みエラー (追加モデル): {0}").format(e))
+    print(translate("プログラムを終了します..."))
     import sys
     sys.exit(1)
 
@@ -201,7 +201,7 @@ base_path = os.path.dirname(os.path.abspath(__file__))
 # 設定から出力フォルダを取得
 app_settings = load_settings()
 output_folder_name = app_settings.get('output_folder', 'outputs')
-print(i18n.translate("設定から出力フォルダを読み込み: {0}").format(output_folder_name))
+print(translate("設定から出力フォルダを読み込み: {0}").format(output_folder_name))
 
 # 出力フォルダのフルパスを生成
 outputs_folder = get_output_folder_path(output_folder_name)
@@ -270,7 +270,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     if output_dir and output_dir.strip():
         # 出力フォルダパスを取得
         outputs_folder = get_output_folder_path(output_dir)
-        print(i18n.translate("出力フォルダを設定: {0}").format(outputs_folder))
+        print(translate("出力フォルダを設定: {0}").format(outputs_folder))
 
         # フォルダ名が現在の設定と異なる場合は設定ファイルを更新
         if output_dir != output_folder_name:
@@ -278,11 +278,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             settings['output_folder'] = output_dir
             if save_settings(settings):
                 output_folder_name = output_dir
-                print(i18n.translate("出力フォルダ設定を保存しました: {0}").format(output_dir))
+                print(translate("出力フォルダ設定を保存しました: {0}").format(output_dir))
     else:
         # デフォルト設定を使用
         outputs_folder = get_output_folder_path(output_folder_name)
-        print(i18n.translate("デフォルト出力フォルダを使用: {0}").format(outputs_folder))
+        print(translate("デフォルト出力フォルダを使用: {0}").format(outputs_folder))
 
     # フォルダが存在しない場合は作成
     os.makedirs(outputs_folder, exist_ok=True)
@@ -304,7 +304,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # オールパディングが有効な場合、すべてのセクションで同じ値を使用
         padding_value = round(all_padding_value, 1)  # 小数点1桁に固定（小数点対応）
         latent_paddings = [padding_value] * total_latent_sections
-        print(i18n.translate("オールパディングを有効化: すべてのセクションにパディング値 {0} を適用").format(padding_value))
+        print(translate("オールパディングを有効化: すべてのセクションにパディング値 {0} を適用").format(padding_value))
     else:
         # 通常のパディング値計算
         latent_paddings = reversed(range(total_latent_sections))
@@ -316,11 +316,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     total_sections = len(latent_paddings_list)
     latent_paddings = latent_paddings_list  # リストに変換したものを使用
 
-    print(i18n.translate("\u25a0 セクション生成詳細:"))
-    print(i18n.translate("  - 生成予定セクション: {0}").format(latent_paddings))
+    print(translate("\u25a0 セクション生成詳細:"))
+    print(translate("  - 生成予定セクション: {0}").format(latent_paddings))
     frame_count = latent_window_size * 4 - 3
-    print(i18n.translate("  - 各セクションのフレーム数: 約{0}フレーム (latent_window_size: {1})").format(frame_count, latent_window_size))
-    print(i18n.translate("  - 合計セクション数: {0}").format(total_sections))
+    print(translate("  - 各セクションのフレーム数: 約{0}フレーム (latent_window_size: {1})").format(frame_count, latent_window_size))
+    print(translate("  - 合計セクション数: {0}").format(total_sections))
 
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
 
@@ -366,7 +366,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             返り値: (llama_vec, clip_l_pooler, llama_attention_mask)
             """
             if not isinstance(llama_vec, torch.Tensor) or not isinstance(llama_attention_mask, torch.Tensor):
-                print(i18n.translate("[ERROR] メインプロンプトのエンコード結果またはマスクが不正です"))
+                print(translate("[ERROR] メインプロンプトのエンコード結果またはマスクが不正です"))
                 return llama_vec, clip_l_pooler, llama_attention_mask
 
             # セクション固有のプロンプトがあるか確認
@@ -381,7 +381,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             if section_info and len(section_info) > 1:
                 _, section_prompt = section_info
                 if section_prompt and section_prompt.strip():
-                    print(i18n.translate("[section_prompt] セクション{0}の専用プロンプトを処理: {1}...").format(i_section, section_prompt[:30]))
+                    print(translate("[section_prompt] セクション{0}の専用プロンプトを処理: {1}...").format(i_section, section_prompt[:30]))
 
                     try:
                         # プロンプト処理
@@ -407,10 +407,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                         return section_llama_vec, section_clip_l_pooler, section_llama_attention_mask
                     except Exception as e:
-                        print(i18n.translate("[ERROR] セクションプロンプト処理エラー: {0}").format(e))
+                        print(translate("[ERROR] セクションプロンプト処理エラー: {0}").format(e))
 
             # 共通プロンプトを使用
-            print(i18n.translate("[section_prompt] セクション{0}は共通プロンプトを使用します").format(i_section))
+            print(translate("[section_prompt] セクション{0}は共通プロンプトを使用します").format(i_section))
             return llama_vec, clip_l_pooler, llama_attention_mask
 
         # Clean GPU
@@ -421,7 +421,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # Text encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Text encoding ...")))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("Text encoding ...")))))
 
         if not high_vram:
             fake_diffusers_current_device(text_encoder, gpu)  # since we only encode one text - that is one model move and one encode, offload is same time consumption since it is also one load and one encode.
@@ -442,29 +442,29 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if tensor_data_input is not None:
             try:
                 tensor_path = tensor_data_input.name
-                print(i18n.translate("テンソルデータを読み込み: {0}").format(os.path.basename(tensor_path)))
-                stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate('Loading tensor data ...')))))
+                print(translate("テンソルデータを読み込み: {0}").format(os.path.basename(tensor_path)))
+                stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate('Loading tensor data ...')))))
 
                 # safetensorsからテンソルを読み込み
                 tensor_dict = sf.load_file(tensor_path)
 
                 # テンソルに含まれているキーとシェイプを確認
-                print(i18n.translate("テンソルデータの内容:"))
+                print(translate("テンソルデータの内容:"))
                 for key, tensor in tensor_dict.items():
-                    print("  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
+                    print(f"  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
 
                 # history_latentsと呼ばれるキーが存在するか確認
                 if "history_latents" in tensor_dict:
                     uploaded_tensor = tensor_dict["history_latents"]
-                    print(i18n.translate("テンソルデータ読み込み成功: shape={0}, dtype={1}").format(uploaded_tensor.shape, uploaded_tensor.dtype))
-                    stream.output_queue.push(('progress', (None, i18n.translate('Tensor data loaded successfully!'), make_progress_bar_html(10, i18n.translate('Tensor data loaded successfully!')))))
+                    print(translate("テンソルデータ読み込み成功: shape={0}, dtype={1}").format(uploaded_tensor.shape, uploaded_tensor.dtype))
+                    stream.output_queue.push(('progress', (None, translate('Tensor data loaded successfully!'), make_progress_bar_html(10, translate('Tensor data loaded successfully!')))))
                 else:
-                    print(i18n.translate("警告: テンソルデータに 'history_latents' キーが見つかりません"))
+                    print(translate("警告: テンソルデータに 'history_latents' キーが見つかりません"))
             except Exception as e:
-                print(i18n.translate("テンソルデータ読み込みエラー: {0}").format(e))
+                print(translate("テンソルデータ読み込みエラー: {0}").format(e))
                 traceback.print_exc()
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Image processing ...")))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("Image processing ...")))))
 
         def preprocess_image(img):
             H, W, C = img.shape
@@ -479,7 +479,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # VAE encoding
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("VAE encoding ...")))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("VAE encoding ...")))))
 
         if not high_vram:
             load_model_as_complete(vae, target_device=gpu)
@@ -487,7 +487,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # アップロードされたテンソルがあっても、常に入力画像から通常のエンコーディングを行う
         # テンソルデータは後で後付けとして使用するために保持しておく
         if uploaded_tensor is not None:
-            print(i18n.translate("アップロードされたテンソルデータを検出: 動画生成後に後方に結合します"))
+            print(translate("アップロードされたテンソルデータを検出: 動画生成後に後方に結合します"))
             # 入力画像がNoneの場合、テンソルからデコードして表示画像を生成
             if input_image is None:
                 try:
@@ -506,14 +506,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     input_image = decoded_image
                     # 前処理用のデータも生成
                     input_image_np, input_image_pt, height, width = preprocess_image(input_image)
-                    print(i18n.translate("テンソルからデコードした画像を生成しました: {0}x{1}").format(height, width))
+                    print(translate("テンソルからデコードした画像を生成しました: {0}x{1}").format(height, width))
                 except Exception as e:
-                    print(i18n.translate("テンソルからのデコード中にエラーが発生しました: {0}").format(e))
+                    print(translate("テンソルからのデコード中にエラーが発生しました: {0}").format(e))
                     # デコードに失敗した場合は通常の処理を続行
 
             # UI上でテンソルデータの情報を表示
-            tensor_info = i18n.translate("テンソルデータ ({0}フレーム) を検出しました。動画生成後に後方に結合します。").format(uploaded_tensor.shape[2])
-            stream.output_queue.push(('progress', (None, tensor_info, make_progress_bar_html(10, i18n.translate('テンソルデータを後方に結合')))))
+            tensor_info = translate("テンソルデータ ({0}フレーム) を検出しました。動画生成後に後方に結合します。").format(uploaded_tensor.shape[2])
+            stream.output_queue.push(('progress', (None, tensor_info, make_progress_bar_html(10, translate('テンソルデータを後方に結合')))))
 
         # 常に入力画像から通常のエンコーディングを行う
         start_latent = vae_encode(input_image_pt, vae)
@@ -536,7 +536,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # CLIP Vision
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("CLIP Vision encoding ...")))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("CLIP Vision encoding ...")))))
 
         if not high_vram:
             load_model_as_complete(image_encoder, target_device=gpu)
@@ -554,7 +554,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # Sampling
 
-        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, i18n.translate("Start sampling ...")))))
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("Start sampling ...")))))
 
         rnd = torch.Generator("cpu").manual_seed(seed)
         # latent_window_sizeが4.5の場合は特別に17フレームとする
@@ -577,13 +577,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
             old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-            print(i18n.translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
+            print(translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
 
         # LoRA処理
         lora_applied = False
-        if use_lora and has_lora_support and lora_file is not None:            
-            # まず元のモデルのコピーを作成
-            transformer_obj = copy.deepcopy(transformer)
+        # まず元のモデルのコピーを作成
+        transformer_obj = copy.deepcopy(transformer)
+
+        if use_lora and has_lora_support and lora_file is not None:
 
             try:
                 # LoRAファイルのパスを取得
@@ -601,39 +602,39 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     lora_scale,
                     device=gpu
                 )
-                print(i18n.translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
+                print(translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
                 lora_applied = True
 
                 # 診断レポートの出力
                 try:
                     from lora_utils.lora_check_helper import check_lora_applied
                     has_lora, source = check_lora_applied(transformer_obj)
-                    print(i18n.translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
+                    print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
                 except Exception as diagnostic_error:
-                    print(i18n.translate("LoRA診断エラー: {0}").format(diagnostic_error))
+                    print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
 
                 # FP8最適化処理
                 try:
                     if fp8_optimization and lora_applied:
                         # FP8サポートのチェック
                         from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
-        
+
                         has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
-        
+
                         if not has_e4m3:
-                            print(i18n.translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
+                            print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
                         else:
-                            print(i18n.translate("FP8最適化を適用します..."))
-        
+                            print(translate("FP8最適化を適用します..."))
+
                             # 状態辞書を取得
                             state_dict = transformer_obj.state_dict()
-        
+
                             # 最適化のターゲットと除外キーを設定
                             TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
                             EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
-        
+
                             # 状態辞書をFP8形式に最適化
-                            print(i18n.translate("FP8形式で状態辞書を最適化しています..."))
+                            print(translate("FP8形式で状態辞書を最適化しています..."))
                             state_dict = optimize_state_dict_with_fp8(
                                 state_dict,
                                 gpu,
@@ -641,44 +642,44 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 EXCLUDE_KEYS,
                                 move_to_device=False
                             )
-        
+
                             # モンキーパッチの適用
-                            print(i18n.translate("FP8モンキーパッチを適用しています..."))
+                            print(translate("FP8モンキーパッチを適用しています..."))
                             use_scaled_mm = has_scaled_mm and has_e5m2
                             apply_fp8_monkey_patch(transformer_obj, state_dict, use_scaled_mm=use_scaled_mm)
-        
+
                             # 状態辞書を読み込み
                             transformer_obj.load_state_dict(state_dict, strict=True)
-        
-                            print(i18n.translate("FP8最適化が適用されました！"))
+
+                            print(translate("FP8最適化が適用されました！"))
                     else:
-                        print(i18n.translate("FP8最適化は無効化されています。"))
+                        print(translate("FP8最適化は無効化されています。"))
                 except Exception as e:
-                    print(i18n.translate("FP8最適化エラー: {0}").format(e))
+                    print(translate("FP8最適化エラー: {0}").format(e))
                     traceback.print_exc()
-                    print(i18n.translate("FP8最適化に失敗しました。通常モードで続行します。"))
+                    print(translate("FP8最適化に失敗しました。通常モードで続行します。"))
                     # エラー時は元の状態を使用し続ける
 
             except Exception as e:
-                print(i18n.translate("LoRA適用エラー: {0}").format(e))
+                print(translate("LoRA適用エラー: {0}").format(e))
                 traceback.print_exc()
-                print(i18n.translate("LoRA適用に失敗しました。通常モードで続行します。"))
+                print(translate("LoRA適用に失敗しました。通常モードで続行します。"))
                 # エラー時は元のtransformerのコピーをそのまま使用
                 lora_applied = False
         else:
             # LoRA未使用時のメッセージ
             if use_lora:
                 if not has_lora_support:
-                    print(i18n.translate("LoRAサポートが無効です。lora_utilsモジュールが必要です。"))
+                    print(translate("LoRAサポートが無効です。lora_utilsモジュールが必要です。"))
                 elif lora_file is None:
-                    print(i18n.translate("LoRAファイルが指定されていません。通常モードで続行します。"))
+                    print(translate("LoRAファイルが指定されていません。通常モードで続行します。"))
             else:
-                print(i18n.translate("LoRAは使用されません。通常モードで続行します。"))
-            
+                print(translate("LoRAは使用されません。通常モードで続行します。"))
+
 
         # -------- LoRA 設定 END ---------
 
-        
+
         for i_section, latent_padding in enumerate(latent_paddings):
             # 先に変数を定義
             is_first_section = i_section == 0
@@ -693,7 +694,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 # 最後のセクションが0より大きい場合は警告と強制変換
                 if is_last_section and float(latent_padding) > 0:
-                    print(i18n.translate("警告: 最後のセクションのパディング値は内部計算のために0に強制します。"))
+                    print(translate("警告: 最後のセクションのパディング値は内部計算のために0に強制します。"))
                     latent_padding = 0
                 elif isinstance(latent_padding, float):
                     # 浮動小数点の場合はそのまま使用（小数点対応）
@@ -702,7 +703,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 # 値が変更された場合にデバッグ情報を出力
                 if float(orig_padding_value) != float(latent_padding):
-                    print(i18n.translate("パディング値変換: セクション{0}の値を{1}から{2}に変換しました").format(i_section, orig_padding_value, latent_padding))
+                    print(translate("パディング値変換: セクション{0}の値を{1}から{2}に変換しました").format(i_section, orig_padding_value, latent_padding))
             else:
                 # 通常モードの場合
                 is_last_section = latent_padding == 0
@@ -711,12 +712,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             latent_padding_size = int(latent_padding * latent_window_size)
 
             # 定義後にログ出力
-            padding_info = i18n.translate("設定パディング値: {0}").format(all_padding_value) if use_all_padding else i18n.translate("パディング値: {0}").format(latent_padding)
-            print(i18n.translate("\n■ セクション{0}の処理開始 ({1})").format(i_section, padding_info))
-            print(i18n.translate("  - 現在の生成フレーム数: {0}フレーム").format(total_generated_latent_frames * 4 - 3))
-            print(i18n.translate("  - 生成予定フレーム数: {0}フレーム").format(num_frames))
-            print(i18n.translate("  - 最初のセクション?: {0}").format(is_first_section))
-            print(i18n.translate("  - 最後のセクション?: {0}").format(is_last_section))
+            padding_info = translate("設定パディング値: {0}").format(all_padding_value) if use_all_padding else translate("パディング値: {0}").format(latent_padding)
+            print(translate("\n■ セクション{0}の処理開始 ({1})").format(i_section, padding_info))
+            print(translate("  - 現在の生成フレーム数: {0}フレーム").format(total_generated_latent_frames * 4 - 3))
+            print(translate("  - 生成予定フレーム数: {0}フレーム").format(num_frames))
+            print(translate("  - 最初のセクション?: {0}").format(is_first_section))
+            print(translate("  - 最後のセクション?: {0}").format(is_last_section))
             # set current_latent here
             # セクションごとのlatentを使う場合
             if section_map and section_latents is not None and len(section_latents) > 0:
@@ -725,16 +726,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 if valid_keys:
                     use_key = min(valid_keys)
                     current_latent = section_latents[use_key]
-                    print(i18n.translate("[section_latent] section {0}: use section {1} latent (section_map keys: {2})").format(i_section, use_key, list(section_latents.keys())))
-                    print(i18n.translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
+                    print(translate("[section_latent] section {0}: use section {1} latent (section_map keys: {2})").format(i_section, use_key, list(section_latents.keys())))
+                    print(translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
                 else:
                     current_latent = start_latent
-                    print(i18n.translate("[section_latent] section {0}: use start_latent (no section_latent >= {1})").format(i_section, i_section))
-                    print(i18n.translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
+                    print(translate("[section_latent] section {0}: use start_latent (no section_latent >= {1})").format(i_section, i_section))
+                    print(translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
             else:
                 current_latent = start_latent
-                print(i18n.translate("[section_latent] section {0}: use start_latent (no section_latents)").format(i_section))
-                print(i18n.translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
+                print(translate("[section_latent] section {0}: use start_latent (no section_latents)").format(i_section))
+                print(translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
 
             if is_first_section and end_frame_latent is not None:
                 # EndFrame影響度設定を適用（デフォルトは1.0=通常の影響）
@@ -744,7 +745,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # end_frame_strength=1.0のときは1.0倍（元の値）
                     # end_frame_strength=0.01のときは0.01倍（影響が非常に弱い）
                     modified_end_frame_latent = end_frame_latent * end_frame_strength
-                    print(i18n.translate("EndFrame影響度を{0}に設定（最終フレームの影響が{1}倍）").format(f"{end_frame_strength:.2f}", f"{end_frame_strength:.2f}"))
+                    print(translate("EndFrame影響度を{0}に設定（最終フレームの影響が{1}倍）").format(f"{end_frame_strength:.2f}", f"{end_frame_strength:.2f}"))
                     history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
                 else:
                     # 通常の処理（通常の影響）
@@ -757,7 +758,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # セクション固有のプロンプトがあれば使用する
             current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask)
 
-            print(i18n.translate('latent_padding_size = {0}, is_last_section = {1}').format(latent_padding_size, is_last_section))
+            print(translate('latent_padding_size = {0}, is_last_section = {1}').format(latent_padding_size, is_last_section))
 
 
             # COMMENTED OUT: セクション処理前のメモリ解放（処理速度向上のため）
@@ -779,7 +780,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 unload_complete_models()
                 # GPUメモリ保存値を明示的に浮動小数点に変換
                 preserved_memory = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
-                print(i18n.translate('Setting transformer memory preservation to: {0} GB').format(preserved_memory))
+                print(translate('Setting transformer memory preservation to: {0} GB').format(preserved_memory))
                 move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory)
 
             if use_teacache:
@@ -800,10 +801,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 current_step = d['i'] + 1
                 percentage = int(100.0 * current_step / steps)
-                hint = i18n.translate('Sampling {0}/{1}').format(current_step, steps)
+                hint = translate('Sampling {0}/{1}').format(current_step, steps)
                 # セクション情報を追加（現在のセクション/全セクション）
-                section_info = i18n.translate('セクション: {0}/{1}').format(i_section+1, total_sections)
-                desc = f"{section_info} " + i18n.translate('生成フレーム数: {total_generated_latent_frames}, 動画長: {video_length:.2f} 秒 (FPS-30). 動画が生成中です ...').format(section_info=section_info, total_generated_latent_frames=int(max(0, total_generated_latent_frames * 4 - 3)), video_length=max(0, (total_generated_latent_frames * 4 - 3) / 30))
+                section_info = translate('セクション: {0}/{1}').format(i_section+1, total_sections)
+                desc = f"{section_info} " + translate('生成フレーム数: {total_generated_latent_frames}, 動画長: {video_length:.2f} 秒 (FPS-30). 動画が生成中です ...').format(section_info=section_info, total_generated_latent_frames=int(max(0, total_generated_latent_frames * 4 - 3)), video_length=max(0, (total_generated_latent_frames * 4 - 3) / 30))
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
@@ -847,7 +848,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             if not high_vram:
                 # 減圧時に使用するGPUメモリ値も明示的に浮動小数点に設定
                 preserved_memory_offload = 8.0  # こちらは固定値のまま
-                print(i18n.translate('Offloading transformer with memory preservation: {0} GB').format(preserved_memory_offload))
+                print(translate('Offloading transformer with memory preservation: {0} GB').format(preserved_memory_offload))
                 offload_model_from_device_for_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory_offload)
                 load_model_as_complete(vae, target_device=gpu)
 
@@ -897,7 +898,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     else:
                         Image.fromarray(last_frame).save(os.path.join(outputs_folder, f'{job_id}_{i_section}.png'))
                 except Exception as e:
-                    print(i18n.translate("[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
+                    print(translate("[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
 
             if not high_vram:
                 unload_complete_models()
@@ -906,7 +907,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30, crf=mp4_crf)
 
-            print(i18n.translate('Decoded. Current latent shape {0}; pixel shape {1}').format(real_history_latents.shape, history_pixels.shape))
+            print(translate('Decoded. Current latent shape {0}; pixel shape {1}').format(real_history_latents.shape, history_pixels.shape))
 
             # COMMENTED OUT: セクション処理後の明示的なメモリ解放（処理速度向上のため）
             # if torch.cuda.is_available():
@@ -918,10 +919,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             #     memory_reserved = torch.cuda.memory_reserved()/1024**3
             #     print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
 
-            print(i18n.translate("■ セクション{0}の処理完了").format(i_section))
-            print(i18n.translate("  - 現在の累計フレーム数: {0}フレーム").format(int(max(0, total_generated_latent_frames * 4 - 3))))
-            print(i18n.translate("  - レンダリング時間: {0}秒").format(f"{max(0, (total_generated_latent_frames * 4 - 3) / 30):.2f}"))
-            print(i18n.translate("  - 出力ファイル: {0}").format(output_filename))
+            print(translate("■ セクション{0}の処理完了").format(i_section))
+            print(translate("  - 現在の累計フレーム数: {0}フレーム").format(int(max(0, total_generated_latent_frames * 4 - 3))))
+            print(translate("  - レンダリング時間: {0}秒").format(f"{max(0, (total_generated_latent_frames * 4 - 3) / 30):.2f}"))
+            print(translate("  - 出力ファイル: {0}").format(output_filename))
 
             stream.output_queue.push(('file', output_filename))
 
@@ -933,20 +934,20 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         original_frames = real_history_latents.shape[2]  # 元のフレーム数を記録
                         uploaded_frames = uploaded_tensor.shape[2]  # アップロードされたフレーム数
 
-                        print(i18n.translate("テンソルデータを後方に結合します: アップロードされたフレーム数 = {uploaded_frames}").format(uploaded_frames=uploaded_frames))
+                        print(translate("テンソルデータを後方に結合します: アップロードされたフレーム数 = {uploaded_frames}").format(uploaded_frames=uploaded_frames))
                         # UI上で進捗状況を更新
-                        stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ({uploaded_frames}フレーム)の結合を開始します...").format(uploaded_frames=uploaded_frames), make_progress_bar_html(80, i18n.translate('テンソルデータ結合準備')))))
+                        stream.output_queue.push(('progress', (None, translate("テンソルデータ({uploaded_frames}フレーム)の結合を開始します...").format(uploaded_frames=uploaded_frames), make_progress_bar_html(80, translate('テンソルデータ結合準備')))))
 
                         # テンソルデータを後方に結合する前に、互換性チェック
                         # デバッグログを追加して詳細を出力
-                        print(i18n.translate("[DEBUG] テンソルデータの形状: {0}, 生成データの形状: {1}").format(uploaded_tensor.shape, real_history_latents.shape))
-                        print(i18n.translate("[DEBUG] テンソルデータの型: {0}, 生成データの型: {1}").format(uploaded_tensor.dtype, real_history_latents.dtype))
-                        print(i18n.translate("[DEBUG] テンソルデータのデバイス: {0}, 生成データのデバイス: {1}").format(uploaded_tensor.device, real_history_latents.device))
+                        print(translate("[DEBUG] テンソルデータの形状: {0}, 生成データの形状: {1}").format(uploaded_tensor.shape, real_history_latents.shape))
+                        print(translate("[DEBUG] テンソルデータの型: {0}, 生成データの型: {1}").format(uploaded_tensor.dtype, real_history_latents.dtype))
+                        print(translate("[DEBUG] テンソルデータのデバイス: {0}, 生成データのデバイス: {1}").format(uploaded_tensor.device, real_history_latents.device))
 
                         if uploaded_tensor.shape[3] != real_history_latents.shape[3] or uploaded_tensor.shape[4] != real_history_latents.shape[4]:
-                            print(i18n.translate("警告: テンソルサイズが異なります: アップロード={0}, 現在の生成={1}").format(uploaded_tensor.shape, real_history_latents.shape))
-                            print(i18n.translate("テンソルサイズの不一致のため、前方結合をスキップします"))
-                            stream.output_queue.push(('progress', (None, i18n.translate("テンソルサイズの不一致のため、前方結合をスキップしました"), make_progress_bar_html(85, i18n.translate('互換性エラー')))))
+                            print(translate("警告: テンソルサイズが異なります: アップロード={0}, 現在の生成={1}").format(uploaded_tensor.shape, real_history_latents.shape))
+                            print(translate("テンソルサイズの不一致のため、前方結合をスキップします"))
+                            stream.output_queue.push(('progress', (None, translate("テンソルサイズの不一致のため、前方結合をスキップしました"), make_progress_bar_html(85, translate('互換性エラー')))))
                         else:
                             # デバイスとデータ型を合わせる
                             processed_tensor = uploaded_tensor.clone()
@@ -958,7 +959,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             # 元の動画を品質を保ちつつ保存
                             original_output_filename = os.path.join(outputs_folder, f'{job_id}_original.mp4')
                             save_bcthw_as_mp4(history_pixels, original_output_filename, fps=30, crf=mp4_crf)
-                            print(i18n.translate("元の動画を保存しました: {original_output_filename}").format(original_output_filename=original_output_filename))
+                            print(translate("元の動画を保存しました: {original_output_filename}").format(original_output_filename=original_output_filename))
 
                             # 元データのコピーを取得
                             combined_history_latents = real_history_latents.clone()
@@ -970,11 +971,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 torch.cuda.empty_cache()
                                 import gc
                                 gc.collect()
-                                print(i18n.translate("[MEMORY] チャンク処理前のGPUメモリ確保状態: {memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3))
+                                print(translate("[MEMORY] チャンク処理前のGPUメモリ確保状態: {memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3))
 
                             # VAEをGPUに移動
                             if not high_vram and vae.device != torch.device('cuda'):
-                                print(i18n.translate("[SETUP] VAEをGPUに移動: {0} → cuda").format(vae.device))
+                                print(translate("[SETUP] VAEをGPUに移動: {0} → cuda").format(vae.device))
                                 vae.to('cuda')
 
                             # 各チャンクを処理
@@ -985,15 +986,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             num_chunks = (uploaded_frames + chunk_size - 1) // chunk_size
 
                             # テンソルデータの詳細を出力
-                            print(i18n.translate("[DEBUG] テンソルデータの詳細分析:"))
-                            print(i18n.translate("  - 形状: {0}").format(processed_tensor.shape))
-                            print(i18n.translate("  - 型: {0}").format(processed_tensor.dtype))
-                            print(i18n.translate("  - デバイス: {0}").format(processed_tensor.device))
-                            print(i18n.translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(processed_tensor.min().item(), processed_tensor.max().item(), processed_tensor.mean().item()))
-                            print(i18n.translate("  - チャンク数: {0}, チャンクサイズ: {1}").format(num_chunks, chunk_size))
+                            print(translate("[DEBUG] テンソルデータの詳細分析:"))
+                            print(translate("  - 形状: {0}").format(processed_tensor.shape))
+                            print(translate("  - 型: {0}").format(processed_tensor.dtype))
+                            print(translate("  - デバイス: {0}").format(processed_tensor.device))
+                            print(translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(processed_tensor.min().item(), processed_tensor.max().item(), processed_tensor.mean().item()))
+                            print(translate("  - チャンク数: {0}, チャンクサイズ: {1}").format(num_chunks, chunk_size))
                             tensor_size_mb = (processed_tensor.element_size() * processed_tensor.nelement()) / (1024 * 1024)
-                            print(i18n.translate("  - テンソルデータ全体サイズ: {0:.2f} MB").format(tensor_size_mb))
-                            print(i18n.translate("  - フレーム数: {0}フレーム（制限無し）").format(uploaded_frames))
+                            print(translate("  - テンソルデータ全体サイズ: {0:.2f} MB").format(tensor_size_mb))
+                            print(translate("  - フレーム数: {0}フレーム（制限無し）").format(uploaded_frames))
                             # 各チャンクを処理
                             for chunk_idx in range(num_chunks):
                                 chunk_start = chunk_idx * chunk_size
@@ -1002,16 +1003,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                 # 進捗状況を更新
                                 chunk_progress = (chunk_idx + 1) / num_chunks * 100
-                                progress_message = i18n.translate("テンソルデータ結合中: チャンク {0}/{1} (フレーム {2}-{3}/{4})").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames)
-                                stream.output_queue.push(('progress', (None, progress_message, make_progress_bar_html(int(80 + chunk_progress * 0.1), i18n.translate('テンソルデータ処理中')))))
+                                progress_message = translate("テンソルデータ結合中: チャンク {0}/{1} (フレーム {2}-{3}/{4})").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames)
+                                stream.output_queue.push(('progress', (None, progress_message, make_progress_bar_html(int(80 + chunk_progress * 0.1), translate('テンソルデータ処理中')))))
 
                                 # 現在のチャンクを取得
                                 current_chunk = processed_tensor[:, :, chunk_start:chunk_end, :, :]
-                                print(i18n.translate("チャンク{0}/{1}処理中: フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
+                                print(translate("チャンク{0}/{1}処理中: フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
 
                                 # メモリ状態を出力
                                 if torch.cuda.is_available():
-                                    print(i18n.translate("[MEMORY] チャンク{0}処理前のGPUメモリ: {1:.2f}GB/{2:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
+                                    print(translate("[MEMORY] チャンク{0}処理前のGPUメモリ: {1:.2f}GB/{2:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
                                     # メモリキャッシュをクリア
                                     torch.cuda.empty_cache()
 
@@ -1024,40 +1025,40 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                         gc.collect()
                                     # チャンクをデコード
                                     # VAEデコードは時間がかかるため、進行中であることを表示
-                                    print(i18n.translate("チャンク{0}のVAEデコード開始...").format(chunk_idx+1))
-                                    stream.output_queue.push(('progress', (None, i18n.translate("チャンク{0}/{1}のVAEデコード中...").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(80 + chunk_progress * 0.1), i18n.translate('デコード処理')))))
+                                    print(translate("チャンク{0}のVAEデコード開始...").format(chunk_idx+1))
+                                    stream.output_queue.push(('progress', (None, translate("チャンク{0}/{1}のVAEデコード中...").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(80 + chunk_progress * 0.1), translate('デコード処理')))))
 
                                     # VAEデコード前にテンソル情報を詳しく出力
-                                    print(i18n.translate("[DEBUG] チャンク{0}のデコード前情報:").format(chunk_idx+1))
-                                    print(i18n.translate("  - 形状: {0}").format(current_chunk.shape))
-                                    print(i18n.translate("  - 型: {0}").format(current_chunk.dtype))
-                                    print(i18n.translate("  - デバイス: {0}").format(current_chunk.device))
-                                    print(i18n.translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(current_chunk.min().item(), current_chunk.max().item(), current_chunk.mean().item()))
+                                    print(translate("[DEBUG] チャンク{0}のデコード前情報:").format(chunk_idx+1))
+                                    print(translate("  - 形状: {0}").format(current_chunk.shape))
+                                    print(translate("  - 型: {0}").format(current_chunk.dtype))
+                                    print(translate("  - デバイス: {0}").format(current_chunk.device))
+                                    print(translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(current_chunk.min().item(), current_chunk.max().item(), current_chunk.mean().item()))
 
                                     # 明示的にデバイスを合わせる
                                     if current_chunk.device != vae.device:
-                                        print(i18n.translate("  - デバイスをVAEと同じに変更: {0} → {1}").format(current_chunk.device, vae.device))
+                                        print(translate("  - デバイスをVAEと同じに変更: {0} → {1}").format(current_chunk.device, vae.device))
                                         current_chunk = current_chunk.to(vae.device)
 
                                     # 型を明示的に合わせる
                                     if current_chunk.dtype != torch.float16:
-                                        print(i18n.translate("  - データ型をfloat16に変更: {0} → torch.float16").format(current_chunk.dtype))
+                                        print(translate("  - データ型をfloat16に変更: {0} → torch.float16").format(current_chunk.dtype))
                                         current_chunk = current_chunk.to(dtype=torch.float16)
 
                                     # VAEデコード処理
                                     chunk_pixels = vae_decode(current_chunk, vae).cpu()
-                                    print(i18n.translate("チャンク{0}のVAEデコード完了 (フレーム数: {1})").format(chunk_idx+1, chunk_frames))
+                                    print(translate("チャンク{0}のVAEデコード完了 (フレーム数: {1})").format(chunk_idx+1, chunk_frames))
 
                                     # デコード後のピクセルデータ情報を出力
-                                    print(i18n.translate("[DEBUG] チャンク{0}のデコード結果:").format(chunk_idx+1))
-                                    print(i18n.translate("  - 形状: {0}").format(chunk_pixels.shape))
-                                    print(i18n.translate("  - 型: {0}").format(chunk_pixels.dtype))
-                                    print(i18n.translate("  - デバイス: {0}").format(chunk_pixels.device))
-                                    print(i18n.translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(chunk_pixels.min().item(), chunk_pixels.max().item(), chunk_pixels.mean().item()))
+                                    print(translate("[DEBUG] チャンク{0}のデコード結果:").format(chunk_idx+1))
+                                    print(translate("  - 形状: {0}").format(chunk_pixels.shape))
+                                    print(translate("  - 型: {0}").format(chunk_pixels.dtype))
+                                    print(translate("  - デバイス: {0}").format(chunk_pixels.device))
+                                    print(translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(chunk_pixels.min().item(), chunk_pixels.max().item(), chunk_pixels.mean().item()))
 
                                     # メモリ使用量を出力
                                     if torch.cuda.is_available():
-                                        print(i18n.translate("[MEMORY] チャンク{0}デコード後のGPUメモリ: {1:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3))
+                                        print(translate("[MEMORY] チャンク{0}デコード後のGPUメモリ: {1:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3))
 
                                     # 結合する
                                     if combined_history_pixels is None:
@@ -1065,13 +1066,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                         combined_history_pixels = chunk_pixels
                                     else:
                                         # 2回目以降は結合
-                                        print(i18n.translate("[DEBUG] 結合前の情報:"))
-                                        print(i18n.translate("  - 既存: {0}, 型: {1}, デバイス: {2}").format(combined_history_pixels.shape, combined_history_pixels.dtype, combined_history_pixels.device))
-                                        print(i18n.translate("  - 新規: {0}, 型: {1}, デバイス: {2}").format(chunk_pixels.shape, chunk_pixels.dtype, chunk_pixels.device))
+                                        print(translate("[DEBUG] 結合前の情報:"))
+                                        print(translate("  - 既存: {0}, 型: {1}, デバイス: {2}").format(combined_history_pixels.shape, combined_history_pixels.dtype, combined_history_pixels.device))
+                                        print(translate("  - 新規: {0}, 型: {1}, デバイス: {2}").format(chunk_pixels.shape, chunk_pixels.dtype, chunk_pixels.device))
 
                                         # 既存データと新規データで型とデバイスを揃える
                                         if combined_history_pixels.dtype != chunk_pixels.dtype:
-                                            print(i18n.translate("  - データ型の不一致を修正: {0} → {1}").format(combined_history_pixels.dtype, chunk_pixels.dtype))
+                                            print(translate("  - データ型の不一致を修正: {0} → {1}").format(combined_history_pixels.dtype, chunk_pixels.dtype))
                                             combined_history_pixels = combined_history_pixels.to(dtype=chunk_pixels.dtype)
 
                                         # 両方とも必ずCPUに移動してから結合
@@ -1085,38 +1086,38 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                     # 結合後のフレーム数を確認
                                     current_total_frames = combined_history_pixels.shape[2]
-                                    print(i18n.translate("チャンク{0}の結合完了: 現在の組み込みフレーム数 = {1}").format(chunk_idx+1, current_total_frames))
+                                    print(translate("チャンク{0}の結合完了: 現在の組み込みフレーム数 = {1}").format(chunk_idx+1, current_total_frames))
 
                                     # 中間結果の保存（チャンクごとに保存すると効率が悪いので、最終チャンクのみ保存）
                                     if chunk_idx == num_chunks - 1 or (chunk_idx > 0 and (chunk_idx + 1) % 5 == 0):
                                         # 5チャンクごと、または最後のチャンクで保存
                                         interim_output_filename = os.path.join(outputs_folder, f'{job_id}_combined_interim_{chunk_idx+1}.mp4')
-                                        print(i18n.translate("中間結果を保存中: チャンク{0}/{1}").format(chunk_idx+1, num_chunks))
-                                        stream.output_queue.push(('progress', (None, i18n.translate("中間結果のMP4変換中... (チャンク{0}/{1})").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(85 + chunk_progress * 0.1), i18n.translate('MP4保存中')))))
+                                        print(translate("中間結果を保存中: チャンク{0}/{1}").format(chunk_idx+1, num_chunks))
+                                        stream.output_queue.push(('progress', (None, translate("中間結果のMP4変換中... (チャンク{0}/{1})").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(85 + chunk_progress * 0.1), translate('MP4保存中')))))
 
                                         # MP4として保存
                                         save_bcthw_as_mp4(combined_history_pixels, interim_output_filename, fps=30, crf=mp4_crf)
-                                        print(i18n.translate("中間結果を保存しました: {0}").format(interim_output_filename))
+                                        print(translate("中間結果を保存しました: {0}").format(interim_output_filename))
 
                                         # 結合した動画をUIに反映するため、出力フラグを立てる
                                         stream.output_queue.push(('file', interim_output_filename))
                                 except Exception as e:
-                                    print(i18n.translate("チャンク{0}の処理中にエラーが発生しました: {1}").format(chunk_idx+1, e))
+                                    print(translate("チャンク{0}の処理中にエラーが発生しました: {1}").format(chunk_idx+1, e))
                                     traceback.print_exc()
 
                                     # エラー情報の詳細な出力
-                                    print(i18n.translate("[ERROR] 詳細エラー情報:"))
-                                    print(i18n.translate("  - チャンク情報: {0}/{1}, フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
+                                    print(translate("[ERROR] 詳細エラー情報:"))
+                                    print(translate("  - チャンク情報: {0}/{1}, フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
                                     if 'current_chunk' in locals():
-                                        print(i18n.translate("  - current_chunk: shape={0}, dtype={1}, device={2}").format(current_chunk.shape, current_chunk.dtype, current_chunk.device))
+                                        print(translate("  - current_chunk: shape={0}, dtype={1}, device={2}").format(current_chunk.shape, current_chunk.dtype, current_chunk.device))
                                     if 'vae' in globals():
-                                        print(i18n.translate("  - VAE情報: device={0}, dtype={1}").format(vae.device, next(vae.parameters()).dtype))
+                                        print(translate("  - VAE情報: device={0}, dtype={1}").format(vae.device, next(vae.parameters()).dtype))
 
                                     # GPUメモリ情報
                                     if torch.cuda.is_available():
-                                        print(i18n.translate("  - GPU使用量: {0:.2f}GB/{1:.2f}GB").format(torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
+                                        print(translate("  - GPU使用量: {0:.2f}GB/{1:.2f}GB").format(torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
 
-                                    stream.output_queue.push(('progress', (None, i18n.translate("エラー: チャンク{0}の処理に失敗しました - {1}").format(chunk_idx+1, str(e)), make_progress_bar_html(90, i18n.translate('エラー')))))
+                                    stream.output_queue.push(('progress', (None, translate("エラー: チャンク{0}の処理に失敗しました - {1}").format(chunk_idx+1, str(e)), make_progress_bar_html(90, translate('エラー')))))
                                     break
 
                             # 処理完了後に明示的にメモリ解放
@@ -1125,29 +1126,29 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 torch.cuda.empty_cache()
                                 import gc
                                 gc.collect()
-                                print(i18n.translate("[MEMORY] チャンク処理後のGPUメモリ確保状態: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
+                                print(translate("[MEMORY] チャンク処理後のGPUメモリ確保状態: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
 
                             # 全チャンクの処理が完了したら、最終的な結合動画を保存
                             if combined_history_pixels is not None:
                                 # 結合された最終結果の情報を出力
-                                print(i18n.translate("[DEBUG] 最終結合結果:"))
-                                print(i18n.translate("  - 形状: {0}").format(combined_history_pixels.shape))
-                                print(i18n.translate("  - 型: {0}").format(combined_history_pixels.dtype))
-                                print(i18n.translate("  - デバイス: {0}").format(combined_history_pixels.device))
+                                print(translate("[DEBUG] 最終結合結果:"))
+                                print(translate("  - 形状: {0}").format(combined_history_pixels.shape))
+                                print(translate("  - 型: {0}").format(combined_history_pixels.dtype))
+                                print(translate("  - デバイス: {0}").format(combined_history_pixels.device))
                                 # 最終結果の保存
-                                print(i18n.translate("最終結果を保存中: 全{0}チャンク完了").format(num_chunks))
-                                stream.output_queue.push(('progress', (None, i18n.translate("結合した動画をMP4に変換中..."), make_progress_bar_html(95, i18n.translate('最終MP4変換処理')))))
+                                print(translate("最終結果を保存中: 全{0}チャンク完了").format(num_chunks))
+                                stream.output_queue.push(('progress', (None, translate("結合した動画をMP4に変換中..."), make_progress_bar_html(95, translate('最終MP4変換処理')))))
 
                                 # 最終的な結合ファイル名
                                 combined_output_filename = os.path.join(outputs_folder, f'{job_id}_combined.mp4')
 
                                 # MP4として保存
                                 save_bcthw_as_mp4(combined_history_pixels, combined_output_filename, fps=30, crf=mp4_crf)
-                                print(i18n.translate("最終結果を保存しました: {0}").format(combined_output_filename))
-                                print(i18n.translate("結合動画の保存場所: {0}").format(os.path.abspath(combined_output_filename)))
+                                print(translate("最終結果を保存しました: {0}").format(combined_output_filename))
+                                print(translate("結合動画の保存場所: {0}").format(os.path.abspath(combined_output_filename)))
 
                                 # 中間ファイルの削除処理
-                                print(i18n.translate("中間ファイルの削除を開始します..."))
+                                print(translate("中間ファイルの削除を開始します..."))
                                 deleted_files = []
                                 try:
                                     # 現在のジョブIDに関連する中間ファイルを正規表現でフィルタリング
@@ -1160,19 +1161,19 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                             try:
                                                 os.remove(interim_path)
                                                 deleted_files.append(filename)
-                                                print(i18n.translate("  - 中間ファイルを削除しました: {0}").format(filename))
+                                                print(translate("  - 中間ファイルを削除しました: {0}").format(filename))
                                             except Exception as e:
-                                                print(i18n.translate("  - ファイル削除エラー ({0}): {1}").format(filename, e))
+                                                print(translate("  - ファイル削除エラー ({0}): {1}").format(filename, e))
 
                                     if deleted_files:
-                                        print(i18n.translate("合計 {0} 個の中間ファイルを削除しました").format(len(deleted_files)))
+                                        print(translate("合計 {0} 個の中間ファイルを削除しました").format(len(deleted_files)))
                                         # 削除ファイル名をユーザーに表示
                                         files_str = ', '.join(deleted_files)
-                                        stream.output_queue.push(('progress', (None, i18n.translate("中間ファイルを削除しました: {0}").format(files_str), make_progress_bar_html(97, i18n.translate('クリーンアップ完了')))))
+                                        stream.output_queue.push(('progress', (None, translate("中間ファイルを削除しました: {0}").format(files_str), make_progress_bar_html(97, translate('クリーンアップ完了')))))
                                     else:
-                                        print(i18n.translate("削除対象の中間ファイルは見つかりませんでした"))
+                                        print(translate("削除対象の中間ファイルは見つかりませんでした"))
                                 except Exception as e:
-                                    print(i18n.translate("中間ファイル削除中にエラーが発生しました: {0}").format(e))
+                                    print(translate("中間ファイル削除中にエラーが発生しました: {0}").format(e))
                                     traceback.print_exc()
 
                                 # 結合した動画をUIに反映するため、出力フラグを立てる
@@ -1181,15 +1182,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 # 結合後の全フレーム数を計算して表示
                                 combined_frames = combined_history_pixels.shape[2]
                                 combined_size_mb = (combined_history_pixels.element_size() * combined_history_pixels.nelement()) / (1024 * 1024)
-                                print(i18n.translate("結合完了情報: テンソルデータ({0}フレーム) + 新規動画({1}フレーム) = 合計{2}フレーム").format(uploaded_frames, original_frames, combined_frames))
-                                print(i18n.translate("結合動画の再生時間: {0:.2f}秒").format(combined_frames / 30))
-                                print(i18n.translate("データサイズ: {0:.2f} MB（制限無し）").format(combined_size_mb))
+                                print(translate("結合完了情報: テンソルデータ({0}フレーム) + 新規動画({1}フレーム) = 合計{2}フレーム").format(uploaded_frames, original_frames, combined_frames))
+                                print(translate("結合動画の再生時間: {0:.2f}秒").format(combined_frames / 30))
+                                print(translate("データサイズ: {0:.2f} MB（制限無し）").format(combined_size_mb))
 
                                 # UI上で完了メッセージを表示
-                                stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ({0}フレーム)と動画({1}フレーム)の結合が完了しました。\n合計フレーム数: {2}フレーム ({3:.2f}秒) - サイズ制限なし").format(uploaded_frames, original_frames, combined_frames, combined_frames / 30), make_progress_bar_html(100, i18n.translate('結合完了')))))
+                                stream.output_queue.push(('progress', (None, translate("テンソルデータ({0}フレーム)と動画({1}フレーム)の結合が完了しました。\n合計フレーム数: {2}フレーム ({3:.2f}秒) - サイズ制限なし").format(uploaded_frames, original_frames, combined_frames, combined_frames / 30), make_progress_bar_html(100, translate('結合完了')))))
                             else:
-                                print(i18n.translate("テンソルデータの結合に失敗しました。"))
-                                stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータの結合に失敗しました。"), make_progress_bar_html(100, i18n.translate('エラー')))))
+                                print(translate("テンソルデータの結合に失敗しました。"))
+                                stream.output_queue.push(('progress', (None, translate("テンソルデータの結合に失敗しました。"), make_progress_bar_html(100, translate('エラー')))))
 
                             # 正しく結合された動画はすでに生成済みなので、ここでの処理は不要
 
@@ -1208,22 +1209,22 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             # 結合後の全フレーム数を計算して表示
                             combined_frames = combined_history_pixels.shape[2]
                             combined_size_mb = (combined_history_pixels.element_size() * combined_history_pixels.nelement()) / (1024 * 1024)
-                            print(i18n.translate("結合完了情報: テンソルデータ({0}フレーム) + 新規動画({1}フレーム) = 合計{2}フレーム").format(uploaded_frames, original_frames, combined_frames))
-                            print(i18n.translate("結合動画の再生時間: {0:.2f}秒").format(combined_frames / 30))
-                            print(i18n.translate("データサイズ: {0:.2f} MB（制限無し）").format(combined_size_mb))
+                            print(translate("結合完了情報: テンソルデータ({0}フレーム) + 新規動画({1}フレーム) = 合計{2}フレーム").format(uploaded_frames, original_frames, combined_frames))
+                            print(translate("結合動画の再生時間: {0:.2f}秒").format(combined_frames / 30))
+                            print(translate("データサイズ: {0:.2f} MB（制限無し）").format(combined_size_mb))
 
                             # UI上で完了メッセージを表示
-                            stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ({0}フレーム)と動画({1}フレーム)の結合が完了しました。\n合計フレーム数: {2}フレーム ({3:.2f}秒)").format(uploaded_frames, original_frames, combined_frames, combined_frames / 30), make_progress_bar_html(100, i18n.translate('結合完了')))))
+                            stream.output_queue.push(('progress', (None, translate("テンソルデータ({0}フレーム)と動画({1}フレーム)の結合が完了しました。\n合計フレーム数: {2}フレーム ({3:.2f}秒)").format(uploaded_frames, original_frames, combined_frames, combined_frames / 30), make_progress_bar_html(100, translate('結合完了')))))
                     except Exception as e:
-                        print(i18n.translate("テンソルデータ結合中にエラーが発生しました: {0}").format(e))
+                        print(translate("テンソルデータ結合中にエラーが発生しました: {0}").format(e))
                         traceback.print_exc()
-                        stream.output_queue.push(('progress', (None, i18n.translate("エラー: テンソルデータ結合に失敗しました - {0}").format(str(e)), make_progress_bar_html(100, i18n.translate('エラー')))))
+                        stream.output_queue.push(('progress', (None, translate("エラー: テンソルデータ結合に失敗しました - {0}").format(str(e)), make_progress_bar_html(100, translate('エラー')))))
 
                 # 処理終了時に通知
                 if HAS_WINSOUND:
                     winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
                 else:
-                    print(i18n.translate("\n✓ 処理が完了しました！"))  # Linuxでの代替通知
+                    print(translate("\n✓ 処理が完了しました！"))  # Linuxでの代替通知
 
                 # メモリ解放を明示的に実行
                 if torch.cuda.is_available():
@@ -1231,7 +1232,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     torch.cuda.empty_cache()
                     import gc
                     gc.collect()
-                    print(i18n.translate("[MEMORY] 処理完了後のメモリクリア: {memory:.2f}GB/{total_memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3, total_memory=torch.cuda.get_device_properties(0).total_memory/1024**3))
+                    print(translate("[MEMORY] 処理完了後のメモリクリア: {memory:.2f}GB/{total_memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3, total_memory=torch.cuda.get_device_properties(0).total_memory/1024**3))
 
                 # テンソルデータの保存処理
                 if save_tensor_data:
@@ -1240,8 +1241,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         tensor_file_path = os.path.join(outputs_folder, f'{job_id}.safetensors')
 
                         # 保存するデータを準備
-                        print(i18n.translate("=== テンソルデータ保存処理開始 ==="))
-                        print(i18n.translate("保存対象フレーム数: {frames}").format(frames=real_history_latents.shape[2]))
+                        print(translate("=== テンソルデータ保存処理開始 ==="))
+                        print(translate("保存対象フレーム数: {frames}").format(frames=real_history_latents.shape[2]))
 
                         # サイズ制限を完全に撤廃し、全フレームを保存
                         tensor_to_save = real_history_latents.clone().cpu()
@@ -1249,8 +1250,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         # テンソルデータの保存サイズの概算
                         tensor_size_mb = (tensor_to_save.element_size() * tensor_to_save.nelement()) / (1024 * 1024)
 
-                        print(i18n.translate("テンソルデータを保存中... shape: {shape}, フレーム数: {frames}, サイズ: {size:.2f} MB").format(shape=tensor_to_save.shape, frames=tensor_to_save.shape[2], size=tensor_size_mb))
-                        stream.output_queue.push(('progress', (None, i18n.translate('テンソルデータを保存中... ({frames}フレーム)').format(frames=tensor_to_save.shape[2]), make_progress_bar_html(95, i18n.translate('テンソルデータの保存')))))
+                        print(translate("テンソルデータを保存中... shape: {shape}, フレーム数: {frames}, サイズ: {size:.2f} MB").format(shape=tensor_to_save.shape, frames=tensor_to_save.shape[2], size=tensor_size_mb))
+                        stream.output_queue.push(('progress', (None, translate('テンソルデータを保存中... ({frames}フレーム)').format(frames=tensor_to_save.shape[2]), make_progress_bar_html(95, translate('テンソルデータの保存')))))
 
                         # メタデータの準備（フレーム数も含める）
                         metadata = torch.tensor([height, width, tensor_to_save.shape[2]], dtype=torch.int32)
@@ -1262,10 +1263,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         }
                         sf.save_file(tensor_dict, tensor_file_path)
 
-                        print(i18n.translate("テンソルデータを保存しました: {path}").format(path=tensor_file_path))
-                        print(i18n.translate("保存済みテンソルデータ情報: {frames}フレーム, {size:.2f} MB").format(frames=tensor_to_save.shape[2], size=tensor_size_mb))
-                        print(i18n.translate("=== テンソルデータ保存処理完了 ==="))
-                        stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータが保存されました: {path} ({frames}フレーム, {size:.2f} MB)").format(path=os.path.basename(tensor_file_path), frames=tensor_to_save.shape[2], size=tensor_size_mb), make_progress_bar_html(100, i18n.translate('処理完了')))))
+                        print(translate("テンソルデータを保存しました: {path}").format(path=tensor_file_path))
+                        print(translate("保存済みテンソルデータ情報: {frames}フレーム, {size:.2f} MB").format(frames=tensor_to_save.shape[2], size=tensor_size_mb))
+                        print(translate("=== テンソルデータ保存処理完了 ==="))
+                        stream.output_queue.push(('progress', (None, translate("テンソルデータが保存されました: {path} ({frames}フレーム, {size:.2f} MB)").format(path=os.path.basename(tensor_file_path), frames=tensor_to_save.shape[2], size=tensor_size_mb), make_progress_bar_html(100, translate('処理完了')))))
 
                         # アップロードされたテンソルデータがあれば、それも結合したものを保存する
                         if tensor_data_input is not None and uploaded_tensor is not None:
@@ -1274,10 +1275,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 uploaded_tensor_filename = os.path.basename(tensor_data_input.name)
                                 tensor_combined_path = os.path.join(outputs_folder, f'{job_id}_combined_tensors.safetensors')
 
-                                print(i18n.translate("=== テンソルデータ結合処理開始 ==="))
-                                print(i18n.translate("生成テンソルと入力テンソルを結合して保存します"))
-                                print(i18n.translate("生成テンソル: {frames}フレーム").format(frames=tensor_to_save.shape[2]))
-                                print(i18n.translate("入力テンソル: {frames}フレーム").format(frames=uploaded_tensor.shape[2]))
+                                print(translate("=== テンソルデータ結合処理開始 ==="))
+                                print(translate("生成テンソルと入力テンソルを結合して保存します"))
+                                print(translate("生成テンソル: {frames}フレーム").format(frames=tensor_to_save.shape[2]))
+                                print(translate("入力テンソル: {frames}フレーム").format(frames=uploaded_tensor.shape[2]))
 
                                 # データ型とデバイスを統一
                                 if uploaded_tensor.dtype != tensor_to_save.dtype:
@@ -1287,7 +1288,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                 # サイズチェック
                                 if uploaded_tensor.shape[3] != tensor_to_save.shape[3] or uploaded_tensor.shape[4] != tensor_to_save.shape[4]:
-                                    print(i18n.translate("警告: テンソルサイズが一致しないため結合できません: {uploaded_shape} vs {tensor_shape}").format(uploaded_shape=uploaded_tensor.shape, tensor_shape=tensor_to_save.shape))
+                                    print(translate("警告: テンソルサイズが一致しないため結合できません: {uploaded_shape} vs {tensor_shape}").format(uploaded_shape=uploaded_tensor.shape, tensor_shape=tensor_to_save.shape))
                                 else:
                                     # 結合（生成テンソルの後にアップロードされたテンソルを追加）
                                     combined_tensor = torch.cat([tensor_to_save, uploaded_tensor], dim=2)
@@ -1304,17 +1305,17 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                     }
                                     sf.save_file(combined_tensor_dict, tensor_combined_path)
 
-                                    print(i18n.translate("結合テンソルを保存しました: {path}").format(path=tensor_combined_path))
-                                    print(i18n.translate("結合テンソル情報: 合計{0}フレーム ({1}+{2}), {3:.2f} MB").format(frames, tensor_to_save.shape[2], uploaded_tensor.shape[2], size))
-                                    print(i18n.translate("=== テンソルデータ結合処理完了 ==="))
-                                    stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータ結合が保存されました: 合計{frames}フレーム").format(frames=combined_frames), make_progress_bar_html(100, i18n.translate('結合テンソル保存完了')))))
+                                    print(translate("結合テンソルを保存しました: {path}").format(path=tensor_combined_path))
+                                    print(translate("結合テンソル情報: 合計{0}フレーム ({1}+{2}), {3:.2f} MB").format(frames, tensor_to_save.shape[2], uploaded_tensor.shape[2], size))
+                                    print(translate("=== テンソルデータ結合処理完了 ==="))
+                                    stream.output_queue.push(('progress', (None, translate("テンソルデータ結合が保存されました: 合計{frames}フレーム").format(frames=combined_frames), make_progress_bar_html(100, translate('結合テンソル保存完了')))))
                             except Exception as e:
-                                print(i18n.translate("テンソルデータ結合保存エラー: {0}").format(e))
+                                print(translate("テンソルデータ結合保存エラー: {0}").format(e))
                                 traceback.print_exc()
                     except Exception as e:
-                        print(i18n.translate("テンソルデータ保存エラー: {0}").format(e))
+                        print(translate("テンソルデータ保存エラー: {0}").format(e))
                         traceback.print_exc()
-                        stream.output_queue.push(('progress', (None, i18n.translate("テンソルデータの保存中にエラーが発生しました。"), make_progress_bar_html(100, i18n.translate('処理完了')))))
+                        stream.output_queue.push(('progress', (None, translate("テンソルデータの保存中にエラーが発生しました。"), make_progress_bar_html(100, translate('処理完了')))))
 
                 # 全体の処理時間を計算
                 process_end_time = time.time()
@@ -1323,25 +1324,25 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 minutes, seconds = divmod(remainder, 60)
                 time_str = ""
                 if hours > 0:
-                    time_str = i18n.translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), f"{seconds:.1f}")
+                    time_str = translate("{0}時間 {1}分 {2}秒").format(int(hours), int(minutes), f"{seconds:.1f}")
                 elif minutes > 0:
-                    time_str = i18n.translate("{0}分 {1}秒").format(int(minutes), f"{seconds:.1f}")
+                    time_str = translate("{0}分 {1}秒").format(int(minutes), f"{seconds:.1f}")
                 else:
-                    time_str = i18n.translate("{0:.1f}秒").format(seconds)
-                print(i18n.translate("\n全体の処理時間: {0}").format(time_str))
+                    time_str = translate("{0:.1f}秒").format(seconds)
+                print(translate("\n全体の処理時間: {0}").format(time_str))
 
                 # 完了メッセージの設定（結合有無によって変更）
                 if combined_output_filename is not None:
                     # テンソル結合が成功した場合のメッセージ
                     combined_filename_only = os.path.basename(combined_output_filename)
-                    completion_message = i18n.translate("すべてのセクション({sections}/{total_sections})が完了しました。テンソルデータとの後方結合も完了しました。結合ファイル名: {filename}\n全体の処理時間: {time}").format(sections=sections, total_sections=total_sections, filename=combined_filename_only, time=time_str)
+                    completion_message = translate("すべてのセクション({sections}/{total_sections})が完了しました。テンソルデータとの後方結合も完了しました。結合ファイル名: {filename}\n全体の処理時間: {time}").format(sections=sections, total_sections=total_sections, filename=combined_filename_only, time=time_str)
                     # 最終的な出力ファイルを結合したものに変更
                     output_filename = combined_output_filename
                 else:
                     # 通常の完了メッセージ
-                    completion_message = i18n.translate("すべてのセクション({sections}/{total_sections})が完了しました。全体の処理時間: {time}").format(sections=total_sections, total_sections=total_sections, time=time_str)
+                    completion_message = translate("すべてのセクション({sections}/{total_sections})が完了しました。全体の処理時間: {time}").format(sections=total_sections, total_sections=total_sections, time=time_str)
 
-                stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, i18n.translate('処理完了')))))
+                stream.output_queue.push(('progress', (None, completion_message, make_progress_bar_html(100, translate('処理完了')))))
 
                 # 中間ファイルの削除処理
                 if not keep_section_videos:
@@ -1365,14 +1366,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             try:
                                 os.remove(file_path)
                                 deleted_count += 1
-                                print(i18n.translate("[削除] 中間ファイル: {0}").format(file))
+                                print(translate("[削除] 中間ファイル: {0}").format(file))
                             except Exception as e:
-                                print(i18n.translate("[エラー] ファイル削除時のエラー {0}: {1}").format(file, e))
+                                print(translate("[エラー] ファイル削除時のエラー {0}: {1}").format(file, e))
 
                     if deleted_count > 0:
-                        print(i18n.translate("[済] {0}個の中間ファイルを削除しました。最終ファイルは保存されています: {1}").format(deleted_count, final_video_name))
-                        final_message = i18n.translate("中間ファイルを削除しました。最終動画と結合動画は保存されています。")
-                        stream.output_queue.push(('progress', (None, final_message, make_progress_bar_html(100, i18n.translate('処理完了')))))
+                        print(translate("[済] {0}個の中間ファイルを削除しました。最終ファイルは保存されています: {1}").format(deleted_count, final_video_name))
+                        final_message = translate("中間ファイルを削除しました。最終動画と結合動画は保存されています。")
+                        stream.output_queue.push(('progress', (None, final_message, make_progress_bar_html(100, translate('処理完了')))))
 
                 break
     except:
@@ -1402,15 +1403,15 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
             seconds = get_video_seconds(length_radio.value)
 
             # フレームサイズ設定からlatent_window_sizeを計算
-            latent_window_size = 4.5 if frame_size_radio.value == i18n.translate("0.5秒 (17フレーム)") else 9
+            latent_window_size = 4.5 if frame_size_radio.value == translate("0.5秒 (17フレーム)") else 9
             frame_count = latent_window_size * 4 - 3
 
             # セクション数を計算
             total_frames = int(seconds * 30)
             total_display_sections = int(max(round(total_frames / frame_count), 1))
-            print(i18n.translate("[DEBUG] 現在の設定によるセクション数: {0}").format(total_display_sections))
+            print(translate("[DEBUG] 現在の設定によるセクション数: {0}").format(total_display_sections))
         except Exception as e:
-            print(i18n.translate("[ERROR] セクション数計算エラー: {0}").format(e))
+            print(translate("[ERROR] セクション数計算エラー: {0}").format(e))
 
     # 入力画像がない場合、表示されているセクションの中で最後のキーフレーム画像をチェック
     last_visible_section_image = None
@@ -1436,7 +1437,7 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
             # 最後のセクションを取得
             last_visible_section_num, last_visible_section_image = valid_sections[-1]
 
-            print(i18n.translate("[DEBUG] 最後のキーフレーム確認: セクション{0} (画像あり: {1})").format(last_visible_section_num, last_visible_section_image is not None))
+            print(translate("[DEBUG] 最後のキーフレーム確認: セクション{0} (画像あり: {1})").format(last_visible_section_num, last_visible_section_image is not None))
 
     # 最後のキーフレーム画像があればOK
     if last_visible_section_image is not None:
@@ -1445,11 +1446,11 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     # どちらの画像もない場合はエラー
     error_html = f"""
     <div style="padding: 15px; border-radius: 10px; background-color: #ffebee; border: 1px solid #f44336; margin: 10px 0;">
-        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{i18n.translate('❗️ 画像が選択されていません')}</h3>
-        <p>{i18n.translate('生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これはあまねく叡智の始発点となる重要な画像です。')}</p>
+        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{translate('❗️ 画像が選択されていません')}</h3>
+        <p>{translate('生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これはあまねく叡智の始発点となる重要な画像です。')}</p>
     </div>
     """
-    error_bar = make_progress_bar_html(100, i18n.translate('画像がありません'))
+    error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
 def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False):
@@ -1461,11 +1462,11 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     if frame_size_setting == "0.5秒 (17フレーム)":
         # 0.5秒の場合はlatent_window_size=4.5に設定（実際には4.5*4-3=17フレーム≒0.5秒@30fps）
         latent_window_size = 4.5
-        print(i18n.translate('フレームサイズを0.5秒モードに設定: latent_window_size = {0}').format(latent_window_size))
+        print(translate('フレームサイズを0.5秒モードに設定: latent_window_size = {0}').format(latent_window_size))
     else:
         # デフォルトの1秒モードではlatent_window_size=9を使用（9*4-3=33フレーム≒1秒@30fps）
         latent_window_size = 9
-        print(i18n.translate('フレームサイズを1秒モードに設定: latent_window_size = {0}').format(latent_window_size))
+        print(translate('フレームサイズを1秒モードに設定: latent_window_size = {0}').format(latent_window_size))
 
     # 動画生成の設定情報をログに出力
     # 4.5の場合は5として計算するための特別処理
@@ -1475,30 +1476,30 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         frame_count = int(latent_window_size * 4 - 3)
     total_latent_sections = int(max(round((total_second_length * 30) / frame_count), 1))
 
-    mode_name = i18n.translate("通常モード") if mode_radio.value == MODE_TYPE_NORMAL else i18n.translate("ループモード")
+    mode_name = translate("通常モード") if mode_radio.value == MODE_TYPE_NORMAL else translate("ループモード")
 
-    print(i18n.translate("\n==== 動画生成開始 ====="))
-    print(i18n.translate("\u25c6 生成モード: {0}").format(mode_name))
-    print(i18n.translate("\u25c6 動画長: {0}秒").format(total_second_length))
-    print(i18n.translate("\u25c6 フレームサイズ: {0}").format(frame_size_setting))
-    print(i18n.translate("\u25c6 生成セクション数: {0}回").format(total_latent_sections))
-    print(i18n.translate("\u25c6 サンプリングステップ数: {0}").format(steps))
-    print(i18n.translate("\u25c6 TeaCache使用: {0}").format(use_teacache))
-    print(i18n.translate("\u25c6 LoRA使用: {0}").format(use_lora))
-    
+    print(translate("\n==== 動画生成開始 ====="))
+    print(translate("\u25c6 生成モード: {0}").format(mode_name))
+    print(translate("\u25c6 動画長: {0}秒").format(total_second_length))
+    print(translate("\u25c6 フレームサイズ: {0}").format(frame_size_setting))
+    print(translate("\u25c6 生成セクション数: {0}回").format(total_latent_sections))
+    print(translate("\u25c6 サンプリングステップ数: {0}").format(steps))
+    print(translate("\u25c6 TeaCache使用: {0}").format(use_teacache))
+    print(translate("\u25c6 LoRA使用: {0}").format(use_lora))
+
     # FP8最適化設定のログ出力
-    print(i18n.translate("\u25c6 FP8最適化: {0}").format(fp8_optimization))
+    print(translate("\u25c6 FP8最適化: {0}").format(fp8_optimization))
 
     # オールパディング設定のログ出力
     if use_all_padding:
-        print(i18n.translate("\u25c6 オールパディング: 有効 (値: {0})").format(round(all_padding_value, 1)))
+        print(translate("\u25c6 オールパディング: 有効 (値: {0})").format(round(all_padding_value, 1)))
     else:
-        print(i18n.translate("\u25c6 オールパディング: 無効"))
+        print(translate("\u25c6 オールパディング: 無効"))
 
     # LoRA情報のログ出力
     if use_lora and lora_file is not None:
-        print(i18n.translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(lora_file.name)))
-        print(i18n.translate("\u25c6 LoRA適用強度: {0}").format(lora_scale))
+        print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(lora_file.name)))
+        print(translate("\u25c6 LoRA適用強度: {0}").format(lora_scale))
 
     # セクションごとのキーフレーム画像の使用状況をログに出力
     valid_sections = []
@@ -1508,9 +1509,9 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 valid_sections.append(sec_data[0])
 
     if valid_sections:
-        print(i18n.translate("\u25c6 使用するキーフレーム画像: セクション{0}").format(', '.join(map(str, valid_sections))))
+        print(translate("\u25c6 使用するキーフレーム画像: セクション{0}").format(', '.join(map(str, valid_sections))))
     else:
-        print(i18n.translate("◆ キーフレーム画像: デフォルト設定のみ使用"))
+        print(translate("◆ キーフレーム画像: デフォルト設定のみ使用"))
 
     print("=============================\n")
 
@@ -1525,22 +1526,22 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     # GPUメモリの設定値をデバッグ出力し、正しい型に変換
     gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
-    print(i18n.translate('Using GPU memory preservation setting: {0} GB').format(gpu_memory_value))
+    print(translate('Using GPU memory preservation setting: {0} GB').format(gpu_memory_value))
 
     # 出力フォルダが空の場合はデフォルト値を使用
     if not output_dir or not output_dir.strip():
         output_dir = "outputs"
-    print(i18n.translate('Output directory: {0}').format(output_dir))
+    print(translate('Output directory: {0}').format(output_dir))
 
     # 先に入力データの状態をログ出力（デバッグ用）
     if input_image is not None:
-        print(i18n.translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
+        print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
     if end_frame is not None:
-        print(i18n.translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
+        print(translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
     if section_settings is not None:
-        print(i18n.translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
+        print(translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
         valid_images = sum(1 for s in section_settings if s and s[1] is not None)
-        print(i18n.translate("[DEBUG] Valid section images: {0}").format(valid_images))
+        print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
 
     async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization)
 
@@ -1595,19 +1596,19 @@ with block:
     # 一番上の行に「生成モード、セクションフレームサイズ、オールパディング、動画長」を配置
     with gr.Row():
         with gr.Column(scale=1):
-            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL, MODE_TYPE_LOOP], value=MODE_TYPE_NORMAL, label=i18n.translate("生成モード"), info=i18n.translate("通常：一般的な生成 / ループ：ループ動画用"))
+            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL, MODE_TYPE_LOOP], value=MODE_TYPE_NORMAL, label=translate("生成モード"), info=translate("通常：一般的な生成 / ループ：ループ動画用"))
         with gr.Column(scale=1):
             # フレームサイズ切替用のUIコントロール（名前を「セクションフレームサイズ」に変更）
             frame_size_radio = gr.Radio(
-                choices=[i18n.translate("1秒 (33フレーム)"), i18n.translate("0.5秒 (17フレーム)")],
-                value=i18n.translate("1秒 (33フレーム)"),
-                label=i18n.translate("セクションフレームサイズ"),
-                info=i18n.translate("1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）")
+                choices=[translate("1秒 (33フレーム)"), translate("0.5秒 (17フレーム)")],
+                value=translate("1秒 (33フレーム)"),
+                label=translate("セクションフレームサイズ"),
+                info=translate("1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）")
             )
         with gr.Column(scale=1):
             # オールパディング設定
-            use_all_padding = gr.Checkbox(label=i18n.translate("オールパディング"), value=False, info=i18n.translate("数値が小さいほど直前の絵への影響度が下がり動きが増える"), elem_id="all_padding_checkbox")
-            all_padding_value = gr.Slider(label=i18n.translate("パディング値"), minimum=0.2, maximum=3, value=1, step=0.1, info=i18n.translate("すべてのセクションに適用するパディング値（0.2〜3の整数）"), visible=False)
+            use_all_padding = gr.Checkbox(label=translate("オールパディング"), value=False, info=translate("数値が小さいほど直前の絵への影響度が下がり動きが増える"), elem_id="all_padding_checkbox")
+            all_padding_value = gr.Slider(label=translate("パディング値"), minimum=0.2, maximum=3, value=1, step=0.1, info=translate("すべてのセクションに適用するパディング値（0.2〜3の整数）"), visible=False)
 
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
             def toggle_all_padding_visibility(use_all_padding):
@@ -1620,29 +1621,29 @@ with block:
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
-            length_radio = gr.Radio(choices=get_video_modes(), value=i18n.translate("1秒"), label=i18n.translate("動画長"), info=i18n.translate("キーフレーム画像のコピー範囲と動画の長さを設定"))
+            length_radio = gr.Radio(choices=get_video_modes(), value=translate("1秒"), label=translate("動画長"), info=translate("キーフレーム画像のコピー範囲と動画の長さを設定"))
 
     with gr.Row():
         with gr.Column():
             # Final Frameの上に説明を追加
-            gr.Markdown(i18n.translate("**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**"))
-            end_frame = gr.Image(sources='upload', type="numpy", label=i18n.translate("Final Frame (Optional)"), height=320)
+            gr.Markdown(translate("**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**"))
+            end_frame = gr.Image(sources='upload', type="numpy", label=translate("Final Frame (Optional)"), height=320)
 
             # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
             with gr.Group():
-                gr.Markdown(i18n.translate("### テンソルデータ設定"))
+                gr.Markdown(translate("### テンソルデータ設定"))
 
                 # テンソルデータ使用有無のチェックボックス
-                use_tensor_data = gr.Checkbox(label=i18n.translate("テンソルデータを使用する"), value=False, info=i18n.translate("チェックをオンにするとテンソルデータをアップロードできます"))
+                use_tensor_data = gr.Checkbox(label=translate("テンソルデータを使用する"), value=False, info=translate("チェックをオンにするとテンソルデータをアップロードできます"))
 
                 # テンソルデータ設定コンポーネント（初期状態では非表示）
                 with gr.Group(visible=False) as tensor_data_group:
                     tensor_data_input = gr.File(
-                        label=i18n.translate("テンソルデータアップロード (.safetensors) - 生成動画の後方(末尾)に結合されます"),
+                        label=translate("テンソルデータアップロード (.safetensors) - 生成動画の後方(末尾)に結合されます"),
                         file_types=[".safetensors"]
                     )
 
-                    gr.Markdown(i18n.translate("※ テンソルデータをアップロードすると通常の動画生成後に、その動画の後方（末尾）に結合されます。\n結合した動画は「元のファイル名_combined.mp4」として保存されます。\n※ テンソルデータの保存機能を有効にすると、生成とアップロードのテンソルを結合したデータも保存されます。\n※ テンソルデータの結合は別ツール `python eichi_utils/tensor_combiner.py --ui` でもできます。"))
+                    gr.Markdown(translate("※ テンソルデータをアップロードすると通常の動画生成後に、その動画の後方（末尾）に結合されます。\n結合した動画は「元のファイル名_combined.mp4」として保存されます。\n※ テンソルデータの保存機能を有効にすると、生成とアップロードのテンソルを結合したデータも保存されます。\n※ テンソルデータの結合は別ツール `python eichi_utils/tensor_combiner.py --ui` でもできます。"))
 
                 # チェックボックスの状態によってテンソルデータ設定の表示/非表示を切り替える関数
                 def toggle_tensor_data_settings(use_tensor):
@@ -1655,8 +1656,8 @@ with block:
                     outputs=[tensor_data_group]
                 )
             with gr.Row():
-                start_button = gr.Button(value=i18n.translate("Start Generation"))
-                end_button = gr.Button(value=i18n.translate("End Generation"), interactive=False)
+                start_button = gr.Button(value=translate("Start Generation"))
+                end_button = gr.Button(value=translate("End Generation"), interactive=False)
 
             # セクション入力用のリストを初期化
             section_number_inputs = []
@@ -1681,12 +1682,12 @@ with block:
             # 現在のセクション数に応じたMarkdownを返す関数
             def generate_section_title(total_sections):
                 last_section = total_sections - 1
-                return i18n.translate('### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。**最終キーフレームの画像は、Image(始点)より優先されます。総数{0}**').format(total_sections)
+                return translate('### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。**最終キーフレームの画像は、Image(始点)より優先されます。総数{0}**').format(total_sections)
 
             # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
             def update_section_title(frame_size, mode, length):
                 seconds = get_video_seconds(length)
-                latent_window_size = 4.5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
+                latent_window_size = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
                 frame_count = latent_window_size * 4 - 3
                 total_frames = int(seconds * 30)
                 total_sections = int(max(round(total_frames / frame_count), 1))
@@ -1696,9 +1697,9 @@ with block:
                 return generate_section_title(display_sections)
 
             # 初期タイトルを計算
-            initial_title = update_section_title(i18n.translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, i18n.translate("1秒"))
+            initial_title = update_section_title(translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, translate("1秒"))
 
-            with gr.Accordion(i18n.translate("セクション設定"), open=False, elem_classes="section-accordion"):
+            with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
                 with gr.Group(elem_classes="section-container"):
                     section_title = gr.Markdown(initial_title)
 
@@ -1710,12 +1711,12 @@ with block:
                         with gr.Row(visible=(i < initial_sections_count), elem_classes="section-row") as row_group:
                             # 左側にセクション番号とプロンプトを配置
                             with gr.Column(scale=1):
-                                section_number = gr.Number(label=i18n.translate("セクション番号 {0}").format(i), value=i, precision=0)
-                                section_prompt = gr.Textbox(label=i18n.translate("セクションプロンプト {0}").format(i), placeholder=i18n.translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), lines=2)
+                                section_number = gr.Number(label=translate("セクション番号 {0}").format(i), value=i, precision=0)
+                                section_prompt = gr.Textbox(label=translate("セクションプロンプト {0}").format(i), placeholder=translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), lines=2)
 
                             # 右側にキーフレーム画像のみ配置
                             with gr.Column(scale=2):
-                                section_image = gr.Image(label=i18n.translate("キーフレーム画像 {0}").format(i), sources="upload", type="numpy", height=200)
+                                section_image = gr.Image(label=translate("キーフレーム画像 {0}").format(i), sources="upload", type="numpy", height=200)
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
                             section_prompt_inputs.append(section_prompt)
@@ -1805,28 +1806,28 @@ with block:
 
             # LoRA設定グループを追加
             with gr.Group(visible=has_lora_support) as lora_settings_group:
-                gr.Markdown(i18n.translate("### LoRA設定"))
+                gr.Markdown(translate("### LoRA設定"))
 
                 # LoRA使用有無のチェックボックス
-                use_lora = gr.Checkbox(label=i18n.translate("LoRAを使用する"), value=False, info=i18n.translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
+                use_lora = gr.Checkbox(label=translate("LoRAを使用する"), value=False, info=translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
 
                 # LoRA設定コンポーネント（初期状態では非表示）
-                lora_file = gr.File(label=i18n.translate("LoRAファイル (.safetensors, .pt, .bin)"),
+                lora_file = gr.File(label=translate("LoRAファイル (.safetensors, .pt, .bin)"),
                             file_types=[".safetensors", ".pt", ".bin"],
                             visible=False)
-                lora_scale = gr.Slider(label=i18n.translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
+                lora_scale = gr.Slider(label=translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
                            value=0.8, step=0.01, visible=False)
                 fp8_optimization = gr.Checkbox(
-                    label=i18n.translate("FP8最適化"),
+                    label=translate("FP8最適化"),
                     value=False,
-                    info=i18n.translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
+                    info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
                     visible=False
                 )
                 lora_blocks_type = gr.Dropdown(
-                    label=i18n.translate("LoRAブロック選択"),
+                    label=translate("LoRAブロック選択"),
                     choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
                     value="all",
-                    info=i18n.translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
+                    info=translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
                     visible=False
                 )
 
@@ -1845,13 +1846,13 @@ with block:
 
                 # LoRAサポートが無効の場合のメッセージ
                 if not has_lora_support:
-                    gr.Markdown(i18n.translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
+                    gr.Markdown(translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
 
-            prompt = gr.Textbox(label=i18n.translate("Prompt"), value=get_default_startup_prompt(), lines=6)
+            prompt = gr.Textbox(label=translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
             # プロンプト管理パネルの追加
             with gr.Group(visible=True) as prompt_management:
-                gr.Markdown(i18n.translate("### プロンプト管理"))
+                gr.Markdown(translate("### プロンプト管理"))
 
                 # 編集画面を常時表示する
                 with gr.Group(visible=True):
@@ -1865,26 +1866,26 @@ with block:
                             break
 
                     with gr.Row():
-                        edit_name = gr.Textbox(label=i18n.translate("プリセット名"), placeholder=i18n.translate("名前を入力..."), value=default_name)
+                        edit_name = gr.Textbox(label=translate("プリセット名"), placeholder=translate("名前を入力..."), value=default_name)
 
-                    edit_prompt = gr.Textbox(label=i18n.translate("プロンプト"), lines=5, value=default_prompt)
+                    edit_prompt = gr.Textbox(label=translate("プロンプト"), lines=5, value=default_prompt)
 
                     with gr.Row():
                         # 起動時デフォルトをデフォルト選択に設定
-                        default_preset = i18n.translate("起動時デフォルト")
+                        default_preset = translate("起動時デフォルト")
                         # プリセットデータから全プリセット名を取得
                         presets_data = load_presets()
                         choices = [preset["name"] for preset in presets_data["presets"]]
                         default_presets = [name for name in choices if any(p["name"] == name and p.get("is_default", False) for p in presets_data["presets"])]
                         user_presets = [name for name in choices if name not in default_presets]
                         sorted_choices = [(name, name) for name in sorted(default_presets) + sorted(user_presets)]
-                        preset_dropdown = gr.Dropdown(label=i18n.translate("プリセット"), choices=sorted_choices, value=default_preset, type="value")
+                        preset_dropdown = gr.Dropdown(label=translate("プリセット"), choices=sorted_choices, value=default_preset, type="value")
 
                     with gr.Row():
-                        save_btn = gr.Button(value=i18n.translate("保存"), variant="primary")
-                        apply_preset_btn = gr.Button(value=i18n.translate("反映"), variant="primary")
-                        clear_btn = gr.Button(value=i18n.translate("クリア"))
-                        delete_preset_btn = gr.Button(value=i18n.translate("削除"))
+                        save_btn = gr.Button(value=translate("保存"), variant="primary")
+                        apply_preset_btn = gr.Button(value=translate("反映"), variant="primary")
+                        clear_btn = gr.Button(value=translate("クリア"))
+                        delete_preset_btn = gr.Button(value=translate("削除"))
 
                 # メッセージ表示用
                 result_message = gr.Markdown("")
@@ -1893,7 +1894,7 @@ with block:
 
             # 互換性のためにQuick Listも残しておくが、非表示にする
             with gr.Row(visible=False):
-                example_quick_prompts = gr.Dataset(samples=quick_prompts, label=i18n.translate("Quick List"), samples_per_page=1000, components=[prompt])
+                example_quick_prompts = gr.Dataset(samples=quick_prompts, label=translate("Quick List"), samples_per_page=1000, components=[prompt])
                 example_quick_prompts.click(lambda x: x[0], inputs=[example_quick_prompts], outputs=prompt, show_progress=False, queue=False)
 
             # 以下の設定ブロックは右カラムに移動しました
@@ -1929,7 +1930,7 @@ with block:
                     seconds = get_video_seconds(length)
 
                     # latent_window_sizeを設定
-                    latent_window_size = 4.5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
+                    latent_window_size = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
                     frame_count = latent_window_size * 4 - 3
 
                     # セクション数を計算
@@ -1938,13 +1939,13 @@ with block:
 
                     # 計算詳細を表示するHTMLを生成
                     html = f"""<div style='padding: 10px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px;'>
-                    {i18n.translate('<strong>計算詳細</strong>: モード={0}, フレームサイズ={1}, 総フレーム数={2}, セクションあたり={3}フレーム, 必要セクション数={4}').format(length, frame_size, total_frames, frame_count, total_sections)}
+                    {translate('<strong>計算詳細</strong>: モード={0}, フレームサイズ={1}, 総フレーム数={2}, セクションあたり={3}フレーム, 必要セクション数={4}').format(length, frame_size, total_frames, frame_count, total_sections)}
                     <br>
-                    {i18n.translate('動画モード {0} とフレームサイズ {1} で必要なセクション数: <strong>{2}</strong>').format(length, frame_size, total_sections)}
+                    {translate('動画モード {0} とフレームサイズ {1} で必要なセクション数: <strong>{2}</strong>').format(length, frame_size, total_sections)}
                     </div>"""
 
                     # デバッグ用ログ
-                    print(i18n.translate("計算結果: モード={0}, フレームサイズ={1}, latent_window_size={2}, 総フレーム数={3}, 必要セクション数={4}").format(length, frame_size, latent_window_size, total_frames, total_sections))
+                    print(translate("計算結果: モード={0}, フレームサイズ={1}, latent_window_size={2}, 総フレーム数={3}, 必要セクション数={4}").format(length, frame_size, latent_window_size, total_frames, total_sections))
 
                     return html
 
@@ -1971,7 +1972,7 @@ with block:
                     """画像は初期化せずにセクションの表示/非表示のみを制御する関数"""
                     # フレームサイズに基づくセクション数計算
                     seconds = get_video_seconds(length)
-                    latent_window_size_value = 4.5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
+                    latent_window_size_value = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
                     frame_count = latent_window_size_value * 4 - 3
                     total_frames = int(seconds * 30)
                     total_sections = int(max(round(total_frames / frame_count), 1))
@@ -1980,25 +1981,25 @@ with block:
                     is_normal_mode = (mode == MODE_TYPE_NORMAL)
                     section_image_updates = []
 
-                    print(i18n.translate("セクション視認性更新: モード={mode}, 長さ={length}, 必要セクション数={total_sections}").format(mode=mode, length=length, total_sections=total_sections))
+                    print(translate("セクション視認性更新: モード={mode}, 長さ={length}, 必要セクション数={total_sections}").format(mode=mode, length=length, total_sections=total_sections))
 
                     for i in range(len(section_image_inputs)):
                         if is_normal_mode:
                             # 通常モードではすべてのセクション画像の赤枠青枠を強制的にクリア
                             # 重要: 通常モードでは無条件で済む結果を返す
-                            # print(i18n.translate("  セクション{i}: 通常モードなので赤枠/青枠を強制的にクリア").format(i=i))
+                            # print(translate("  セクション{i}: 通常モードなので赤枠/青枠を強制的にクリア").format(i=i))
                             section_image_updates.append(gr.update(elem_classes=""))  # 必ずelem_classesを空に設定
                         else:
                             # ループモードではセクション0と1に赤枠青枠を設定
                             # ループモードではチェックボックスが常にオンになることを利用
                             if i == 0:
-                                # print(i18n.translate("  セクション{i}: ループモードのセクション0に赤枠を設定").format(i=i))
+                                # print(translate("  セクション{i}: ループモードのセクション0に赤枠を設定").format(i=i))
                                 section_image_updates.append(gr.update(elem_classes="highlighted-keyframe-red"))
                             elif i == 1:
-                                # print(i18n.translate("  セクション{i}: ループモードのセクション1に青枠を設定").format(i=i))
+                                # print(translate("  セクション{i}: ループモードのセクション1に青枠を設定").format(i=i))
                                 section_image_updates.append(gr.update(elem_classes="highlighted-keyframe-blue"))
                             else:
-                                # print(i18n.translate("  セクション{i}: ループモードの他セクションは空枠に設定").format(i=i))
+                                # print(translate("  セクション{i}: ループモードの他セクションは空枠に設定").format(i=i))
                                 section_image_updates.append(gr.update(elem_classes=""))
 
                     # 各セクションの表示/非表示のみを更新
@@ -2077,7 +2078,7 @@ with block:
                         # ループモード以外では絶対にコピーを行わない
                         if mode != MODE_TYPE_LOOP:
                             # 通常モードでは絶対にコピーしない
-                        #   print(i18n.translate("通常モードでのコピー要求を拒否: src={src_idx}, target={target_idx}").format(src_idx=src_idx, target_idx=target_idx))
+                        #   print(translate("通常モードでのコピー要求を拒否: src={src_idx}, target={target_idx}").format(src_idx=src_idx, target_idx=target_idx))
                             return gr.update()
 
                         # コピー条件をチェック
@@ -2088,24 +2089,24 @@ with block:
                         seconds = get_video_seconds(length)
                         # フレームサイズに応じたlatent_window_sizeの調整（ここではUIの設定によらず計算）
                         frame_size = frame_size_radio.value
-                        latent_window_size = 4.5 if frame_size == i18n.translate("0.5秒 (17フレーム)") else 9
+                        latent_window_size = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
                         frame_count = latent_window_size * 4 - 3
                         total_frames = int(seconds * 30)
                         total_sections = int(max(round(total_frames / frame_count), 1))
 
                         # 対象セクションが有効範囲を超えている場合はコピーしない(項目数的に+1)
                         if target_idx >= total_sections:
-                        #   print(i18n.translate("コピー対象セクション{target_idx}が有効範囲({total_sections}まで)を超えています").format(target_idx=target_idx, total_sections=total_sections))
+                        #   print(translate("コピー対象セクション{target_idx}が有効範囲({total_sections}まで)を超えています").format(target_idx=target_idx, total_sections=total_sections))
                             return gr.update()
 
                         # コピー先のチェック - セクション0は偶数番号に、セクション1は奇数番号にコピー
                         if src_idx == 0 and target_idx % 2 == 0 and target_idx != 0:
                             # 詳細ログ出力
-                        #   print(i18n.translate("赤枠(0)から偶数セクション{target_idx}へのコピー実行 (動的セクション数:{total_sections})").format(target_idx=target_idx, total_sections=total_sections))
+                        #   print(translate("赤枠(0)から偶数セクション{target_idx}へのコピー実行 (動的セクション数:{total_sections})").format(target_idx=target_idx, total_sections=total_sections))
                             return gr.update(value=img)
                         elif src_idx == 1 and target_idx % 2 == 1 and target_idx != 1:
                             # 詳細ログ出力
-                        #   print(i18n.translate("青枠(1)から奇数セクション{target_idx}へのコピー実行 (動的セクション数:{total_sections})").format(target_idx=target_idx, total_sections=total_sections))
+                        #   print(translate("青枠(1)から奇数セクション{target_idx}へのコピー実行 (動的セクション数:{total_sections})").format(target_idx=target_idx, total_sections=total_sections))
                             return gr.update(value=img)
 
                         # 条件に合わない場合
@@ -2123,7 +2124,7 @@ with block:
                 # 代わりにcheckbox値のみに依存するシンプルな条件分岐を各関数で直接実装
 
         with gr.Column():
-            result_video = gr.Video(label=i18n.translate("Finished Frames"), autoplay=True, show_share_button=False, height=512, loop=True)
+            result_video = gr.Video(label=translate("Finished Frames"), autoplay=True, show_share_button=False, height=512, loop=True)
             progress_desc = gr.Markdown('', elem_classes='no-generating-animation')
             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
             preview_image = gr.Image(label="Next Latents", height=200, visible=False)
@@ -2133,16 +2134,16 @@ with block:
             # 計算結果を表示するエリア
             section_calc_display = gr.HTML("", label="")
 
-            use_teacache = gr.Checkbox(label=i18n.translate('Use TeaCache'), value=True, info=i18n.translate('Faster speed, but often makes hands and fingers slightly worse.'))
+            use_teacache = gr.Checkbox(label=translate('Use TeaCache'), value=True, info=translate('Faster speed, but often makes hands and fingers slightly worse.'))
 
             # Use Random Seedの初期値
             use_random_seed_default = True
             seed_default = random.randint(0, 2**32 - 1) if use_random_seed_default else 1
 
-            use_random_seed = gr.Checkbox(label=i18n.translate("Use Random Seed"), value=use_random_seed_default)
+            use_random_seed = gr.Checkbox(label=translate("Use Random Seed"), value=use_random_seed_default)
 
-            n_prompt = gr.Textbox(label=i18n.translate("Negative Prompt"), value="", visible=False)  # Not used
-            seed = gr.Number(label=i18n.translate("Seed"), value=seed_default, precision=0)
+            n_prompt = gr.Textbox(label=translate("Negative Prompt"), value="", visible=False)  # Not used
+            seed = gr.Number(label=translate("Seed"), value=seed_default, precision=0)
 
             def set_random_seed(is_checked):
                 if is_checked:
@@ -2151,31 +2152,31 @@ with block:
                     return gr.update()
             use_random_seed.change(fn=set_random_seed, inputs=use_random_seed, outputs=seed)
 
-            total_second_length = gr.Slider(label=i18n.translate("Total Video Length (Seconds)"), minimum=1, maximum=120, value=1, step=1)
-            latent_window_size = gr.Slider(label=i18n.translate("Latent Window Size"), minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
-            steps = gr.Slider(label=i18n.translate("Steps"), minimum=1, maximum=100, value=25, step=1, info=i18n.translate('Changing this value is not recommended.'))
+            total_second_length = gr.Slider(label=translate("Total Video Length (Seconds)"), minimum=1, maximum=120, value=1, step=1)
+            latent_window_size = gr.Slider(label=translate("Latent Window Size"), minimum=1, maximum=33, value=9, step=1, visible=False)  # Should not change
+            steps = gr.Slider(label=translate("Steps"), minimum=1, maximum=100, value=25, step=1, info=translate('Changing this value is not recommended.'))
 
-            cfg = gr.Slider(label=i18n.translate("CFG Scale"), minimum=1.0, maximum=32.0, value=1.0, step=0.01, visible=False)  # Should not change
-            gs = gr.Slider(label=i18n.translate("Distilled CFG Scale"), minimum=1.0, maximum=32.0, value=10.0, step=0.01, info=i18n.translate('Changing this value is not recommended.'))
-            rs = gr.Slider(label=i18n.translate("CFG Re-Scale"), minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)  # Should not change
+            cfg = gr.Slider(label=translate("CFG Scale"), minimum=1.0, maximum=32.0, value=1.0, step=0.01, visible=False)  # Should not change
+            gs = gr.Slider(label=translate("Distilled CFG Scale"), minimum=1.0, maximum=32.0, value=10.0, step=0.01, info=translate('Changing this value is not recommended.'))
+            rs = gr.Slider(label=translate("CFG Re-Scale"), minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)  # Should not change
 
-            gpu_memory_preservation = gr.Slider(label=i18n.translate("GPU Memory to Preserve (GB) (smaller = more VRAM usage)"), minimum=6, maximum=128, value=10, step=0.1, info=i18n.translate("空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全"))
+            gpu_memory_preservation = gr.Slider(label=translate("GPU Memory to Preserve (GB) (smaller = more VRAM usage)"), minimum=6, maximum=128, value=10, step=0.1, info=translate("空けておくGPUメモリ量を指定。小さい値=より多くのVRAMを使用可能=高速、大きい値=より少ないVRAMを使用=安全"))
 
             # MP4圧縮設定スライダーを追加
-            mp4_crf = gr.Slider(label=i18n.translate("MP4 Compression"), minimum=0, maximum=100, value=16, step=1, info=i18n.translate("数値が小さいほど高品質になります。0は無圧縮。黒画面が出る場合は16に設定してください。"))
+            mp4_crf = gr.Slider(label=translate("MP4 Compression"), minimum=0, maximum=100, value=16, step=1, info=translate("数値が小さいほど高品質になります。0は無圧縮。黒画面が出る場合は16に設定してください。"))
 
             # セクションごとの動画保存チェックボックスを追加（デフォルトOFF）
-            keep_section_videos = gr.Checkbox(label=i18n.translate("完了時にセクションごとの動画を残す - チェックがない場合は最終動画のみ保存されます（デフォルトOFF）"), value=False)
+            keep_section_videos = gr.Checkbox(label=translate("完了時にセクションごとの動画を残す - チェックがない場合は最終動画のみ保存されます（デフォルトOFF）"), value=False)
 
             # テンソルデータ保存チェックボックス违加
             save_tensor_data = gr.Checkbox(
-                label=i18n.translate("完了時にテンソルデータ(.safetensors)も保存 - このデータを別の動画の後に結合可能"),
+                label=translate("完了時にテンソルデータ(.safetensors)も保存 - このデータを別の動画の後に結合可能"),
                 value=False,
-                info=i18n.translate("チェックすると、生成されたテンソルデータを保存します。アップロードされたテンソルがあれば、結合したテンソルデータも保存されます。")
+                info=translate("チェックすると、生成されたテンソルデータを保存します。アップロードされたテンソルがあれば、結合したテンソルデータも保存されます。")
             )
 
             # セクションごとの静止画保存チェックボックスを追加（デフォルトOFF）
-            save_section_frames = gr.Checkbox(label=i18n.translate("Save Section Frames"), value=False, info=i18n.translate("各セクションの最終フレームを静止画として保存します（デフォルトOFF）"))
+            save_section_frames = gr.Checkbox(label=translate("Save Section Frames"), value=False, info=translate("各セクションの最終フレームを静止画として保存します（デフォルトOFF）"))
 
             # UIコンポーネント定義後のイベント登録
             # mode_radio.changeの登録 - セクションの表示/非表示と赤枠青枠の表示を同時に更新
@@ -2209,34 +2210,34 @@ with block:
 
             # EndFrame影響度調整スライダー
             with gr.Group():
-                gr.Markdown(i18n.translate("### EndFrame影響度調整"))
+                gr.Markdown(translate("### EndFrame影響度調整"))
                 end_frame_strength = gr.Slider(
-                    label=i18n.translate("EndFrame影響度"),
+                    label=translate("EndFrame影響度"),
                     minimum=0.01,
                     maximum=1.00,
                     value=1.00,
                     step=0.01,
-                    info=i18n.translate("最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。")
+                    info=translate("最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。")
                 )
 
             # 出力フォルダ設定
-            gr.Markdown(i18n.translate("※ 出力先は `webui` 配下に限定されます"))
+            gr.Markdown(translate("※ 出力先は `webui` 配下に限定されます"))
             with gr.Row(equal_height=True):
                 with gr.Column(scale=4):
                     # フォルダ名だけを入力欄に設定
                     output_dir = gr.Textbox(
-                        label=i18n.translate("出力フォルダ名"),
+                        label=translate("出力フォルダ名"),
                         value=output_folder_name,  # 設定から読み込んだ値を使用
-                        info=i18n.translate("動画やキーフレーム画像の保存先フォルダ名"),
+                        info=translate("動画やキーフレーム画像の保存先フォルダ名"),
                         placeholder="outputs"
                     )
                 with gr.Column(scale=1, min_width=100):
-                    open_folder_btn = gr.Button(value=i18n.translate("📂 保存および出力フォルダを開く"), size="sm")
+                    open_folder_btn = gr.Button(value=translate("📂 保存および出力フォルダを開く"), size="sm")
 
             # 実際の出力パスを表示
             with gr.Row(visible=False):
                 path_display = gr.Textbox(
-                    label=i18n.translate("出力フォルダの完全パス"),
+                    label=translate("出力フォルダの完全パス"),
                     value=os.path.join(base_path, output_folder_name),
                     interactive=False
                 )
@@ -2262,7 +2263,7 @@ with block:
                         global output_folder_name, outputs_folder
                         output_folder_name = folder_name
                         outputs_folder = folder_path
-                    print(i18n.translate("出力フォルダ設定を保存しました: {folder_name}").format(folder_name=folder_name))
+                    print(translate("出力フォルダ設定を保存しました: {folder_name}").format(folder_name=folder_name))
 
                 # フォルダを開く
                 open_output_folder(folder_path)
@@ -2285,7 +2286,7 @@ with block:
 
         if not is_valid:
             # 画像が無い場合はエラーメッセージを表示して終了
-            yield None, gr.update(visible=False), i18n.translate("エラー: 画像が選択されていません"), error_message, gr.update(interactive=True), gr.update(interactive=False), gr.update()
+            yield None, gr.update(visible=False), translate("エラー: 画像が選択されていません"), error_message, gr.update(interactive=True), gr.update(interactive=False), gr.update()
             return
 
         # 画像がある場合は通常の処理を実行
@@ -2438,12 +2439,12 @@ try:
 except OSError as e:
     if "Cannot find empty port" in str(e):
         print("\n======================================================")
-        print(i18n.translate("エラー: FramePack-eichiは既に起動しています。"))
-        print(i18n.translate("同時に複数のインスタンスを実行することはできません。"))
-        print(i18n.translate("現在実行中のアプリケーションを先に終了してください。"))
+        print(translate("エラー: FramePack-eichiは既に起動しています。"))
+        print(translate("同時に複数のインスタンスを実行することはできません。"))
+        print(translate("現在実行中のアプリケーションを先に終了してください。"))
         print("======================================================\n")
-        input(i18n.translate("続行するには何かキーを押してください..."))
+        input(translate("続行するには何かキーを押してください..."))
     else:
         # その他のOSErrorの場合は元のエラーを表示
-        print(i18n.translate("\nエラーが発生しました: {e}").format(e=e))
-        input(i18n.translate("続行するには何かキーを押してください..."))
+        print(translate("\nエラーが発生しました: {e}").format(e=e))
+        input(translate("続行するには何かキーを押してください..."))
