@@ -9,141 +9,9 @@ import random
 import time
 import subprocess
 import copy  # transformer_loraのディープコピー用
-import gc   # メモリ計測用
-
-# psutilライブラリのインポート（システムリソース監視用）
-try:
-    import psutil
-    HAS_PSUTIL = True
-except ImportError:
-    HAS_PSUTIL = False
-    print("psutilライブラリがインストールされていません。システムメモリ情報は表示されません。")
-    print("インストールするには: pip install psutil")
-
 # クロスプラットフォーム対応のための条件付きインポート
 
 import argparse
-
-# メモリ使用状況の詳細ログ出力関数
-def log_memory_detailed(step_name, model, additional_info=None):
-    """メモリ使用状況の詳細ログを出力する関数
-    
-    Args:
-        step_name (str): 処理ステップの名前
-        model: メモリ使用状況を確認するモデル
-        additional_info (str, optional): 追加情報
-    """
-    print(f"\n==== メモリ詳細 [{step_name}] =====")
-    
-    # 基本情報
-    device_str = "不明"
-    try:
-        device_str = str(next(model.parameters()).device)
-    except:
-        try:
-            device_str = str(model.device)
-        except:
-            pass
-    
-    # モデル情報
-    print(f"モデル情報: type={type(model).__name__}, device={device_str}")
-    
-    if additional_info:
-        print(f"追加情報: {additional_info}")
-    
-    # パラメータ数を計算
-    try:
-        param_count = sum(p.numel() for p in model.parameters())
-        param_size_mb = param_count * 4 / (1024 * 1024)  # float32としてサイズ計算
-        print(f"パラメータ数: {param_count:,} ({param_size_mb:.2f} MB)")
-    except:
-        print("パラメータ数: 計算できません")
-        
-    # メモリ情報 (CUDAが利用可能な場合)
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-        
-        # 基本的なメモリ情報
-        allocated = torch.cuda.memory_allocated() / (1024**3)
-        reserved = torch.cuda.memory_reserved() / (1024**3)
-        max_allocated = torch.cuda.max_memory_allocated() / (1024**3)
-        
-        print(f"CUDA メモリ: 割当={allocated:.2f}GB, 予約={reserved:.2f}GB, 最大割当={max_allocated:.2f}GB")
-        
-        # キャッシュ情報
-        try:
-            cached = torch.cuda.memory_cached() / (1024**3)
-            max_cached = torch.cuda.max_memory_cached() / (1024**3)
-            print(f"CUDA キャッシュ: 現在={cached:.2f}GB, 最大={max_cached:.2f}GB")
-        except:
-            pass
-        
-        # 空きメモリ
-        try:
-            free = get_cuda_free_memory_gb(gpu)
-            print(f"CUDA 空きメモリ: {free:.2f}GB")
-        except:
-            pass
-    else:
-        print("CUDA は利用できません")
-    
-    # ガベージコレクションの状態
-    collected = gc.collect()
-    print(f"GC回収オブジェクト数: {collected}")
-    
-    # システムメモリ情報（RAMおよびスワップ）
-    if HAS_PSUTIL:
-        # RAM情報
-        virtual_memory = psutil.virtual_memory()
-        ram_total = virtual_memory.total / (1024**3)  # GB単位
-        ram_used = virtual_memory.used / (1024**3)
-        ram_percent = virtual_memory.percent
-        
-        print(f"\nシステムRAM: 合計={ram_total:.2f}GB, 使用中={ram_used:.2f}GB ({ram_percent}%)")
-        
-        # スワップ情報
-        swap_memory = psutil.swap_memory()
-        swap_total = swap_memory.total / (1024**3)
-        swap_used = swap_memory.used / (1024**3)
-        swap_percent = swap_memory.percent
-        
-        print(f"スワップメモリ: 合計={swap_total:.2f}GB, 使用中={swap_used:.2f}GB ({swap_percent}%)")
-        
-        # 追加プロセス情報
-        process = psutil.Process(os.getpid())
-        process_memory = process.memory_info().rss / (1024**3)  # 物理メモリ使用量
-        
-        print(f"現在のプロセスメモリ使用量: {process_memory:.2f}GB")
-        
-        try:
-            # Windowsの場合はページングファイルの信頼性が低いため、別の方法で情報を取得
-            if os.name == 'nt':
-                # Windowsの場合はページフォルト/ページファイルの情報を取得しようと試みる
-                pagefile_in_use = psutil.virtual_memory().used - process_memory * (1024**3)
-                pagefile_in_use_gb = pagefile_in_use / (1024**3)
-                print(f"ページファイル使用量推定: {pagefile_in_use_gb:.2f}GB (概算値)")
-                
-                # 他プロセスのメモリ使用量をサンプルとして確認
-                other_processes = []
-                for proc in psutil.process_iter(['pid', 'name', 'memory_info']):
-                    try:
-                        if proc.pid != os.getpid() and proc.memory_info().rss > 1 * (1024**3):  # 1GB以上使用しているプロセスのみ
-                            other_processes.append((proc.name(), proc.memory_info().rss / (1024**3)))
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
-                
-                # メモリ使用量の多い順に上位5件を表示
-                if other_processes:
-                    other_processes.sort(key=lambda x: x[1], reverse=True)
-                    print("\nメモリ使用量上位プロセス:")
-                    for name, mem in other_processes[:5]:  # 上位5件のみ表示
-                        print(f"  - {name}: {mem:.2f}GB")
-        except Exception as e:
-            print(f"詳細メモリ情報取得中にエラー: {e}")
-    else:
-        print("\npsutilがインストールされていないため、システムメモリ情報は取得できません")
-    
-    print("===========================\n")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--share', action='store_true')
@@ -339,12 +207,58 @@ print(translate("設定から出力フォルダを読み込み: {0}").format(out
 outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
 
+
+# transformerのLoRA状態管理用のグローバル変数を初期化
+class TransformerLoraState:
+    def __init__(self):
+        self.current_lora_path = None  # 現在適用されているLoRAファイル名
+    
+    def set_loaded_lora_path(self, lora_file_path):
+        self.current_lora_path = lora_file_path
+        print(translate("loaded transformer LoRA path: {0}").format(self.current_lora_path))
+
+    def is_lora_loaded(self, lora_file_path):
+        # Noneの場合の明示的な処理
+        if self.current_lora_path is None or lora_file_path is None:
+            return self.current_lora_path is lora_file_path
+        # 文字列の比較
+        return self.current_lora_path == lora_file_path
+
+transformer_lora_state = TransformerLoraState()
+
+
+# transformerリロード用の関数を定義
+def reload_transformer_model():
+    # グローバル変数で状態管理している変数を宣言する
+    global transformer
+    try:
+        # モデルをリロード
+        transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
+        transformer.eval()
+        transformer.high_quality_fp32_output_for_inference = True
+        transformer.to(dtype=torch.bfloat16)
+        transformer.requires_grad_(False)
+        
+        if not high_vram:
+            DynamicSwapInstaller.install_model(transformer, device=gpu)
+        else:
+            transformer.to(gpu)
+        print(translate("transformerモデルをリロードしました"))
+    except Exception as e:
+        print(translate("transformerモデルのリロードエラー: {0}").format(e))
+
+
 # キーフレーム処理関数は keyframe_handler.py に移動済み
 
 # v1.9.1テスト実装
 
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640):
+
+    # グローバル変数で状態管理している変数を宣言する
+    global transformer
+    global transformer_lora_state
+
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
     has_any_image = (input_image is not None)
     last_visible_section_image = None
@@ -713,9 +627,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # -------- LoRA 設定 START ---------
 
-        # LoRA処理の開始前
-        log_memory_detailed("LoRA処理前", transformer)
-
         # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
         if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
             old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
@@ -723,107 +634,94 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             print(translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
 
         # LoRA処理
-        lora_applied = False
-        # モデルコピー前
-        log_memory_detailed("モデルコピー前", transformer)
+        if use_lora and has_lora_support and (lora_file is not None):
+            # LoRAファイルのパスを取得
+            lora_path = lora_file.name
 
-        # まず元のモデルのコピーを作成
-        transformer_obj = copy.deepcopy(transformer)
-        
-        # モデルコピー後
-        log_memory_detailed("モデルコピー後", transformer_obj)
-
-        if use_lora and has_lora_support and lora_file is not None:
-
-            try:
-                # LoRAファイルのパスを取得
-                lora_path = lora_file.name
-
-                # LoRAファイル読み込み前
-                log_memory_detailed("LoRAファイル読み込み前", transformer_obj, lora_file.name)
-
-                # 明示的な同期ポイントの追加
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-
-                # LoRA適用前
-                log_memory_detailed("LoRA適用前", transformer_obj)
-
-                # 直接LoRA適用方式を使用
-                from lora_utils.lora_loader import load_and_apply_lora
-                transformer_obj = load_and_apply_lora(
-                    transformer_obj,
-                    lora_path,
-                    lora_scale,
-                    device=gpu
-                )
-                print(translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
-                lora_applied = True
-
-                # LoRA適用後
-                log_memory_detailed("LoRA適用後", transformer_obj)
-
-                # 診断レポートの出力
+            if transformer_lora_state.is_lora_loaded(lora_path):
+                print(translate("LoRAはすでに適用されています: {0}").format(lora_path))
+            else:
                 try:
-                    from lora_utils.lora_check_helper import check_lora_applied
-                    has_lora, source = check_lora_applied(transformer_obj)
-                    print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
-                except Exception as diagnostic_error:
-                    print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
+                    # 明示的な同期ポイントの追加
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
 
-                # FP8最適化処理
-                try:
-                    if fp8_optimization and lora_applied:
-                        # FP8サポートのチェック
-                        from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
+                    # 直接LoRA適用方式を使用
+                    from lora_utils.lora_loader import load_and_apply_lora
+                    transformer = load_and_apply_lora(
+                        transformer,
+                        lora_path,
+                        lora_scale,
+                        device=gpu
+                    )
+                    print(translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
+                    transformer_lora_state.set_loaded_lora_path(lora_path)
 
-                        has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
+                    # 診断レポートの出力
+                    try:
+                        from lora_utils.lora_check_helper import check_lora_applied
+                        has_lora, source = check_lora_applied(transformer)
+                        print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
+                    except Exception as diagnostic_error:
+                        print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
 
-                        if not has_e4m3:
-                            print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
+                    # FP8最適化処理
+                    try:
+                        if fp8_optimization and transformer_lora_state.is_lora_loaded(lora_path):
+                            # FP8サポートのチェック
+                            from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
+
+                            has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
+
+                            if not has_e4m3:
+                                print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
+                            else:
+                                print(translate("FP8最適化を適用します..."))
+
+                                # 状態辞書を取得
+                                state_dict = transformer.state_dict()
+
+                                # 最適化のターゲットと除外キーを設定
+                                TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
+                                EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
+
+                                # 状態辞書をFP8形式に最適化
+                                print(translate("FP8形式で状態辞書を最適化しています..."))
+                                state_dict = optimize_state_dict_with_fp8(
+                                    state_dict,
+                                    gpu,
+                                    TARGET_KEYS,
+                                    EXCLUDE_KEYS,
+                                    move_to_device=False
+                                )
+
+                                # モンキーパッチの適用
+                                print(translate("FP8モンキーパッチを適用しています..."))
+                                use_scaled_mm = has_scaled_mm and has_e5m2
+                                apply_fp8_monkey_patch(transformer, state_dict, use_scaled_mm=use_scaled_mm)
+
+                                # 状態辞書を読み込み
+                                transformer.load_state_dict(state_dict, strict=True)
+
+                                print(translate("FP8最適化が適用されました！"))
                         else:
-                            print(translate("FP8最適化を適用します..."))
+                            print(translate("FP8最適化は無効化されています。"))
+                    except Exception as e:
+                        print(translate("FP8最適化エラー: {0}").format(e))
+                        traceback.print_exc()
+                        print(translate("FP8最適化に失敗しました。通常モードで続行します。"))
+                        # エラー時は元の状態を使用し続ける
 
-                            # 状態辞書を取得
-                            state_dict = transformer_obj.state_dict()
-
-                            # 最適化のターゲットと除外キーを設定
-                            TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
-                            EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
-
-                            # 状態辞書をFP8形式に最適化
-                            print(translate("FP8形式で状態辞書を最適化しています..."))
-                            state_dict = optimize_state_dict_with_fp8(
-                                state_dict,
-                                gpu,
-                                TARGET_KEYS,
-                                EXCLUDE_KEYS,
-                                move_to_device=False
-                            )
-
-                            # モンキーパッチの適用
-                            print(translate("FP8モンキーパッチを適用しています..."))
-                            use_scaled_mm = has_scaled_mm and has_e5m2
-                            apply_fp8_monkey_patch(transformer_obj, state_dict, use_scaled_mm=use_scaled_mm)
-
-                            # 状態辞書を読み込み
-                            transformer_obj.load_state_dict(state_dict, strict=True)
-
-                            print(translate("FP8最適化が適用されました！"))
-                    else:
-                        print(translate("FP8最適化は無効化されています。"))
                 except Exception as e:
-                    print(translate("FP8最適化エラー: {0}").format(e))
+                    print(translate("LoRA適用エラー: {0}").format(e))
                     traceback.print_exc()
-                    print(translate("FP8最適化に失敗しました。通常モードで続行します。"))
-                    # エラー時は元の状態を使用し続ける
+                    print(translate("LoRA適用に失敗しました。通常モードで続行します。"))
 
-            except Exception as e:
-                print(translate("LoRA適用エラー: {0}").format(e))
-                traceback.print_exc()
-                print(translate("LoRA適用に失敗しました。通常モードで続行します。"))
-                # エラー時は元のtransformerのコピーをそのまま使用
-                lora_applied = False
+                    # エラー時は元のtransformerを使用（リロード）
+                    if not transformer_lora_state.is_lora_loaded(None):
+                        reload_transformer_model()
+                    transformer_lora_state.set_loaded_lora_path(None)
+
         else:
             # LoRA未使用時のメッセージ
             if use_lora:
@@ -833,7 +731,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     print(translate("LoRAファイルが指定されていません。通常モードで続行します。"))
             else:
                 print(translate("LoRAは使用されません。通常モードで続行します。"))
-
+            
+            # 前回Loraが適用されていた場合は、元のtransformerをリロード
+            if not transformer_lora_state.is_lora_loaded(None):
+                reload_transformer_model()
+            transformer_lora_state.set_loaded_lora_path(None)
 
         # -------- LoRA 設定 END ---------
 
@@ -942,9 +844,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory)
 
             if use_teacache:
-                transformer_obj.initialize_teacache(enable_teacache=True, num_steps=steps)
+                transformer.initialize_teacache(enable_teacache=True, num_steps=steps)
             else:
-                transformer_obj.initialize_teacache(enable_teacache=False)
+                transformer.initialize_teacache(enable_teacache=False)
 
             def callback(d):
                 preview = d['denoised']
@@ -967,7 +869,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 return
 
             generated_latents = sample_hunyuan(
-                transformer=transformer_obj,  # ← transformerをtransformer_objに変更
+                transformer=transformer,
                 sampler='unipc',
                 width=width,
                 height=height,
