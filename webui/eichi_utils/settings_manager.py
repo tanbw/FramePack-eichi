@@ -6,7 +6,7 @@ endframe_ichi.pyから外出しした設定ファイル関連処理を含む
 import os
 import json
 import subprocess
-from locales import i18n
+from locales.i18n_extended import translate
 
 def get_settings_file_path():
     """設定ファイルの絶対パスを取得する"""
@@ -37,7 +37,7 @@ def initialize_settings():
                 json.dump(default_settings, f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
-            print(i18n.translate("設定ファイル初期化エラー: {0}").format(e))
+            print(translate("設定ファイル初期化エラー: {0}").format(e))
             return False
     return True
 
@@ -60,7 +60,7 @@ def load_settings():
                         settings[key] = value
                 return settings
         except Exception as e:
-            print(i18n.translate("設定読み込みエラー: {0}").format(e))
+            print(translate("設定読み込みエラー: {0}").format(e))
 
     return default_settings
 
@@ -77,7 +77,7 @@ def save_settings(settings):
             json.dump(settings, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        print(i18n.translate("設定保存エラー: {0}").format(e))
+        print(translate("設定保存エラー: {0}").format(e))
         return False
 
 def open_output_folder(folder_path):
@@ -93,8 +93,8 @@ def open_output_folder(folder_path):
                 subprocess.Popen(['xdg-open', folder_path])
             except:
                 subprocess.Popen(['open', folder_path])
-        print(i18n.translate("フォルダを開きました: {0}").format(folder_path))
+        print(translate("フォルダを開きました: {0}").format(folder_path))
         return True
     except Exception as e:
-        print(i18n.translate("フォルダを開く際にエラーが発生しました: {0}").format(e))
+        print(translate("フォルダを開く際にエラーが発生しました: {0}").format(e))
         return False

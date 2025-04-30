@@ -7,7 +7,7 @@ import safetensors.torch as sf
 from datetime import datetime
 import gradio as gr
 
-from locales import i18n
+from locales.i18n_extended import translate
 
 # ルートパスをシステムパスに追加
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,11 +27,11 @@ def combine_tensor_files(file1_path, file2_path, output_path=None):
     """
     try:
         # ファイル1を読み込み
-        print(i18n.translate("ファイル1を読み込み中: {0}").format(os.path.basename(file1_path)))
+        print(translate("ファイル1を読み込み中: {0}").format(os.path.basename(file1_path)))
         tensor_dict1 = sf.load_file(file1_path)
 
         # ファイル2を読み込み
-        print(i18n.translate("ファイル2を読み込み中: {0}").format(os.path.basename(file2_path)))
+        print(translate("ファイル2を読み込み中: {0}").format(os.path.basename(file2_path)))
         tensor_dict2 = sf.load_file(file2_path)
 
         # テンソルを取得
@@ -40,18 +40,18 @@ def combine_tensor_files(file1_path, file2_path, output_path=None):
             tensor2 = tensor_dict2["history_latents"]
 
             # テンソル情報の表示
-            print(i18n.translate("テンソル1: shape={0}, dtype={1}, フレーム数={2}").format(tensor1.shape, tensor1.dtype, tensor1.shape[2]))
-            print(i18n.translate("テンソル2: shape={0}, dtype={1}, フレーム数={2}").format(tensor2.shape, tensor2.dtype, tensor2.shape[2]))
+            print(translate("テンソル1: shape={0}, dtype={1}, フレーム数={2}").format(tensor1.shape, tensor1.dtype, tensor1.shape[2]))
+            print(translate("テンソル2: shape={0}, dtype={1}, フレーム数={2}").format(tensor2.shape, tensor2.dtype, tensor2.shape[2]))
 
             # サイズチェック
             if tensor1.shape[3] != tensor2.shape[3] or tensor1.shape[4] != tensor2.shape[4]:
-                error_msg = i18n.translate("エラー: テンソルサイズが異なります: {0} vs {1}").format(tensor1.shape, tensor2.shape)
+                error_msg = translate("エラー: テンソルサイズが異なります: {0} vs {1}").format(tensor1.shape, tensor2.shape)
                 print(error_msg)
                 return False, None, error_msg
 
             # データ型とデバイスの調整
             if tensor1.dtype != tensor2.dtype:
-                print(i18n.translate("データ型の変換: {0} → {1}").format(tensor2.dtype, tensor1.dtype))
+                print(translate("データ型の変換: {0} → {1}").format(tensor2.dtype, tensor1.dtype))
                 tensor2 = tensor2.to(dtype=tensor1.dtype)
 
             # 両方CPUに移動
@@ -65,7 +65,7 @@ def combine_tensor_files(file1_path, file2_path, output_path=None):
             tensor1_frames = tensor1.shape[2]
             tensor2_frames = tensor2.shape[2]
             combined_frames = combined_tensor.shape[2]
-            print(i18n.translate("結合成功: 結合後のフレーム数={0} ({1}+{2}フレーム)").format(combined_frames, tensor1_frames, tensor2_frames))
+            print(translate("結合成功: 結合後のフレーム数={0} ({1}+{2}フレーム)").format(combined_frames, tensor1_frames, tensor2_frames))
 
             # メタデータを更新
             height, width = tensor1.shape[3], tensor1.shape[4]
@@ -89,47 +89,47 @@ def combine_tensor_files(file1_path, file2_path, output_path=None):
             # テンソルデータの保存サイズの概算
             tensor_size_mb = (combined_tensor.element_size() * combined_tensor.nelement()) / (1024 * 1024)
 
-            success_msg = i18n.translate("結合テンソルを保存しました: {0}\n").format(os.path.basename(output_path))
-            success_msg += i18n.translate("フレーム数: {0}フレーム ({1}+{2}フレーム)\n").format(combined_frames, tensor1_frames, tensor2_frames)
-            success_msg += i18n.translate("サイズ: {0:.2f}MB, 形状: {1}").format(tensor_size_mb, combined_tensor.shape)
+            success_msg = translate("結合テンソルを保存しました: {0}\n").format(os.path.basename(output_path))
+            success_msg += translate("フレーム数: {0}フレーム ({1}+{2}フレーム)\n").format(combined_frames, tensor1_frames, tensor2_frames)
+            success_msg += translate("サイズ: {0:.2f}MB, 形状: {1}").format(tensor_size_mb, combined_tensor.shape)
             print(success_msg)
 
             return True, output_path, success_msg
         else:
-            error_msg = i18n.translate("エラー: テンソルファイルに必要なキー'history_latents'がありません")
+            error_msg = translate("エラー: テンソルファイルに必要なキー'history_latents'がありません")
             print(error_msg)
             return False, None, error_msg
 
     except Exception as e:
-        error_msg = i18n.translate("テンソル結合中にエラーが発生: {0}").format(e)
+        error_msg = translate("テンソル結合中にエラーが発生: {0}").format(e)
         print(error_msg)
         traceback.print_exc()
         return False, None, error_msg
 
 def create_ui():
     """Gradio UIを作成"""
-    with gr.Blocks(title=i18n.translate("テンソル結合ツール")) as app:
-        gr.Markdown(i18n.translate("## テンソルデータ結合ツール"))
-        gr.Markdown(i18n.translate("safetensors形式のテンソルデータファイルを2つ選択して結合します。結合順序は「テンソル1 + テンソル2」です。"))
+    with gr.Blocks(title=translate("テンソル結合ツール")) as app:
+        gr.Markdown(translate("## テンソルデータ結合ツール"))
+        gr.Markdown(translate("safetensors形式のテンソルデータファイルを2つ選択して結合します。結合順序は「テンソル1 + テンソル2」です。"))
 
         with gr.Row():
             with gr.Column(scale=1):
-                tensor_file1 = gr.File(label=i18n.translate("テンソルファイル1 (.safetensors)"), file_types=[".safetensors"])
+                tensor_file1 = gr.File(label=translate("テンソルファイル1 (.safetensors)"), file_types=[".safetensors"])
             with gr.Column(scale=1):
-                tensor_file2 = gr.File(label=i18n.translate("テンソルファイル2 (.safetensors)"), file_types=[".safetensors"])
+                tensor_file2 = gr.File(label=translate("テンソルファイル2 (.safetensors)"), file_types=[".safetensors"])
 
         with gr.Row():
-            output_file = gr.Textbox(label=i18n.translate("出力ファイル名 (空欄で自動生成)"), placeholder=i18n.translate("例: combined.safetensors"))
+            output_file = gr.Textbox(label=translate("出力ファイル名 (空欄で自動生成)"), placeholder=translate("例: combined.safetensors"))
 
         with gr.Row():
-            combine_btn = gr.Button(i18n.translate("テンソルファイルを結合"), variant="primary")
+            combine_btn = gr.Button(translate("テンソルファイルを結合"), variant="primary")
 
         with gr.Row():
-            result_output = gr.Textbox(label=i18n.translate("結果"), lines=5)
+            result_output = gr.Textbox(label=translate("結果"), lines=5)
 
         def combine_tensors(file1, file2, output_path):
             if file1 is None or file2 is None:
-                return i18n.translate("エラー: 2つのテンソルファイルを選択してください")
+                return translate("エラー: 2つのテンソルファイルを選択してください")
 
             file1_path = file1.name
             file2_path = file2.name
@@ -150,7 +150,7 @@ def create_ui():
             if success:
                 return message
             else:
-                return i18n.translate("結合失敗: {0}").format(message)
+                return translate("結合失敗: {0}").format(message)
 
         combine_btn.click(
             fn=combine_tensors,
@@ -162,11 +162,11 @@ def create_ui():
 
 def main():
     """コマンドライン引数を解析して実行"""
-    parser = argparse.ArgumentParser(description=i18n.translate("2つのsafetensorsファイルを結合するツール"))
-    parser.add_argument('--file1', type=str, help=i18n.translate("1つ目のsafetensorsファイルパス"))
-    parser.add_argument('--file2', type=str, help=i18n.translate("2つ目のsafetensorsファイルパス"))
-    parser.add_argument('--output', type=str, default=None, help=i18n.translate("出力ファイルパス (省略可能)"))
-    parser.add_argument('--ui', action='store_true', help=i18n.translate("GradioのUIモードで起動"))
+    parser = argparse.ArgumentParser(description=translate("2つのsafetensorsファイルを結合するツール"))
+    parser.add_argument('--file1', type=str, help=translate("1つ目のsafetensorsファイルパス"))
+    parser.add_argument('--file2', type=str, help=translate("2つ目のsafetensorsファイルパス"))
+    parser.add_argument('--output', type=str, default=None, help=translate("出力ファイルパス (省略可能)"))
+    parser.add_argument('--ui', action='store_true', help=translate("GradioのUIモードで起動"))
 
     args = parser.parse_args()
 
@@ -178,11 +178,11 @@ def main():
         # コマンドラインモードで実行
         success, output_path, message = combine_tensor_files(args.file1, args.file2, args.output)
         if success:
-            print(i18n.translate("結合成功:"))
+            print(translate("結合成功:"))
             print(message)
             return 0
         else:
-            print(i18n.translate("結合失敗:"))
+            print(translate("結合失敗:"))
             print(message)
             return 1
     else:

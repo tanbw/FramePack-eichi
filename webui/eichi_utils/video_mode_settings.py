@@ -7,13 +7,38 @@ FramePack-eichi 動画モード設定モジュール
 import math
 import gradio as gr
 
-from locales import i18n, i18n_extended
+from locales import i18n_extended
+from locales.i18n_extended import translate
 
 # モードタイプの定数定義
 # 内部キーを使用
-MODE_TYPE_NORMAL = i18n.translate("_KEY_MODE_NORMAL")
-MODE_TYPE_LOOP = i18n.translate("_KEY_MODE_LOOP")
+MODE_TYPE_NORMAL = translate("_KEY_MODE_NORMAL")
+MODE_TYPE_LOOP = translate("_KEY_MODE_LOOP")
 
+TRANSLATION_MAP = {
+    # 英語の翻訳マッピング
+    "1 second": "1秒",
+    "2s": "2秒",
+    "3s": "3秒",
+    "4s": "4秒",
+    "6s": "6秒",
+    "8s": "8秒",
+    "10s": "10秒",
+    "12s": "12秒",
+    "16s": "16秒",
+    "20s": "20秒",
+    # 中国語（繁体字）の翻訳マッピング
+    "1秒": "1秒",
+    "2秒": "2秒",
+    "3秒": "3秒",
+    "4秒": "4秒",
+    "6秒": "6秒",
+    "8秒": "8秒",
+    "10秒": "10秒",
+    "12秒": "12秒",
+    "16秒": "16秒",
+    "20秒": "20秒"
+}
 
 # ビデオモード設定の定義
 # このデータ構造がモード選択の中心となります
@@ -222,45 +247,19 @@ def get_video_modes():
     modes = []
     for key_suffix in ["1SEC", "2SEC", "3SEC", "4SEC", "6SEC", "8SEC", "10SEC", "12SEC", "16SEC", "20SEC"]:
         internal_key = f"_KEY_VIDEO_LENGTH_{key_suffix}"
-        translated_value = i18n.translate(internal_key)
+        translated_value = translate(internal_key)
         modes.append(translated_value)
     return modes
 
 
 def get_video_frames(mode_key):
     """モード名から総フレーム数を取得"""
-    # 翻訳文字列から元のキーへのマッピング
-    translation_map = {
-        # 英語の翻訳マッピング
-        "1 second": "1秒",
-        "2s": "2秒",
-        "3s": "3秒",
-        "4s": "4秒",
-        "6s": "6秒",
-        "8s": "8秒",
-        "10s": "10秒",
-        "12s": "12秒",
-        "16s": "16秒",
-        "20s": "20秒",
-        # 中国語（繁体字）の翻訳マッピング
-        "1秒": "1秒",
-        "2秒": "2秒",
-        "3秒": "3秒",
-        "4秒": "4秒",
-        "6秒": "6秒",
-        "8秒": "8秒",
-        "10秒": "10秒",
-        "12秒": "12秒",
-        "16秒": "16秒",
-        "20秒": "20秒"
-    }
-    
     # 翻訳されたキーを元のキーに変換
-    if mode_key in translation_map:
-        mode_key = translation_map[mode_key]
-    
+    if mode_key in TRANSLATION_MAP:
+        mode_key = TRANSLATION_MAP[mode_key]
+
     if mode_key not in VIDEO_MODE_SETTINGS:
-        raise ValueError(i18n.translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
+        raise ValueError(translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
     return VIDEO_MODE_SETTINGS[mode_key]["frames"]
 
 
@@ -269,7 +268,7 @@ def get_video_seconds(mode_key):
     # 内部キーを使用したアプローチ
     # まず、mode_keyから内部キーを取得
     internal_key = i18n_extended.get_internal_key(mode_key)
-    
+
     # 内部キーが_KEY_VIDEO_LENGTH_で始まる場合は、ストリップして秒数を取得
     if internal_key.startswith("_KEY_VIDEO_LENGTH_"):
         # 数字部分を取得 ("_KEY_VIDEO_LENGTH_10SEC" -> "10")
@@ -278,38 +277,12 @@ def get_video_seconds(mode_key):
             return float(seconds_str)
         except ValueError:
             pass
-    
+
     # 当面は当初の方法も維持
-    # 翻訳文字列から元のキーへのマッピング
-    translation_map = {
-        # 英語の翻訳マッピング
-        "1 second": "1秒",
-        "2s": "2秒",
-        "3s": "3秒",
-        "4s": "4秒",
-        "6s": "6秒",
-        "8s": "8秒",
-        "10s": "10秒",
-        "12s": "12秒",
-        "16s": "16秒",
-        "20s": "20秒",
-        # 中国語（繁体字）の翻訳マッピング
-        "1秒": "1秒",
-        "2秒": "2秒",
-        "3秒": "3秒",
-        "4秒": "4秒",
-        "6秒": "6秒",
-        "8秒": "8秒",
-        "10秒": "10秒",
-        "12秒": "12秒",
-        "16秒": "16秒",
-        "20秒": "20秒"
-    }
-    
     # 翻訳されたキーを元のキーに変換
-    if mode_key in translation_map:
-        mode_key = translation_map[mode_key]
-    
+    if mode_key in TRANSLATION_MAP:
+        mode_key = TRANSLATION_MAP[mode_key]
+
     if mode_key not in VIDEO_MODE_SETTINGS:
         # 日本語キーからリテラルに秒数を取得する試み
         try:
@@ -317,8 +290,8 @@ def get_video_seconds(mode_key):
             seconds = float(mode_key.replace("秒", ""))
             return seconds
         except (ValueError, AttributeError):
-            raise ValueError(i18n.translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
-            
+            raise ValueError(translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
+
     return VIDEO_MODE_SETTINGS[mode_key]["display_seconds"]
 
 
@@ -327,34 +300,8 @@ def get_important_keyframes(mode_key):
     # 内部キーを使用したアプローチ
     # まず、mode_keyから内部キーを取得してみる
     internal_key = i18n_extended.get_internal_key(mode_key)
-    
+
     # 当面は当初の方法も維持
-    # 翻訳文字列から元のキーへのマッピング
-    translation_map = {
-        # 英語の翻訳マッピング
-        "1 second": "1秒",
-        "2s": "2秒",
-        "3s": "3秒",
-        "4s": "4秒",
-        "6s": "6秒",
-        "8s": "8秒",
-        "10s": "10秒",
-        "12s": "12秒",
-        "16s": "16秒",
-        "20s": "20秒",
-        # 中国語（繁体字）の翻訳マッピング
-        "1秒": "1秒",
-        "2秒": "2秒",
-        "3秒": "3秒",
-        "4秒": "4秒",
-        "6秒": "6秒",
-        "8秒": "8秒",
-        "10秒": "10秒",
-        "12秒": "12秒",
-        "16秒": "16秒",
-        "20秒": "20秒"
-    }
-    
     # 内部キーが_KEY_VIDEO_LENGTH_で始まる場合は、ストリップして秒数を取得
     if internal_key.startswith("_KEY_VIDEO_LENGTH_"):
         # 数字部分を取得 ("_KEY_VIDEO_LENGTH_10SEC" -> "10")
@@ -369,11 +316,11 @@ def get_important_keyframes(mode_key):
             return [0, 1]
         except ValueError:
             pass
-    
+
     # 翻訳されたキーを元のキーに変換
-    if mode_key in translation_map:
-        mode_key = translation_map[mode_key]
-    
+    if mode_key in TRANSLATION_MAP:
+        mode_key = TRANSLATION_MAP[mode_key]
+
     if mode_key not in VIDEO_MODE_SETTINGS:
         # 日本語の動画モードが見つからない場合は、デフォルトの重要キーフレームを返す
         try:
@@ -382,45 +329,19 @@ def get_important_keyframes(mode_key):
             # デフォルトの重要キーフレームを返す
             return [0, 1]
         except (ValueError, AttributeError):
-            raise ValueError(i18n.translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
-            
+            raise ValueError(translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
+
     return VIDEO_MODE_SETTINGS[mode_key]["important_keyframes"]
 
 
 def get_total_sections(mode_key):
     """モード名からセクション数を取得"""
-    # 翻訳文字列から元のキーへのマッピング
-    translation_map = {
-        # 英語の翻訳マッピング
-        "1 second": "1秒",
-        "2s": "2秒",
-        "3s": "3秒",
-        "4s": "4秒",
-        "6s": "6秒",
-        "8s": "8秒",
-        "10s": "10秒",
-        "12s": "12秒",
-        "16s": "16秒",
-        "20s": "20秒",
-        # 中国語（繁体字）の翻訳マッピング
-        "1秒": "1秒",
-        "2秒": "2秒",
-        "3秒": "3秒",
-        "4秒": "4秒",
-        "6秒": "6秒",
-        "8秒": "8秒",
-        "10秒": "10秒",
-        "12秒": "12秒",
-        "16秒": "16秒",
-        "20秒": "20秒"
-    }
-    
     # 翻訳されたキーを元のキーに変換
-    if mode_key in translation_map:
-        mode_key = translation_map[mode_key]
-    
+    if mode_key in TRANSLATION_MAP:
+        mode_key = TRANSLATION_MAP[mode_key]
+
     if mode_key not in VIDEO_MODE_SETTINGS:
-        raise ValueError(i18n.translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
+        raise ValueError(translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
     return VIDEO_MODE_SETTINGS[mode_key]["sections"]
 
 
@@ -431,47 +352,21 @@ def get_copy_targets(mode, mode_key, keyframe_index, dynamic_sections=None):
     - セクション0(赤枠)から以降の偶数番号へのコピー
     - セクション1(青枠)から以降の奇数番号へのコピー
     """
-    # 翻訳文字列から元のキーへのマッピング
-    translation_map = {
-        # 英語の翻訳マッピング
-        "1 second": "1秒",
-        "2s": "2秒",
-        "3s": "3秒",
-        "4s": "4秒",
-        "6s": "6秒",
-        "8s": "8秒",
-        "10s": "10秒",
-        "12s": "12秒",
-        "16s": "16秒",
-        "20s": "20秒",
-        # 中国語（繁体字）の翻訳マッピング
-        "1秒": "1秒",
-        "2秒": "2秒",
-        "3秒": "3秒",
-        "4秒": "4秒",
-        "6秒": "6秒",
-        "8秒": "8秒",
-        "10秒": "10秒",
-        "12秒": "12秒",
-        "16秒": "16秒",
-        "20秒": "20秒"
-    }
-    
     # 翻訳されたキーを元のキーに変換
-    if mode_key in translation_map:
-        mode_key = translation_map[mode_key]
-    
+    if mode_key in TRANSLATION_MAP:
+        mode_key = TRANSLATION_MAP[mode_key]
+
     if mode_key not in VIDEO_MODE_SETTINGS:
-        raise ValueError(i18n.translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
+        raise ValueError(translate("Unknown video mode: {mode_key}").format(mode_key=mode_key))
 
     # 必要なセクション数を取得 - 動的に計算された値を優先
     if dynamic_sections is not None:
         sections = dynamic_sections
-        print(i18n.translate("[get_copy_targets] 動的に計算されたセクション数を使用: {sections}").format(sections=sections))
+        print(translate("[get_copy_targets] 動的に計算されたセクション数を使用: {sections}").format(sections=sections))
     else:
         # 設定からのデフォルト値を使用
         sections = VIDEO_MODE_SETTINGS[mode_key]["sections"]
-        print(i18n.translate("[get_copy_targets] 設定値からのセクション数を使用: {sections}").format(sections=sections))
+        print(translate("[get_copy_targets] 設定値からのセクション数を使用: {sections}").format(sections=sections))
 
     # 常に動的なコピーパターンを生成
     dynamic_targets = []
@@ -480,13 +375,13 @@ def get_copy_targets(mode, mode_key, keyframe_index, dynamic_sections=None):
     if keyframe_index == 0:
         # 2から始まる偶数番号を表示中のセクションまでリストに追加
         dynamic_targets = [i for i in range(2, sections) if i % 2 == 0]
-        print(i18n.translate("セクション0(赤枠)から偶数番号へのコピー: {dynamic_targets} (セクション数: {sections})").format(dynamic_targets=dynamic_targets, sections=sections))
+        print(translate("セクション0(赤枠)から偶数番号へのコピー: {dynamic_targets} (セクション数: {sections})").format(dynamic_targets=dynamic_targets, sections=sections))
 
     # セクション1(青枠)からは以降の奇数番号にコピー
     elif keyframe_index == 1:
         # 3から始まる奇数番号を表示中のセクションまでリストに追加
         dynamic_targets = [i for i in range(3, sections) if i % 2 == 1]
-        print(i18n.translate("セクション1(青枠)から奇数番号へのコピー: {dynamic_targets} (セクション数: {sections})").format(dynamic_targets=dynamic_targets, sections=sections))
+        print(translate("セクション1(青枠)から奇数番号へのコピー: {dynamic_targets} (セクション数: {sections})").format(dynamic_targets=dynamic_targets, sections=sections))
 
     return dynamic_targets
 
@@ -550,7 +445,7 @@ def generate_keyframe_guide_html():
 
     # 各モードの説明を動的に生成
     for length, settings in VIDEO_MODE_SETTINGS.items():
-        if length == i18n.translate("6秒") or length == i18n.translate("8秒"):
+        if length == translate("6秒") or length == translate("8秒"):
             continue  # 基本モードは説明不要
 
         # キーフレームを説明するためのリスト（スタイル別）
@@ -560,17 +455,17 @@ def generate_keyframe_guide_html():
         sections = settings.get("sections", 0)
 
         # 各モードのセクション数を表示
-        html += i18n.translate('<li><span style="color: #333; font-weight: bold;">{length}</span> モード: 総セクション数 <b>{sections}</b>').format(length=length, sections=sections)
+        html += translate('<li><span style="color: #333; font-weight: bold;">{length}</span> モード: 総セクション数 <b>{sections}</b>').format(length=length, sections=sections)
 
         # 偶数と奇数セクションの列挙
         even_sections = [i for i in range(sections) if i % 2 == 0]
         odd_sections = [i for i in range(sections) if i % 2 == 1]
 
         if even_sections:
-            html += i18n.translate('<br>- <span style="color: #ff3860; font-weight: bold;">赤枠セクション0</span> → 偶数セクション {even_sections}').format(even_sections=even_sections)
+            html += translate('<br>- <span style="color: #ff3860; font-weight: bold;">赤枠セクション0</span> → 偶数セクション {even_sections}').format(even_sections=even_sections)
 
         if odd_sections:
-            html += i18n.translate('<br>- <span style="color: #3273dc; font-weight: bold;">青枠セクション1</span> → 奇数セクション {odd_sections}').format(odd_sections=odd_sections)
+            html += translate('<br>- <span style="color: #3273dc; font-weight: bold;">青枠セクション1</span> → 奇数セクション {odd_sections}').format(odd_sections=odd_sections)
 
         html += '</li>'
 
@@ -702,19 +597,19 @@ def print_settings_summary(enable_debug=False):
     print("\n==== ビデオモード設定の概要 ====")
     for mode_key in VIDEO_MODE_SETTINGS:
         settings = VIDEO_MODE_SETTINGS[mode_key]
-        print(i18n.translate("\nモード: {mode_key}").format(mode_key=mode_key))
-        print(i18n.translate("  フレーム数: {frames}").format(frames=settings['frames']))
-        print(i18n.translate("  セクション数: {sections}").format(sections=settings['sections']))
-        print(i18n.translate("  表示秒数: {display_seconds}").format(display_seconds=settings['display_seconds']))
-        print(i18n.translate("  重要キーフレーム: {important_keyframes}").format(important_keyframes=settings['important_keyframes']))
-        print(i18n.translate("  コピーパターン:"))
+        print(translate("\nモード: {mode_key}").format(mode_key=mode_key))
+        print(translate("  フレーム数: {frames}").format(frames=settings['frames']))
+        print(translate("  セクション数: {sections}").format(sections=settings['sections']))
+        print(translate("  表示秒数: {display_seconds}").format(display_seconds=settings['display_seconds']))
+        print(translate("  重要キーフレーム: {important_keyframes}").format(important_keyframes=settings['important_keyframes']))
+        print(translate("  コピーパターン:"))
         for mode_type in settings["copy_patterns"]:
             print("    {mode_type}:")
             for src, targets in settings["copy_patterns"][mode_type].items():
-                print(i18n.translate("      キーフレーム{src} → {targets}").format(src=src, targets=targets))
+                print(translate("      キーフレーム{src} → {targets}").format(src=src, targets=targets))
 
     max_kf = get_max_keyframes_count()
-    print(i18n.translate("\n最大キーフレーム数: {max_kf}").format(max_kf=max_kf))
+    print(translate("\n最大キーフレーム数: {max_kf}").format(max_kf=max_kf))
     print("============================\n")
 
 

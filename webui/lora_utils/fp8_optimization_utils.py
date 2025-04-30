@@ -20,19 +20,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 # 国際化対応
-try:
-    from locales import i18n
-    HAS_I18N = True
-except ImportError:
-    HAS_I18N = False
-    print("Warning: i18n module not found, using fallback translations")
-
-# 翻訳ヘルパー関数
-def _(text):
-    """国際化対応のためのヘルパー関数"""
-    if HAS_I18N:
-        return i18n.translate(text)
-    return text
+from locales.i18n_extended import translate as _
 
 def calculate_fp8_maxval(exp_bits=4, mantissa_bits=3, sign_bits=1):
     """
@@ -218,7 +206,7 @@ def fp8_linear_forward_patch(self: nn.Linear, x, use_scaled_mm=False, max_value=
         original_weight_dtype = self.scale_weight.dtype
         weight_dtype = self.weight.dtype
         target_dtype = torch.float8_e5m2
-        
+
         # E4M3FNでない場合は通常方式にフォールバック
         # scaled_mmはFP8でもE4M3FN形式のみ対応しているため、他の形式では使用不可
         global FP8_E4M3_WARNING_SHOWN
@@ -228,7 +216,7 @@ def fp8_linear_forward_patch(self: nn.Linear, x, use_scaled_mm=False, max_value=
                 FP8_E4M3_WARNING_SHOWN = True
             # 通常の方式にフォールバック
             return fp8_linear_forward_patch(self, x, False, max_value)
-            
+
         # 入力テンソルの次元チェック
         # scaled_mmは3次元テンソル（batch_size, seq_len, hidden_dim）を想定しているため、それ以外では機能しない
         global FP8_DIMENSIONS_WARNING_SHOWN
@@ -340,17 +328,17 @@ def check_fp8_support():
     # FP8サポートのチェック
     has_e4m3 = hasattr(torch, 'float8_e4m3fn')
     has_e5m2 = hasattr(torch, 'float8_e5m2')
-    
+
     # scaled_mm サポートのチェック
     has_scaled_mm = hasattr(torch, '_scaled_mm')
-    
+
     if has_e4m3 and has_e5m2:
         print("FP8サポート検出: E4M3およびE5M2フォーマットが利用可能です")
         if has_scaled_mm:
             print("scaled_mmサポート検出: RTX 40シリーズのGPUでFP8の高速化が可能です")
     else:
         print("警告: FP8サポートが検出されませんでした。PyTorch 2.1以上が必要です")
-    
+
     return has_e4m3, has_e5m2, has_scaled_mm
 
 def reset_fp8_warning_flags():
