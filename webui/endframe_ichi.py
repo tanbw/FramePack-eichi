@@ -9,11 +9,20 @@ import random
 import time
 import subprocess
 import copy  # transformer_loraのディープコピー用
+import traceback  # デバッグログ出力用
 # クロスプラットフォーム対応のための条件付きインポート
 import yaml
 import zipfile
 
 import argparse
+
+# PNGメタデータ処理モジュールのインポート
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from eichi_utils.png_metadata import (
+    embed_metadata_to_png, extract_metadata_from_png, extract_metadata_from_numpy_array,
+    PROMPT_KEY, SEED_KEY, SECTION_PROMPT_KEY, SECTION_NUMBER_KEY
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--share', action='store_true')
@@ -263,7 +272,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     global transformer_lora_state
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
-    has_any_image = (input_image is not None)
+    print(f"[DEBUG] worker内 input_imageの型: {type(input_image)}")
+    if isinstance(input_image, str):
+        print(f"[DEBUG] input_imageはファイルパスです: {input_image}")
+        has_any_image = (input_image is not None)
+    else: 
+        print(f"[DEBUG] input_imageはファイルパス以外です")
+        has_any_image = (input_image is not None)
     last_visible_section_image = None
     last_visible_section_num = -1
 
@@ -380,14 +395,22 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             """
             section_settings: DataFrame形式のリスト [[番号, 画像, プロンプト], ...]
             → {セクション番号: (画像, プロンプト)} のdict
+            プロンプトが空の場合や画像がない場合はセクション番号も記入しない
             """
             result = {}
             if section_settings is not None:
                 for row in section_settings:
-                    if row and row[0] is not None:
+                    if row and len(row) > 0 and row[0] is not None:
+                        # 画像がない場合はスキップ
+                        if len(row) <= 1 or row[1] is None:
+                            continue
+                        
+                        # セクションプロンプトを取得
+                        prm = row[2] if len(row) > 2 and row[2] is not None else ""
+                        
+                        # セクションプロンプトが空の場合も画像があれば記入する
                         sec_num = int(row[0])
                         img = row[1]
-                        prm = row[2] if len(row) > 2 else ""
                         result[sec_num] = (img, prm)
             return result
 
@@ -516,13 +539,27 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("Image processing ...")))))
 
-        def preprocess_image(img, resolution=640):
-            """入力画像を処理して適切なサイズに変換する"""
-            if img is None:
+        def preprocess_image(img_path_or_array, resolution=640):
+            """Pathまたは画像配列を処理して適切なサイズに変換する"""
+            print(f"[DEBUG] preprocess_image: img_path_or_array型 = {type(img_path_or_array)}")
+            
+            if img_path_or_array is None:
                 # 画像がない場合は指定解像度の黒い画像を生成
                 img = np.zeros((resolution, resolution, 3), dtype=np.uint8)
                 height = width = resolution
                 return img, img, height, width
+            
+            # TensorからNumPyへ変換する必要があれば行う
+            if isinstance(img_path_or_array, torch.Tensor):
+                img_path_or_array = img_path_or_array.cpu().numpy()
+            
+            # Pathの場合はPILで画像を開く
+            if isinstance(img_path_or_array, str) and os.path.exists(img_path_or_array):
+                print(f"[DEBUG] ファイルから画像を読み込み: {img_path_or_array}")
+                img = np.array(Image.open(img_path_or_array).convert('RGB'))
+            else:
+                # NumPy配列の場合はそのまま使う
+                img = img_path_or_array
                 
             H, W, C = img.shape
             # 解像度パラメータを使用してサイズを決定
@@ -534,6 +571,20 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         input_image_np, input_image_pt, height, width = preprocess_image(input_image, resolution=resolution)
         Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
+        # 入力画像にメタデータを埋め込んで保存
+        initial_image_path = os.path.join(outputs_folder, f'{job_id}.png')
+        Image.fromarray(input_image_np).save(initial_image_path)
+        
+        # メタデータの埋め込み
+        print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
+        print(f"[DEBUG] prompt: {prompt}")
+        print(f"[DEBUG] seed: {seed}")
+        metadata = {
+            PROMPT_KEY: prompt,
+            SEED_KEY: seed
+        }
+        print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
+        embed_metadata_to_png(initial_image_path, metadata)
 
         # VAE encoding
 
@@ -959,10 +1010,38 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     last_frame = last_frame.cpu().numpy()
                     last_frame = np.clip((last_frame * 127.5 + 127.5), 0, 255).astype(np.uint8)
                     last_frame = resize_and_center_crop(last_frame, target_width=width, target_height=height)
+                    
+                    # メタデータを埋め込むための情報を収集
+                    print(f"\n[DEBUG] セクション{i_section}のメタデータ埋め込み準備")
+                    section_metadata = {
+                        PROMPT_KEY: prompt,  # メインプロンプト
+                        SEED_KEY: seed,
+                        SECTION_NUMBER_KEY: i_section
+                    }
+                    print(f"[DEBUG] 基本メタデータ: {section_metadata}")
+                    
+                    # セクション固有のプロンプトがあれば取得
+                    if section_map and i_section in section_map:
+                        _, section_prompt = section_map[i_section]
+                        if section_prompt and section_prompt.strip():
+                            section_metadata[SECTION_PROMPT_KEY] = section_prompt
+                            print(f"[DEBUG] セクションプロンプトを追加: {section_prompt}")
+                    
+                    # 画像の保存とメタデータの埋め込み
                     if is_first_section and end_frame is None:
-                        Image.fromarray(last_frame).save(os.path.join(outputs_folder, f'{job_id}_{i_section}_end.png'))
+                        frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}_end.png')
+                        print(f"[DEBUG] セクション画像パス: {frame_path}")
+                        Image.fromarray(last_frame).save(frame_path)
+                        print(f"[DEBUG] メタデータ埋め込み実行: {section_metadata}")
+                        embed_metadata_to_png(frame_path, section_metadata)
                     else:
-                        Image.fromarray(last_frame).save(os.path.join(outputs_folder, f'{job_id}_{i_section}.png'))
+                        frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}.png')
+                        print(f"[DEBUG] セクション画像パス: {frame_path}")
+                        Image.fromarray(last_frame).save(frame_path)
+                        print(f"[DEBUG] メタデータ埋め込み実行: {section_metadata}")
+                        embed_metadata_to_png(frame_path, section_metadata)
+                    
+                    print(translate("\u2713 セクション{0}のフレーム画像をメタデータ付きで保存しました").format(i_section))
                 except Exception as e:
                     print(translate("[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
 
@@ -1617,9 +1696,15 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     # 先に入力データの状態をログ出力（デバッグ用）
     if input_image is not None:
-        print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
+        if isinstance(input_image, str):
+            print(translate("[DEBUG] input_image path: {0}, type: {1}").format(input_image, type(input_image)))
+        else:
+            print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
     if end_frame is not None:
-        print(translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
+        if isinstance(end_frame, str):
+            print(translate("[DEBUG] end_frame path: {0}, type: {1}").format(end_frame, type(end_frame)))
+        else:
+            print(translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
     if section_settings is not None:
         print(translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
         valid_images = sum(1 for s in section_settings if s and s[1] is not None)
@@ -1709,7 +1794,52 @@ with block:
         with gr.Column():
             # Final Frameの上に説明を追加
             gr.Markdown(translate("**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**"))
-            end_frame = gr.Image(sources='upload', type="numpy", label=translate("Final Frame (Optional)"), height=320)
+            end_frame = gr.Image(sources='upload', type="filepath", label=translate("Final Frame (Optional)"), height=320)
+            
+            # End Frame画像のアップロード時のメタデータ抽出機能は一旦コメント化
+            # def update_from_end_frame_metadata(image):
+            #     """End Frame画像からメタデータを抽出してUIに反映する"""
+            #     if image is None:
+            #         return [gr.update()] * 2
+            #     
+            #     try:
+            #         # NumPy配列からメタデータを抽出
+            #         metadata = extract_metadata_from_numpy_array(image)
+            #         
+            #         if not metadata:
+            #             print(translate("End Frame画像にメタデータが含まれていません"))
+            #             return [gr.update()] * 2
+            #         
+            #         print(translate("End Frame画像からメタデータを抽出しました: {0}").format(metadata))
+            #         
+            #         # プロンプトとSEEDをUIに反映
+            #         prompt_update = gr.update()
+            #         seed_update = gr.update()
+            #         
+            #         if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
+            #             prompt_update = gr.update(value=metadata[PROMPT_KEY])
+            #             print(translate("プロンプトをEnd Frame画像から取得: {0}").format(metadata[PROMPT_KEY]))
+            #         
+            #         if SEED_KEY in metadata and metadata[SEED_KEY]:
+            #             # SEED値を整数に変換
+            #             try:
+            #                 seed_value = int(metadata[SEED_KEY])
+            #                 seed_update = gr.update(value=seed_value)
+            #                 print(translate("SEED値をEnd Frame画像から取得: {0}").format(seed_value))
+            #             except (ValueError, TypeError):
+            #                 print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
+            #         
+            #         return [prompt_update, seed_update]
+            #     except Exception as e:
+            #         print(translate("End Frameメタデータ抽出エラー: {0}").format(e))
+            #         return [gr.update()] * 2
+            # 
+            # # End Frame画像アップロード時のメタデータ取得処理を登録
+            # end_frame.change(
+            #     fn=update_from_end_frame_metadata,
+            #     inputs=[end_frame],
+            #     outputs=[prompt, seed]
+            # )
 
             # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
             with gr.Group():
@@ -1794,6 +1924,15 @@ with block:
             # 初期タイトルを計算
             initial_title = update_section_title(translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, translate("1秒"))
 
+            # 埋め込みプロンプトおよびシードを複写するチェックボックスの定義
+            # グローバル変数として定義し、後で他の場所から参照できるようにする
+            global copy_metadata
+            copy_metadata = gr.Checkbox(
+                label=translate("埋め込みプロンプトおよびシードを複写する"), 
+                value=False, 
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+            )
+
             with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
                 # セクション情報zipファイルアップロード処理を追加
                 with gr.Group():
@@ -1816,7 +1955,64 @@ with block:
 
                             # 右側にキーフレーム画像のみ配置
                             with gr.Column(scale=2):
-                                section_image = gr.Image(label=translate("キーフレーム画像 {0}").format(i), sources="upload", type="numpy", height=200)
+                                section_image = gr.Image(label=translate("キーフレーム画像 {0}").format(i), sources="upload", type="filepath", height=200)
+                                
+                                # 各キーフレーム画像のアップロード時のメタデータ抽出処理
+                                # クロージャーで現在のセクション番号を捕捉
+                                def create_section_metadata_handler(section_idx, section_prompt_input):
+                                    def update_from_section_image_metadata(image_path, copy_enabled=False):
+                                        print(f"\n[DEBUG] セクション{section_idx}の画像メタデータ抽出処理が開始されました")
+                                        print(f"[DEBUG] メタデータ複写機能: {copy_enabled}")
+                                        
+                                        # 複写機能が無効の場合は何もしない
+                                        if not copy_enabled:
+                                            print(f"[DEBUG] セクション{section_idx}: メタデータ複写機能が無効化されているため、処理をスキップします")
+                                            return gr.update()
+                                        
+                                        if image_path is None:
+                                            print(f"[DEBUG] セクション{section_idx}の画像パスがNoneです")
+                                            return gr.update()
+                                        
+                                        print(f"[DEBUG] セクション{section_idx}の画像パス: {image_path}")
+                                        
+                                        try:
+                                            # ファイルパスから直接メタデータを抽出
+                                            print(f"[DEBUG] セクション{section_idx}からextract_metadata_from_pngを直接呼び出し")
+                                            metadata = extract_metadata_from_png(image_path)
+                                            
+                                            if not metadata:
+                                                print(f"[DEBUG] セクション{section_idx}の画像からメタデータが抽出されませんでした")
+                                                return gr.update()
+                                            
+                                            print(f"[DEBUG] セクション{section_idx}の抽出されたメタデータ: {metadata}")
+                                            
+                                            # セクションプロンプトを取得
+                                            if SECTION_PROMPT_KEY in metadata and metadata[SECTION_PROMPT_KEY]:
+                                                section_prompt_value = metadata[SECTION_PROMPT_KEY]
+                                                print(f"[DEBUG] セクション{section_idx}のプロンプトを画像から取得: {section_prompt_value}")
+                                                print(translate("セクション{0}のプロンプトを画像から取得: {1}").format(section_idx, section_prompt_value))
+                                                return gr.update(value=section_prompt_value)
+                                            
+                                            # 通常のプロンプトがあればそれをセクションプロンプトに設定
+                                            elif PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
+                                                prompt_value = metadata[PROMPT_KEY]
+                                                print(f"[DEBUG] セクション{section_idx}のプロンプトを画像の一般プロンプトから取得: {prompt_value}")
+                                                print(translate("セクション{0}のプロンプトを画像の一般プロンプトから取得: {1}").format(section_idx, prompt_value))
+                                                return gr.update(value=prompt_value)
+                                        except Exception as e:
+                                            print(f"[ERROR] セクション{section_idx}のメタデータ抽出エラー: {e}")
+                                            traceback.print_exc()
+                                            print(translate("セクション{0}のメタデータ抽出エラー: {1}").format(section_idx, e))
+                                        
+                                        return gr.update()
+                                    return update_from_section_image_metadata
+                                
+                                # キーフレーム画像アップロード時のメタデータ取得処理を登録
+                                section_image.change(
+                                    fn=create_section_metadata_handler(i, section_prompt),
+                                    inputs=[section_image, copy_metadata],
+                                    outputs=[section_prompt]
+                                )
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
                             section_prompt_inputs.append(section_prompt)
@@ -1902,7 +2098,70 @@ with block:
                         outputs=[section_image_inputs[0], section_image_inputs[1]]
                     )
 
-            input_image = gr.Image(sources='upload', type="numpy", label="Image", height=320)
+            input_image = gr.Image(sources='upload', type="filepath", label="Image", height=320)
+
+            # メタデータ抽出関数を定義（後で登録する）
+            def update_from_image_metadata(image_path, copy_enabled=False):
+                """Imageアップロード時にメタデータを抽出してUIに反映する
+                copy_enabled: メタデータの複写が有効化されているかどうか
+                """
+                print("\n[DEBUG] update_from_image_metadata関数が実行されました")
+                print(f"[DEBUG] メタデータ複写機能: {copy_enabled}")
+                
+                # 複写機能が無効の場合は何もしない
+                if not copy_enabled:
+                    print("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします")
+                    return [gr.update()] * 2
+                
+                if image_path is None:
+                    print("[DEBUG] image_pathはNoneです")
+                    return [gr.update()] * 2
+                
+                print(f"[DEBUG] 画像パス: {image_path}")
+                
+                try:
+                    # ファイルパスから直接メタデータを抽出
+                    print("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します")
+                    metadata = extract_metadata_from_png(image_path)
+                    
+                    if not metadata:
+                        print("[DEBUG] メタデータが抽出されませんでした")
+                        print(translate("アップロードされた画像にメタデータが含まれていません"))
+                        return [gr.update()] * 2
+                    
+                    print(f"[DEBUG] メタデータサイズ: {len(metadata)}, 内容: {metadata}")
+                    print(translate("画像からメタデータを抽出しました: {0}").format(metadata))
+                    
+                    # プロンプトとSEEDをUIに反映
+                    prompt_update = gr.update()
+                    seed_update = gr.update()
+                    
+                    if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
+                        prompt_update = gr.update(value=metadata[PROMPT_KEY])
+                        print(f"[DEBUG] プロンプトを更新: {metadata[PROMPT_KEY]}")
+                        print(translate("プロンプトを画像から取得: {0}").format(metadata[PROMPT_KEY]))
+                    
+                    if SEED_KEY in metadata and metadata[SEED_KEY]:
+                        # SEED値を整数に変換
+                        try:
+                            seed_value = int(metadata[SEED_KEY])
+                            seed_update = gr.update(value=seed_value)
+                            print(f"[DEBUG] SEED値を更新: {seed_value}")
+                            print(translate("SEED値を画像から取得: {0}").format(seed_value))
+                        except (ValueError, TypeError):
+                            print(f"[DEBUG] SEED値の変換エラー: {metadata[SEED_KEY]}")
+                            print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
+                    
+                    print(f"[DEBUG] 更新結果: prompt_update={prompt_update}, seed_update={seed_update}")
+                    return [prompt_update, seed_update]
+                except Exception as e:
+                    print(f"[ERROR] メタデータ抽出処理中のエラー: {e}")
+                    traceback.print_exc()
+                    print(translate("メタデータ抽出エラー: {0}").format(e))
+                    return [gr.update()] * 2
+            
+            # 注意: イベント登録は変数定義後に行うため、後で実行する
+            # メタデータ抽出処理の登録は、promptとseed変数の定義後に移動します
 
             # LoRA設定グループを追加
             with gr.Group(visible=has_lora_support) as lora_settings_group:
@@ -2362,6 +2621,59 @@ with block:
 
             n_prompt = gr.Textbox(label=translate("Negative Prompt"), value="", visible=False)  # Not used
             seed = gr.Number(label=translate("Seed"), value=seed_default, precision=0)
+
+            # ここで、メタデータ取得処理の登録を移動する
+            # ここでは、promptとseedの両方が定義済み
+            input_image.change(
+                fn=update_from_image_metadata,
+                inputs=[input_image, copy_metadata],
+                outputs=[prompt, seed]
+            )
+            
+            # チェックボックスの変更時に再読み込みを行う
+            def check_metadata_on_checkbox_change(copy_enabled, image_path):
+                if not copy_enabled or image_path is None:
+                    return [gr.update()] * 2
+                # チェックボックスオン時に、画像があれば再度メタデータを読み込む
+                return update_from_image_metadata(image_path, copy_enabled)
+            
+            # セクション画像のメタデータをチェックボックス変更時に再読み込みする関数
+            def update_section_metadata_on_checkbox_change(copy_enabled, *section_images):
+                if not copy_enabled:
+                    # チェックボックスがオフの場合は何もしない
+                    return [gr.update()] * max_keyframes
+                
+                # 各セクションの画像があれば、それぞれのメタデータを再取得する
+                updates = []
+                for i, section_image in enumerate(section_images):
+                    if section_image is not None:
+                        # セクションメタデータハンドラを直接利用してメタデータを取得
+                        # 前に定義したハンドラを再利用するため、仮引数としてNoneを設定
+                        handler = create_section_metadata_handler(i, None)
+                        # メタデータを取得
+                        update = handler(section_image, copy_enabled)
+                        updates.append(update)
+                    else:
+                        updates.append(gr.update())
+                
+                # 不足分を追加
+                while len(updates) < max_keyframes:
+                    updates.append(gr.update())
+                
+                return updates[:max_keyframes]
+                
+            copy_metadata.change(
+                fn=check_metadata_on_checkbox_change,
+                inputs=[copy_metadata, input_image],
+                outputs=[prompt, seed]
+            )
+            
+            # セクション画像のメタデータを再読み込みするイベントを追加
+            copy_metadata.change(
+                fn=update_section_metadata_on_checkbox_change,
+                inputs=[copy_metadata] + section_image_inputs,
+                outputs=section_prompt_inputs
+            )
 
             def set_random_seed(is_checked):
                 if is_checked:
