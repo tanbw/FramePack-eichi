@@ -230,6 +230,53 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
    python endframe_ichi.py  # 以日語啟動（預設）
    ```
 
+#### Docker 安裝
+FramePack-eichi 可以通過 Docker 輕鬆設置，在不同系統之間提供一致的環境。
+
+##### Docker 安裝前提條件
+- 系統已安裝 Docker
+- 系統已安裝 Docker Compose
+- NVIDIA GPU（至少 8GB VRAM，推薦 RTX 30/40 系列）
+
+##### Docker 設置步驟
+1. **語言選擇**:
+   Docker 容器默認以英文啟動。您可以通過修改 `docker-compose.yml` 中的 `command` 參數來更改：
+   ```yaml
+   # 日文：
+   command: ["--lang", "ja"]
+   
+   # 繁體中文：
+   command: ["--lang", "zh-tw"]
+   
+   # 英文（默認）：
+   command: ["--lang", "en"]
+   ```
+
+2. **構建並啟動容器**:
+   ```bash
+   # 構建容器（首次或 Dockerfile 更改後）
+   docker-compose build
+   
+   # 啟動容器
+   docker-compose up
+   ```
+   
+   要在後台運行（分離模式）：
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **訪問 Web 界面**:
+   容器運行後，通過以下地址訪問 Web 界面：
+   ```
+   http://localhost:7861
+   ```
+
+4. **首次運行注意事項**:
+   - 首次運行時，容器將下載必要的模型（約 30GB）
+   - 初始啟動期間可能會看到「h11 錯誤」（請參閱故障排除部分）
+   - 如果您已經下載了模型，請將它們放在 `./models` 目錄中
+
 #### Linux安裝方法
 
 在Linux上，可以按照以下步驟執行：
