@@ -641,6 +641,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             if transformer_lora_state.is_lora_loaded(lora_path):
                 print(translate("LoRAはすでに適用されています: {0}").format(lora_path))
             else:
+                if not transformer_lora_state.is_lora_loaded(None):
+                    print(translate("transformerをリロードした後にLoRAを適用します: {0}").format(lora_path))
+                    reload_transformer_model()
                 try:
                     # 明示的な同期ポイントの追加
                     if torch.cuda.is_available():
