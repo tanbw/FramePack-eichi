@@ -10,6 +10,8 @@ import time
 import subprocess
 import copy  # transformer_loraのディープコピー用
 # クロスプラットフォーム対応のための条件付きインポート
+import yaml
+import zipfile
 
 import argparse
 
@@ -35,6 +37,7 @@ import traceback
 from datetime import datetime, timedelta
 
 os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
+temp_dir = "./temp_for_zip_section_info"
 
 # LoRAサポートの確認
 has_lora_support = False
@@ -1792,6 +1795,11 @@ with block:
             initial_title = update_section_title(translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, translate("1秒"))
 
             with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
+                # セクション情報zipファイルアップロード処理を追加
+                with gr.Group():
+                    gr.Markdown("### セクション情報一括アップロード")
+                    upload_zipfile = gr.File(label="セクション情報アップロードファイル", file_types=[".zip"], interactive=True)
+
                 with gr.Group(elem_classes="section-container"):
                     section_title = gr.Markdown(initial_title)
 
@@ -2204,6 +2212,124 @@ with block:
                         # 条件に合わない場合
                         return gr.update()
                     return handle_single_keyframe
+
+                # アップロードファイルの内容を各セクション、end_frame、start_frameに反映する関数
+                def upload_zipfile_handler(file):
+                    if file is None:
+                        # ×で削除した場合、全セクションをクリア
+                        gr_outputs = []
+                        for i in range(0, max_keyframes):
+                            # gradio入力フォームの登録順に追加すること
+                            gr_outputs.append(i)
+                            gr_outputs.append("")
+                            gr_outputs.append(None)
+                        # end_frame
+                        gr_outputs.append(None)
+                        # start_frame
+                        gr_outputs.append(None)
+                        return gr_outputs
+                    else:
+                        # 一時ディレクトリで処理
+                        # temp_dir配下のフォルダを削除（前回アップロードファイルをクリア）
+                        if os.path.exists(temp_dir):
+                            for root, dirs, files in os.walk(temp_dir, topdown=False):
+                                for name in files:
+                                    os.remove(os.path.join(root, name))
+                                for name in dirs:
+                                    os.rmdir(os.path.join(root, name))
+                            os.rmdir(temp_dir)
+                        # zip展開
+                        with zipfile.ZipFile(file.name, "r") as zip_ref:
+                            zip_ref.extractall(temp_dir)
+                        # 展開されたファイルをフルパスでリストアップ
+                        extracted_files = []
+                        for root, dirs, files in os.walk(temp_dir):
+                            if len(files) > 0:
+                                extracted_files.extend([os.path.join(root, f) for f in files])
+                                break
+                            elif len(dirs) > 0:
+                                zdir0 = os.path.join(root, dirs[0])
+                                extracted_files.extend([os.path.join(zdir0, f) for f in os.listdir(zdir0)])
+                                break
+
+                        # 展開されたファイルのリストを表示
+                        # print("展開されたファイル:")
+                        # print("  - " + "\n  - ".join(extracted_files))
+
+                        # プロンプトファイルを取得（1つのみ）
+                        prompt_file = [f for f in extracted_files if f.endswith("sections.yml") or f.endswith("sections.yaml")][0]
+
+                        # 画像ファイルを取得
+                        image_files = [f for f in extracted_files if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp"))]
+                        # セクション用画像のファイルを取得しソートする。ファイル名は3桁の0始まりの数字とする。
+                        section_image_files = sorted([f for f in image_files if os.path.basename(f)[:3].isdigit()])
+                        # end_frame、start_frame向けの画像ファイルを取得
+                        end_frame_image_from_zip = None
+                        start_frame_image_from_zip = None
+                        end_files = [f for f in image_files if os.path.basename(f).lower().startswith("end")]
+                        if len(end_files) > 0:
+                            end_frame_image_from_zip = end_files[0]
+                        start_files = [f for f in image_files if os.path.basename(f).lower().startswith("start")]
+                        if len(start_files) > 0:
+                            start_frame_image_from_zip = start_files[0]
+
+                        # プロンプトファイルを読み込んでセクションプロンプトに設定
+                        with open(prompt_file, "r", encoding="utf-8") as file:
+                            prompt_data = yaml.safe_load(file)
+
+                        # セクション入力情報（zipファイルから取得した情報）
+                        section_number_list_from_zip = []
+                        section_image_list_from_zip = []
+                        section_prompt_list_from_zip = []
+
+                        # yamlファイルのsection_infoからプロンプトを抽出してリスト化
+                        for section_num in range(0, max_keyframes):
+                            section_number_list_from_zip.append(section_num)
+                            section_prompt_list_from_zip.append(next((section["prompt"] for section in prompt_data.get("section_info", []) if section.get("section") == section_num), ""))
+                            # image_filesからファイル名の先頭番号を抽出して補間
+                            image_file_map = {
+                                int(os.path.basename(img_file)[:3]): img_file for img_file in section_image_files
+                            }
+                            for section_num in section_number_list_from_zip:
+                                if section_num not in image_file_map:
+                                    # セクション番号に対応する画像がない場合は補間
+                                    image_file_map[section_num] = None
+                            # セクション番号順にソートしてリスト化
+                            section_image_list_from_zip = [image_file_map[section_num] for section_num in section_number_list_from_zip]
+                        print("sections.yamlファイルに従ってセクションに設定します。")
+
+                        # セクションの入力順にする（セクション番号、セクションプロンプト、キーフレーム画像）
+                        # 注意：この方式で画像ファイルを更新すると、gradioのtempフォルダへのアップロードは行われず、指定したファイルパス（temp_dir配下）を直接参照する
+                        gr_outputs = []
+                        for i in range(0, max_keyframes):
+                            gr_outputs.append(section_number_list_from_zip[i])
+                            gr_outputs.append(section_prompt_list_from_zip[i])
+                            gr_outputs.append(section_image_list_from_zip[i])
+                        # end_frameを設定
+                        if end_frame_image_from_zip:
+                            gr_outputs.append(end_frame_image_from_zip)
+                        else:
+                            gr_outputs.append(None)
+                        # start_frameを設定
+                        if start_frame_image_from_zip:
+                            gr_outputs.append(start_frame_image_from_zip)
+                        else:
+                            gr_outputs.append(None)
+
+                        # セクションにzipの内容を設定
+                        return gr_outputs
+
+                # ファイルアップロード時のセクション変更
+                gr_outputs = []
+                for i in range(0, max_keyframes):
+                    gr_outputs.append(section_number_inputs[i])
+                    gr_outputs.append(section_prompt_inputs[i])
+                    gr_outputs.append(section_image_inputs[i])
+                # end_frameを設定
+                gr_outputs.append(end_frame)
+                # start_frameを設定
+                gr_outputs.append(input_image)
+                upload_zipfile.change(fn=upload_zipfile_handler, inputs=[upload_zipfile], outputs=gr_outputs)
 
                 # 各キーフレームについて、影響を受ける可能性のある後続のキーフレームごとに個別のイベントを設定
                 # ここではイベント登録の定義のみ行い、実際の登録はUIコンポーネント定義後に行う
