@@ -251,6 +251,56 @@ First, you need to install the original FramePack.
    python endframe_ichi.py  # Start in Japanese (default)
    ```
 
+#### Docker Installation
+
+FramePack-eichi can be easily set up using Docker, which provides a consistent environment across different systems.
+
+##### Prerequisites for Docker Installation
+
+- Docker installed on your system
+- Docker Compose installed on your system
+- NVIDIA GPU with at least 8GB VRAM (RTX 30/40 series recommended)
+
+##### Docker Setup Steps
+
+1. **Language Selection**:
+   The Docker container is configured to start with English by default. You can change this by modifying the `command` parameter in `docker-compose.yml`:
+   ```yaml
+   # For Japanese:
+   command: ["--lang", "ja"]
+   
+   # For Traditional Chinese:
+   command: ["--lang", "zh-tw"]
+   
+   # For English (default):
+   command: ["--lang", "en"]
+   ```
+
+2. **Build and Start the Container**:
+   ```bash
+   # Build the container (first time or after Dockerfile changes)
+   docker-compose build
+   
+   # Start the container
+   docker-compose up
+   ```
+   
+   To run in the background (detached mode):
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Access the Web UI**:
+   Once the container is running, access the web interface at:
+   ```
+   http://localhost:7861
+   ```
+
+4. **First Run Notes**:
+   - On first run, the container will download necessary models (~30GB)
+   - You may see "h11 errors" during initial startup (see Troubleshooting section)
+   - If you already have models downloaded, place them in the `./models` directory
+
 #### Linux Installation
 
 On Linux, you can run it with the following steps:
@@ -356,6 +406,25 @@ There are issues with videos not displaying in some browsers (especially Firefox
 - Cause: Video codec setting issue in `\framepack\webui\diffusers_helper\utils.py`
 
 **This issue has been resolved by merging the MP4 Compression feature from the original project**
+
+### Docker-Specific Troubleshooting
+
+When using the Docker container:
+
+1. **GPU Not Detected**: 
+   - Ensure NVIDIA Container Toolkit is installed
+   - Verify your GPU is compatible (minimum 8GB VRAM)
+   - Check that the driver in your docker-compose.yml matches your installed NVIDIA driver
+
+2. **Container Crashes on Start**:
+   - Check Docker logs: `docker-compose logs`
+   - Ensure your system has enough disk space for the models (~30GB)
+   - Verify host system has sufficient RAM (minimum 16GB recommended)
+
+3. **Access Issues**:
+   - Make sure port 7861 is not being used by another application
+   - Try accessing with http://localhost:7861 (not https)
+   - If using a remote system, ensure the firewall allows access to port 7861
 
 ## 🤝 Acknowledgements
 
