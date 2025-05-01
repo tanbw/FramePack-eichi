@@ -265,7 +265,7 @@ def reload_transformer_model():
 # v1.9.1テスト実装
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
 
     # グローバル変数で状態管理している変数を宣言する
     global transformer
@@ -362,7 +362,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     # セクション数を全セクション数として保存
     total_sections = total_latent_sections
 
-    job_id = generate_timestamp()
+    # 現在のバッチ番号が指定されていれば使用する
+    batch_suffix = f"_batch{batch_index+1}" if batch_index is not None else ""
+    job_id = generate_timestamp() + batch_suffix
 
     # セクション处理の詳細ログを出力
     if use_all_padding:
@@ -1604,8 +1606,12 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1):
     global stream
+    global batch_stopped
+    
+    # バッチ処理開始時に停止フラグをリセット
+    batch_stopped = False
 
     # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
 
@@ -1619,6 +1625,10 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         latent_window_size = 9
         print(translate('フレームサイズを1秒モードに設定: latent_window_size = {0}').format(latent_window_size))
 
+    # バッチ処理回数を確認し、詳細を出力
+    batch_count = max(1, min(int(batch_count), 100))  # 1〜100の間に制限
+    print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+    
     # 下のように修正：解像度を安全な値に丸めてログ表示
     from diffusers_helper.bucket_tools import SAFE_RESOLUTIONS
     if resolution not in SAFE_RESOLUTIONS:
@@ -1646,6 +1656,8 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     print(translate("\u25c6 生成セクション数: {0}回").format(total_latent_sections))
     print(translate("\u25c6 サンプリングステップ数: {0}").format(steps))
     print(translate("\u25c6 TeaCache使用: {0}").format(use_teacache))
+    # TeaCache使用の直後にSEED値の情報を表示
+    print(translate("\u25c6 使用SEED値: {0}").format(seed))
     print(translate("\u25c6 LoRA使用: {0}").format(use_lora))
 
     # FP8最適化設定のログ出力
@@ -1676,66 +1688,182 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     print("=============================\n")
 
+    # バッチ処理の全体停止用フラグ
+    batch_stopped = False
+
+    # 元のシード値を保存（バッチ処理用）
+    original_seed = seed
+    
     if use_random_seed:
         seed = random.randint(0, 2**32 - 1)
         # UIのseed欄もランダム値で更新
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update(value=seed)
+        # ランダムシードの場合は最初の値を更新
+        original_seed = seed
     else:
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
     stream = AsyncStream()
+    
+    # stream作成後、バッチ処理前もう一度フラグを確認
+    if batch_stopped:
+        print(translate("\nバッチ処理が中断されました（バッチ開始前）"))
+        yield (
+            None, 
+            gr.update(visible=False), 
+            translate("バッチ処理が中断されました"), 
+            '', 
+            gr.update(interactive=True), 
+            gr.update(interactive=False, value=translate("End Generation")), 
+            gr.update()
+        )
+        return
+    
+    # バッチ処理ループの開始
+    for batch_index in range(batch_count):
+        # 停止フラグが設定されている場合は全バッチ処理を中止
+        if batch_stopped:
+            print(translate("\nバッチ処理がユーザーによって中止されました"))
+            yield (
+                None, 
+                gr.update(visible=False), 
+                translate("バッチ処理が中止されました。"), 
+                '', 
+                gr.update(interactive=True), 
+                gr.update(interactive=False, value=translate("End Generation")), 
+                gr.update()
+            )
+            break
+            
+        # 現在のバッチ番号を表示
+        if batch_count > 1:
+            batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
+            print(f"\n{batch_info}")
+            # UIにもバッチ情報を表示
+            yield None, gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True), gr.update()
+            
+        # バッチインデックスに応じてSEED値を設定
+        current_seed = original_seed + batch_index
+        if batch_count > 1:
+            print(translate("現在のSEED値: {0}").format(current_seed))
+        # 現在のバッチ用のシードを設定
+        seed = current_seed
+        
+        # もう一度停止フラグを確認 - worker処理実行前
+        if batch_stopped:
+            print(translate("バッチ処理が中断されました。worker関数の実行をキャンセルします。"))
+            # 中断メッセージをUIに表示
+            yield (None, 
+                   gr.update(visible=False), 
+                   translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index, batch_count), 
+                   '',
+                   gr.update(interactive=True), 
+                   gr.update(interactive=False, value=translate("End Generation")), 
+                   gr.update())
+            break
 
-    # GPUメモリの設定値をデバッグ出力し、正しい型に変換
-    gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
-    print(translate('Using GPU memory preservation setting: {0} GB').format(gpu_memory_value))
+        # GPUメモリの設定値をデバッグ出力し、正しい型に変換
+        gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
+        print(translate('Using GPU memory preservation setting: {0} GB').format(gpu_memory_value))
 
-    # 出力フォルダが空の場合はデフォルト値を使用
-    if not output_dir or not output_dir.strip():
-        output_dir = "outputs"
-    print(translate('Output directory: {0}').format(output_dir))
+        # 出力フォルダが空の場合はデフォルト値を使用
+        if not output_dir or not output_dir.strip():
+            output_dir = "outputs"
+        print(translate('Output directory: {0}').format(output_dir))
 
-    # 先に入力データの状態をログ出力（デバッグ用）
-    if input_image is not None:
-        if isinstance(input_image, str):
-            print(translate("[DEBUG] input_image path: {0}, type: {1}").format(input_image, type(input_image)))
-        else:
-            print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
-    if end_frame is not None:
-        if isinstance(end_frame, str):
-            print(translate("[DEBUG] end_frame path: {0}, type: {1}").format(end_frame, type(end_frame)))
-        else:
-            print(translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
-    if section_settings is not None:
-        print(translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
-        valid_images = sum(1 for s in section_settings if s and s[1] is not None)
-        print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
+        # 先に入力データの状態をログ出力（デバッグ用）
+        if input_image is not None:
+            if isinstance(input_image, str):
+                print(translate("[DEBUG] input_image path: {0}, type: {1}").format(input_image, type(input_image)))
+            else:
+                print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
+        if end_frame is not None:
+            if isinstance(end_frame, str):
+                print(translate("[DEBUG] end_frame path: {0}, type: {1}").format(end_frame, type(end_frame)))
+            else:
+                print(translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
+        if section_settings is not None:
+            print(translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
+            valid_images = sum(1 for s in section_settings if s and s[1] is not None)
+            print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
 
-    async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution)
+        # バッチ処理の各回で実行
+        async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_index)
 
-    output_filename = None
+        # 現在のバッチの出力ファイル名
+        batch_output_filename = None
 
-    while True:
-        flag, data = stream.output_queue.next()
+        # 現在のバッチの処理結果を取得
+        while True:
+            flag, data = stream.output_queue.next()
 
-        if flag == 'file':
-            output_filename = data
-            # より明確な更新方法を使用し、preview_imageを明示的にクリア
-            yield output_filename, gr.update(value=None, visible=False), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True), gr.update()
+            if flag == 'file':
+                batch_output_filename = data
+                # より明確な更新方法を使用し、preview_imageを明示的にクリア
+                yield batch_output_filename, gr.update(value=None, visible=False), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
-        if flag == 'progress':
-            preview, desc, html = data
-            # preview_imageを明示的に設定
-            yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True), gr.update()
+            if flag == 'progress':
+                preview, desc, html = data
+                # バッチ処理中は現在のバッチ情報を追加
+                if batch_count > 1:
+                    batch_info = translate("バッチ処理: {0}/{1} - ").format(batch_index + 1, batch_count)
+                    desc = batch_info + desc
+                # preview_imageを明示的に設定
+                yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
-        if flag == 'end':
-            # 処理終了時に明示的にpreview_imageをクリア
-            # 出力ファイル名と処理完了メッセージを返す
-            yield output_filename, gr.update(value=None, visible=False), gr.update(), '', gr.update(interactive=True), gr.update(interactive=False), gr.update()
+            if flag == 'end':
+                # このバッチの処理が終了
+                if batch_index == batch_count - 1 or batch_stopped:
+                    # 最終バッチの場合は処理完了を通知
+                    completion_message = ""
+                    if batch_stopped:
+                        completion_message = translate("バッチ処理が中止されました（{0}/{1}）").format(batch_index + 1, batch_count)
+                    else:
+                        completion_message = translate("バッチ処理が完了しました（{0}/{1}）").format(batch_count, batch_count)
+                    yield (
+                        batch_output_filename, 
+                        gr.update(value=None, visible=False), 
+                        completion_message, 
+                        '', 
+                        gr.update(interactive=True), 
+                        gr.update(interactive=False, value=translate("End Generation")), 
+                        gr.update()
+                    )
+                else:
+                    # 次のバッチに進むメッセージを表示
+                    next_batch_message = translate("バッチ処理: {0}/{1} 完了、次のバッチに進みます...").format(batch_index + 1, batch_count)
+                    yield (
+                        batch_output_filename, 
+                        gr.update(value=None, visible=False), 
+                        next_batch_message, 
+                        '', 
+                        gr.update(interactive=False), 
+                        gr.update(interactive=True), 
+                        gr.update()
+                    )
+                break
+        
+        # 最終的な出力ファイル名を更新
+        output_filename = batch_output_filename
+        
+        # バッチ処理が停止されている場合はループを抜ける
+        if batch_stopped:
+            print(translate("バッチ処理ループを中断します"))
             break
 
 
 def end_process():
+    global stream
+    global batch_stopped
+    
+    # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
+    batch_stopped = True
+    print(translate("\n停止ボタンが押されました。バッチ処理を停止します..."))
+    # 現在実行中のバッチを停止
     stream.input_queue.push('end')
+    
+    # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
+    return gr.update(value=translate("停止処理中..."))
 
 
 
@@ -1868,16 +1996,27 @@ with block:
                     outputs=[tensor_data_group]
                 )
                 
-            # テンソルデータ設定の下に解像度スライダーを追加
+            # テンソルデータ設定の下に解像度スライダーとバッチ処理回数を追加
             with gr.Group():
-                resolution = gr.Slider(
-                    label=translate("解像度"), 
-                    minimum=512, 
-                    maximum=768, 
-                    value=640, 
-                    step=128, 
-                    info=translate("出力動画の基準解像度。現在は512か640か768のいずれかのみ対応（640推奨）")
-                )
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        resolution = gr.Slider(
+                            label=translate("解像度"), 
+                            minimum=512, 
+                            maximum=768, 
+                            value=640, 
+                            step=128, 
+                            info=translate("出力動画の基準解像度。現在は512か640か768のいずれかのみ対応（640推奨）")
+                        )
+                    with gr.Column(scale=1):
+                        batch_count = gr.Slider(
+                            label=translate("バッチ処理回数"), 
+                            minimum=1, 
+                            maximum=100, 
+                            value=1, 
+                            step=1, 
+                            info=translate("同じ設定で連続生成する回数。SEEDは各回で+1されます")
+                        )
 
             # 開始・終了ボタン
             with gr.Row():
@@ -2810,6 +2949,10 @@ with block:
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
         input_img = args[0]  # 入力の最初が入力画像
         section_settings = args[24]  # section_settings引数のインデックス
+        batch_count = args[29] if len(args) > 29 else 1  # バッチ処理回数のインデックス
+        
+        # バッチ回数を有効な範囲に制限
+        batch_count = max(1, min(int(batch_count), 100))
         
         # section_settingsがブール値の場合は空のリストで初期化
         if isinstance(section_settings, bool):
@@ -2825,17 +2968,23 @@ with block:
             return
 
         # 画像がある場合は通常の処理を実行
-        # 修正したsection_settingsでargsを更新
+        # 修正したsection_settingsとbatch_countでargsを更新
         new_args = list(args)
         new_args[24] = section_settings
+        
+        # batch_countを確実に設定
+        if len(new_args) <= 29:
+            new_args.append(batch_count)
+        else:
+            new_args[29] = batch_count
         
         # process関数のジェネレータを返す
         yield from process(*new_args)
 
     # 実行ボタンのイベント
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution]
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count]
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
-    end_button.click(fn=end_process)
+    end_button.click(fn=end_process, outputs=[end_button])
 
     # キーフレーム画像変更時のイベント登録
     # セクション0（赤枚)からの自動コピー処理
