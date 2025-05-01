@@ -1477,18 +1477,24 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     last_visible_section_image = None
     last_visible_section_num = -1
 
-    if section_settings is not None:
+    if section_settings is not None and not isinstance(section_settings, bool):
         # 有効なセクション番号を収集
         valid_sections = []
-        for section in section_settings:
-            if section and len(section) > 1 and section[0] is not None:
-                try:
-                    section_num = int(section[0])
-                    # 表示セクション数が計算されていれば、それ以下のセクションのみ追加
-                    if total_display_sections is None or section_num < total_display_sections:
-                        valid_sections.append((section_num, section[1]))
-                except (ValueError, TypeError):
-                    continue
+        try:
+            for section in section_settings:
+                if section and len(section) > 1 and section[0] is not None:
+                    try:
+                        section_num = int(section[0])
+                        # 表示セクション数が計算されていれば、それ以下のセクションのみ追加
+                        if total_display_sections is None or section_num < total_display_sections:
+                            valid_sections.append((section_num, section[1]))
+                    except (ValueError, TypeError):
+                        continue
+        except (TypeError, ValueError):
+            # section_settingsがイテラブルでない場合（ブール値など）、空のリストとして扱う
+            valid_sections = []
+            print(f"[DEBUG] section_settings is not iterable: {type(section_settings)}")
+
 
         # 有効なセクションがあれば、最大の番号（最後のセクション）を探す
         if valid_sections:
@@ -2363,6 +2369,11 @@ with block:
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
         input_img = args[0]  # 入力の最初が入力画像
         section_settings = args[24]  # section_settings引数のインデックス
+        
+        # section_settingsがブール値の場合は空のリストで初期化
+        if isinstance(section_settings, bool):
+            print(f"[DEBUG] section_settings is bool ({section_settings}), initializing as empty list")
+            section_settings = [[None, None, ""] for _ in range(50)]
 
         # 現在の動画長設定とフレームサイズ設定を渡す
         is_valid, error_message = validate_images(input_img, section_settings, length_radio, frame_size_radio)
@@ -2373,8 +2384,12 @@ with block:
             return
 
         # 画像がある場合は通常の処理を実行
+        # 修正したsection_settingsでargsを更新
+        new_args = list(args)
+        new_args[24] = section_settings
+        
         # process関数のジェネレータを返す
-        yield from process(*args)
+        yield from process(*new_args)
 
     # 実行ボタンのイベント
     ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution]
