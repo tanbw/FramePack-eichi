@@ -8,7 +8,6 @@ import os
 import random
 import time
 import subprocess
-import copy  # transformer_loraのディープコピー用
 import traceback  # デバッグログ出力用
 # クロスプラットフォーム対応のための条件付きインポート
 import yaml
@@ -118,6 +117,8 @@ from transformers import SiglipImageProcessor, SiglipVisionModel
 from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
 
+from eichi_utils.transformer_manager import TransformerManager
+
 free_mem_gb = get_cuda_free_memory_gb(gpu)
 high_vram = free_mem_gb > 100
 
@@ -138,11 +139,16 @@ except Exception as e:
     import sys
     sys.exit(1)
 
+# グローバルなTransformerManagerインスタンスを作成
+transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram)
+
 # 他のモデルも同様に例外処理
 try:
     feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
     image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
-    transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
+    if not transformer_manager.ensure_transformer_state():
+        raise Exception(translate("transformerの初期化に失敗しました"))
+    transformer = transformer_manager.get_transformer()
 except Exception as e:
     print(translate("モデル読み込みエラー (追加モデル): {0}").format(e))
     print(translate("プログラムを終了します..."))
@@ -153,16 +159,11 @@ vae.eval()
 text_encoder.eval()
 text_encoder_2.eval()
 image_encoder.eval()
-transformer.eval()
 
 if not high_vram:
     vae.enable_slicing()
     vae.enable_tiling()
 
-transformer.high_quality_fp32_output_for_inference = True
-print('transformer.high_quality_fp32_output_for_inference = True')
-
-transformer.to(dtype=torch.bfloat16)
 vae.to(dtype=torch.float16)
 image_encoder.to(dtype=torch.float16)
 text_encoder.to(dtype=torch.float16)
@@ -172,7 +173,6 @@ vae.requires_grad_(False)
 text_encoder.requires_grad_(False)
 text_encoder_2.requires_grad_(False)
 image_encoder.requires_grad_(False)
-transformer.requires_grad_(False)
 
 if not high_vram:
     # DynamicSwapInstaller is same as huggingface's enable_sequential_offload but 3x faster
@@ -183,7 +183,6 @@ else:
     text_encoder_2.to(gpu)
     image_encoder.to(gpu)
     vae.to(gpu)
-    transformer.to(gpu)
 
 stream = AsyncStream()
 
@@ -218,46 +217,6 @@ print(translate("設定から出力フォルダを読み込み: {0}").format(out
 # 出力フォルダのフルパスを生成
 outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
-
-
-# transformerのLoRA状態管理用のグローバル変数を初期化
-class TransformerLoraState:
-    def __init__(self):
-        self.current_lora_path = None  # 現在適用されているLoRAファイル名
-    
-    def set_loaded_lora_path(self, lora_file_path):
-        self.current_lora_path = lora_file_path
-        print(translate("loaded transformer LoRA path: {0}").format(self.current_lora_path))
-
-    def is_lora_loaded(self, lora_file_path):
-        # Noneの場合の明示的な処理
-        if self.current_lora_path is None or lora_file_path is None:
-            return self.current_lora_path is lora_file_path
-        # 文字列の比較
-        return self.current_lora_path == lora_file_path
-
-transformer_lora_state = TransformerLoraState()
-
-
-# transformerリロード用の関数を定義
-def reload_transformer_model():
-    # グローバル変数で状態管理している変数を宣言する
-    global transformer
-    try:
-        # モデルをリロード
-        transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
-        transformer.eval()
-        transformer.high_quality_fp32_output_for_inference = True
-        transformer.to(dtype=torch.bfloat16)
-        transformer.requires_grad_(False)
-        
-        if not high_vram:
-            DynamicSwapInstaller.install_model(transformer, device=gpu)
-        else:
-            transformer.to(gpu)
-        print(translate("transformerモデルをリロードしました"))
-    except Exception as e:
-        print(translate("transformerモデルのリロードエラー: {0}").format(e))
 
 
 # キーフレーム処理関数は keyframe_handler.py に移動済み
@@ -689,115 +648,34 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
             print(translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
 
-        # LoRA処理
-        if use_lora and has_lora_support and (lora_file is not None):
-            # LoRAファイルのパスを取得
-            lora_path = lora_file.name
-
-            if transformer_lora_state.is_lora_loaded(lora_path):
-                print(translate("LoRAはすでに適用されています: {0}").format(lora_path))
-            else:
-                if not transformer_lora_state.is_lora_loaded(None):
-                    print(translate("transformerをリロードした後にLoRAを適用します: {0}").format(lora_path))
-                    reload_transformer_model()
-                try:
-                    # 明示的な同期ポイントの追加
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-
-                    # 直接LoRA適用方式を使用
-                    from lora_utils.lora_loader import load_and_apply_lora
-                    transformer = load_and_apply_lora(
-                        transformer,
-                        lora_path,
-                        lora_scale,
-                        device=gpu
-                    )
-                    print(translate("LoRAを直接適用しました (スケール: {0})").format(lora_scale))
-                    transformer_lora_state.set_loaded_lora_path(lora_path)
-
-                    # 診断レポートの出力
-                    try:
-                        from lora_utils.lora_check_helper import check_lora_applied
-                        has_lora, source = check_lora_applied(transformer)
-                        print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
-                    except Exception as diagnostic_error:
-                        print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
-
-                    # FP8最適化処理
-                    try:
-                        if fp8_optimization and transformer_lora_state.is_lora_loaded(lora_path):
-                            # FP8サポートのチェック
-                            from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
-
-                            has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
-
-                            if not has_e4m3:
-                                print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
-                            else:
-                                print(translate("FP8最適化を適用します..."))
-
-                                # 状態辞書を取得
-                                state_dict = transformer.state_dict()
-
-                                # 最適化のターゲットと除外キーを設定
-                                TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
-                                EXCLUDE_KEYS = ["norm"]  # LayerNormなどの正規化層を除外
-
-                                # 状態辞書をFP8形式に最適化
-                                print(translate("FP8形式で状態辞書を最適化しています..."))
-                                state_dict = optimize_state_dict_with_fp8(
-                                    state_dict,
-                                    gpu,
-                                    TARGET_KEYS,
-                                    EXCLUDE_KEYS,
-                                    move_to_device=False
-                                )
-
-                                # モンキーパッチの適用
-                                print(translate("FP8モンキーパッチを適用しています..."))
-                                use_scaled_mm = has_scaled_mm and has_e5m2
-                                apply_fp8_monkey_patch(transformer, state_dict, use_scaled_mm=use_scaled_mm)
-
-                                # 状態辞書を読み込み
-                                transformer.load_state_dict(state_dict, strict=True)
-
-                                print(translate("FP8最適化が適用されました！"))
-                        else:
-                            print(translate("FP8最適化は無効化されています。"))
-                    except Exception as e:
-                        print(translate("FP8最適化エラー: {0}").format(e))
-                        traceback.print_exc()
-                        print(translate("FP8最適化に失敗しました。通常モードで続行します。"))
-                        # エラー時は元の状態を使用し続ける
-
-                except Exception as e:
-                    print(translate("LoRA適用エラー: {0}").format(e))
-                    traceback.print_exc()
-                    print(translate("LoRA適用に失敗しました。通常モードで続行します。"))
-
-                    # エラー時は元のtransformerを使用（リロード）
-                    if not transformer_lora_state.is_lora_loaded(None):
-                        reload_transformer_model()
-                    transformer_lora_state.set_loaded_lora_path(None)
-
-        else:
-            # LoRA未使用時のメッセージ
-            if use_lora:
-                if not has_lora_support:
-                    print(translate("LoRAサポートが無効です。lora_utilsモジュールが必要です。"))
-                elif lora_file is None:
-                    print(translate("LoRAファイルが指定されていません。通常モードで続行します。"))
-            else:
-                print(translate("LoRAは使用されません。通常モードで続行します。"))
-            
-            # 前回Loraが適用されていた場合は、元のtransformerをリロード
-            if not transformer_lora_state.is_lora_loaded(None):
-                reload_transformer_model()
-            transformer_lora_state.set_loaded_lora_path(None)
+        # 次回のtransformer設定を更新
+        current_lora_path = lora_file.name if use_lora and has_lora_support and lora_file is not None else None
+        current_lora_scale = lora_scale if current_lora_path is not None else None
+        
+        # LoRA設定を更新（リロードは行わない）
+        transformer_manager.set_next_settings(
+            lora_path=current_lora_path,
+            lora_scale=current_lora_scale,
+            fp8_enabled=fp8_optimization,
+            high_vram_mode=high_vram,
+        )
 
         # -------- LoRA 設定 END ---------
 
+        # セクション処理開始前にtransformerの状態を確認
+        print(translate("\nセクション処理開始前のtransformer状態チェック..."))
+        try:
+            # transformerの状態を確認し、必要に応じてリロード
+            if not transformer_manager.ensure_transformer_state():
+                raise Exception(translate("transformer状態の確認に失敗しました"))
+            
+            # 最新のtransformerインスタンスを取得
+            transformer = transformer_manager.get_transformer()
+            print(translate("transformer状態チェック完了"))
+        except Exception as e:
+            print(translate("transformer状態チェックエラー: {0}").format(e))
+            traceback.print_exc()
+            raise e
 
         for i_section, latent_padding in enumerate(latent_paddings):
             # 先に変数を定義
