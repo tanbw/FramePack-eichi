@@ -1976,7 +1976,7 @@ with block:
 
             # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
             with gr.Group():
-                gr.Markdown(translate("### テンソルデータ設定"))
+                gr.Markdown(f"### " + translate("テンソルデータ設定"))
 
                 # テンソルデータ使用有無のチェックボックス
                 use_tensor_data = gr.Checkbox(label=translate("テンソルデータを使用する"), value=False, info=translate("チェックをオンにするとテンソルデータをアップロードできます"))
@@ -2080,15 +2080,15 @@ with block:
             with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
                 # セクション情報zipファイルアップロード処理を追加
                 with gr.Group():
-                    gr.Markdown("### セクション情報一括アップロード")
-                    upload_zipfile = gr.File(label="セクション情報アップロードファイル", file_types=[".zip"], interactive=True)
+                    gr.Markdown(f"### " + translate("セクション情報一括アップロード"))
+                    upload_zipfile = gr.File(label=translate("セクション情報アップロードファイル"), file_types=[".zip"], interactive=True)
 
                 with gr.Group(elem_classes="section-container"):
                     section_title = gr.Markdown(initial_title)
 
                     # セクション番号0の上にコピー機能チェックボックスを追加（ループモード時のみ表示）
                     with gr.Row(visible=(mode_radio.value == MODE_TYPE_LOOP)) as copy_button_row:
-                        keyframe_copy_checkbox = gr.Checkbox(label="キーフレーム自動コピー機能を有効にする", value=True, info="オンにするとキーフレーム間の自動コピーが行われます")
+                        keyframe_copy_checkbox = gr.Checkbox(label=translate("キーフレーム自動コピー機能を有効にする"), value=True, info=translate("オンにするとキーフレーム間の自動コピーが行われます"))
 
                     for i in range(max_keyframes):
                         with gr.Row(visible=(i < initial_sections_count), elem_classes="section-row") as row_group:
@@ -2309,7 +2309,7 @@ with block:
 
             # LoRA設定グループを追加
             with gr.Group(visible=has_lora_support) as lora_settings_group:
-                gr.Markdown(translate("### LoRA設定"))
+                gr.Markdown(f"### " + translate("LoRA設定"))
 
                 # LoRA使用有無のチェックボックス
                 use_lora = gr.Checkbox(label=translate("LoRAを使用する"), value=False, info=translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
@@ -2355,7 +2355,7 @@ with block:
 
             # プロンプト管理パネルの追加
             with gr.Group(visible=True) as prompt_management:
-                gr.Markdown(translate("### プロンプト管理"))
+                gr.Markdown(f"### " + translate("プロンプト管理"))
 
                 # 編集画面を常時表示する
                 with gr.Group(visible=True):
@@ -2884,7 +2884,7 @@ with block:
 
             # EndFrame影響度調整スライダー
             with gr.Group():
-                gr.Markdown(translate("### EndFrame影響度調整"))
+                gr.Markdown(f"### " + translate("EndFrame影響度調整"))
                 end_frame_strength = gr.Slider(
                     label=translate("EndFrame影響度"),
                     minimum=0.01,
