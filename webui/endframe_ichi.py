@@ -2623,7 +2623,15 @@ with block:
                 # 代わりにcheckbox値のみに依存するシンプルな条件分岐を各関数で直接実装
 
         with gr.Column():
-            result_video = gr.Video(label=translate("Finished Frames"), autoplay=True, show_share_button=False, height=512, loop=True)
+            result_video = gr.Video(
+                label=translate("Finished Frames"), 
+                autoplay=True, 
+                show_share_button=False, 
+                height=512, 
+                loop=True,
+                format="mp4",
+                interactive=False,
+            )
             progress_desc = gr.Markdown('', elem_classes='no-generating-animation')
             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
             preview_image = gr.Image(label="Next Latents", height=200, visible=False)
