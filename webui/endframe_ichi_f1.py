@@ -845,7 +845,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 offload_model_from_device_for_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory_offload)
                 load_model_as_complete(vae, target_device=gpu)
 
-            real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
+            # F1モードでは最新のフレームは末尾に追加されるため、後方から切り出す
+            real_history_latents = history_latents[:, :, -total_generated_latent_frames:, :, :]
 
             # COMMENTED OUT: VAEデコード前のメモリクリア（処理速度向上のため）
             # if torch.cuda.is_available():
@@ -864,8 +865,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     section_latent_frames = int(latent_window_size * 2 + 1) if is_last_section else int(latent_window_size * 2)
                     overlapped_frames = int(latent_window_size * 4 - 3)
 
-                current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
-                history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
+                # F1モードでは最新フレームは末尾にあるため、後方のセクションを取得
+                current_pixels = vae_decode(real_history_latents[:, :, -section_latent_frames:], vae).cpu()
+                
+                # 引数の順序を修正 - history_pixelsが先、新しいcurrent_pixelsが後
+                if history_pixels is None:
+                    history_pixels = current_pixels
+                else:
+                    history_pixels = soft_append_bcthw(history_pixels, current_pixels, overlapped_frames)
 
             # COMMENTED OUT: 明示的なCPU転送と不要テンソルの削除（処理速度向上のため）
             # if torch.cuda.is_available():
@@ -926,6 +933,27 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             output_filename = os.path.join(outputs_folder, f'{job_id}_{total_generated_latent_frames}.mp4')
 
+            # MP4保存前のデータ検証を追加
+            print(f"[DEBUG] MP4保存前のhistory_pixels形状: {history_pixels.shape}")
+            print(f"[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={history_pixels.min().item():.4f}, max={history_pixels.max().item():.4f}")
+
+            # MP4保存前のデバッグ情報を出力
+            print(f"[DEBUG] MP4保存前のhistory_pixels形状: {history_pixels.shape}")
+            print(f"[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={history_pixels.min().item():.4f}, max={history_pixels.max().item():.4f}")
+            
+            # GPUメモリ状況の確認
+            if torch.cuda.is_available():
+                print(f"[DEBUG] MP4保存前GPUメモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
+            
+            # 出力ファイルパスの確認
+            print(f"[DEBUG] MP4保存パス: {os.path.abspath(output_filename)}")
+            
+            # もしhistory_pixelsの値が不適切な範囲にある場合、範囲を修正
+            if history_pixels.min() < -1.0 or history_pixels.max() > 1.0:
+                print("[DEBUG] history_pixelsの値範囲を[-1.0, 1.0]に修正します")
+                history_pixels = torch.clamp(history_pixels, -1.0, 1.0)
+
+            # MP4を保存
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30, crf=mp4_crf)
 
             print(translate('Decoded. Current latent shape {0}; pixel shape {1}').format(real_history_latents.shape, history_pixels.shape))
