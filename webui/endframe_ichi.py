@@ -118,6 +118,7 @@ from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
 
 from eichi_utils.transformer_manager import TransformerManager
+from eichi_utils.text_encoder_manager import TextEncoderManager
 
 free_mem_gb = get_cuda_free_memory_gb(gpu)
 high_vram = free_mem_gb > 100
@@ -125,39 +126,35 @@ high_vram = free_mem_gb > 100
 print(translate('Free VRAM {0} GB').format(free_mem_gb))
 print(translate('High-VRAM Mode: {0}').format(high_vram))
 
+# グローバルなモデル状態管理インスタンスを作成
+transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram)
+text_encoder_manager = TextEncoderManager(device=gpu, high_vram_mode=high_vram)
 
-# 元のモデル読み込みコード
 try:
-    text_encoder = LlamaModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder', torch_dtype=torch.float16).cpu()
-    text_encoder_2 = CLIPTextModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder_2', torch_dtype=torch.float16).cpu()
     tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
     tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
     vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
+    
+    # text_encoderとtext_encoder_2の初期化
+    if not text_encoder_manager.ensure_text_encoder_state():
+        raise Exception(translate("text_encoderとtext_encoder_2の初期化に失敗しました"))
+    text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
+    
+    # transformerの初期化
+    if not transformer_manager.ensure_transformer_state():
+        raise Exception(translate("transformerの初期化に失敗しました"))
+    transformer = transformer_manager.get_transformer()
+    
+    # 他のモデルの読み込み
+    feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
+    image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
 except Exception as e:
     print(translate("モデル読み込みエラー: {0}").format(e))
     print(translate("プログラムを終了します..."))
     import sys
     sys.exit(1)
 
-# グローバルなTransformerManagerインスタンスを作成
-transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram)
-
-# 他のモデルも同様に例外処理
-try:
-    feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
-    image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
-    if not transformer_manager.ensure_transformer_state():
-        raise Exception(translate("transformerの初期化に失敗しました"))
-    transformer = transformer_manager.get_transformer()
-except Exception as e:
-    print(translate("モデル読み込みエラー (追加モデル): {0}").format(e))
-    print(translate("プログラムを終了します..."))
-    import sys
-    sys.exit(1)
-
 vae.eval()
-text_encoder.eval()
-text_encoder_2.eval()
 image_encoder.eval()
 
 if not high_vram:
@@ -166,21 +163,14 @@ if not high_vram:
 
 vae.to(dtype=torch.float16)
 image_encoder.to(dtype=torch.float16)
-text_encoder.to(dtype=torch.float16)
-text_encoder_2.to(dtype=torch.float16)
 
 vae.requires_grad_(False)
-text_encoder.requires_grad_(False)
-text_encoder_2.requires_grad_(False)
 image_encoder.requires_grad_(False)
 
 if not high_vram:
     # DynamicSwapInstaller is same as huggingface's enable_sequential_offload but 3x faster
     DynamicSwapInstaller.install_model(transformer, device=gpu)
-    DynamicSwapInstaller.install_model(text_encoder, device=gpu)
 else:
-    text_encoder.to(gpu)
-    text_encoder_2.to(gpu)
     image_encoder.to(gpu)
     vae.to(gpu)
 
@@ -225,10 +215,6 @@ os.makedirs(outputs_folder, exist_ok=True)
 
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
-
-    # グローバル変数で状態管理している変数を宣言する
-    global transformer
-    global transformer_lora_state
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
     print(f"[DEBUG] worker内 input_imageの型: {type(input_image)}")
@@ -310,8 +296,21 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
     # フォルダが存在しない場合は作成
     os.makedirs(outputs_folder, exist_ok=True)
+
+
+
     # 処理時間計測の開始
     process_start_time = time.time()
+
+    
+    # グローバル変数で状態管理しているモデル変数を宣言する
+    global transformer, text_encoder, text_encoder_2
+
+    # text_encoderとtext_encoder_2を確実にロード
+    if not text_encoder_manager.ensure_text_encoder_state():
+        raise Exception(translate("text_encoderとtext_encoder_2の初期化に失敗しました"))
+    text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
+
 
     # 既存の計算方法を保持しつつ、設定からセクション数も取得する
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
@@ -447,11 +446,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             print(translate("[section_prompt] セクション{0}は共通プロンプトを使用します").format(i_section))
             return llama_vec, clip_l_pooler, llama_attention_mask
 
+
         # Clean GPU
         if not high_vram:
+            # モデルをCPUにアンロード
             unload_complete_models(
-                text_encoder, text_encoder_2, image_encoder, vae, transformer
+                image_encoder, vae, transformer
             )
+
 
         # Text encoding
 
@@ -470,6 +472,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
         llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
+
+
+        # これ以降の処理は text_encoder, text_encoder_2 は不要なので、メモリ解放してしまって構わない
+        if not high_vram:
+            text_encoder, text_encoder_2 = None, None
+            text_encoder_manager.dispose_text_encoders()
+
 
         # テンソルデータのアップロードがあれば読み込み
         uploaded_tensor = None
