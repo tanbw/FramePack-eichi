@@ -11,11 +11,16 @@ class TransformerManager:
     - transformerモデルのライフサイクル管理
     - LoRA設定の管理
     - FP8最適化の管理
+    - モデルモード（通常/F1）の管理
     
     設定の変更はすぐには適用されず、次回のリロード時に適用されます。
     """
 
-    def __init__(self, device, high_vram_mode=False):
+    # モデルパス定義
+    MODEL_PATH_NORMAL = 'lllyasviel/FramePackI2V_HY'
+    MODEL_PATH_F1 = 'lllyasviel/FramePack_F1_I2V_HY_20250503'
+
+    def __init__(self, device, high_vram_mode=False, use_f1_model=False):
         self.transformer = None
         self.device = device
 
@@ -25,13 +30,14 @@ class TransformerManager:
             'lora_scale': None,
             'fp8_enabled': False,
             'is_loaded': False,
-            'high_vram': high_vram_mode
+            'high_vram': high_vram_mode,
+            'use_f1_model': use_f1_model  # F1モデル使用フラグ
         }
 
         # 次回のロード時に適用する設定
         self.next_state = self.current_state.copy()
         
-    def set_next_settings(self, lora_path=None, lora_scale=None, fp8_enabled=False, high_vram_mode=False):
+    def set_next_settings(self, lora_path=None, lora_scale=None, fp8_enabled=False, high_vram_mode=False, use_f1_model=None):
         """次回のロード時に使用する設定をセット（即時のリロードは行わない）
         
         Args:
@@ -39,16 +45,21 @@ class TransformerManager:
             lora_scale: LoRAのスケール値（lora_pathがNoneの場合は無視）
             fp8_enabled: FP8最適化の有効/無効（LoRAが設定されている場合のみ有効）
             high_vram_mode: High-VRAMモードの有効/無効
+            use_f1_model: F1モデル使用フラグ（Noneの場合は現在の設定を維持）
         """
         # LoRAが設定されていない場合はFP8最適化を強制的に無効化
         actual_fp8_enabled = fp8_enabled if lora_path is not None else False
+        
+        # F1モデルフラグが指定されていない場合は現在の設定を維持
+        actual_use_f1_model = use_f1_model if use_f1_model is not None else self.current_state.get('use_f1_model', False)
         
         self.next_state = {
             'lora_path': lora_path,
             'lora_scale': lora_scale,
             'fp8_enabled': actual_fp8_enabled,
             'high_vram': high_vram_mode,
-            'is_loaded': self.current_state['is_loaded']
+            'is_loaded': self.current_state['is_loaded'],
+            'use_f1_model': actual_use_f1_model
         }
         print(translate("次回のtransformer設定を設定しました:"))
         print(f"  - LoRA: {lora_path if lora_path else 'None'}")
@@ -58,6 +69,7 @@ class TransformerManager:
         else:
             print(translate("  - FP8 optimization: 無効 (LoRAが設定されていないため)"))
         print(f"  - High-VRAM mode: {high_vram_mode}")
+        print(f"  - F1 Model: {actual_use_f1_model}")
     
     def _needs_reload(self):
         """現在の状態と次回の設定を比較し、リロードが必要かどうかを判断"""
@@ -82,6 +94,10 @@ class TransformerManager:
 
         # High-VRAMモードの比較
         if self.current_state['high_vram'] != self.next_state['high_vram']:
+            return True
+            
+        # F1モデル設定の比較
+        if self.current_state.get('use_f1_model', False) != self.next_state.get('use_f1_model', False):
             return True
 
         return False
@@ -113,11 +129,16 @@ class TransformerManager:
             print(f"  - FP8 optimization: {self.next_state['fp8_enabled']}")
             print(f"  - High-VRAM mode: {self.next_state['high_vram']}")
 
+            # モードに応じたモデルパスを選択
+            model_path = self.MODEL_PATH_F1 if self.next_state.get('use_f1_model', False) else self.MODEL_PATH_NORMAL
+            
             # 新しいtransformerインスタンスを作成
             self.transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained(
-                'lllyasviel/FramePackI2V_HY',
+                model_path,
                 torch_dtype=torch.bfloat16
             ).cpu()
+            
+            print(translate("使用モデル: {0}").format(model_path))
             
             self.transformer.eval()
             self.transformer.high_quality_fp32_output_for_inference = True

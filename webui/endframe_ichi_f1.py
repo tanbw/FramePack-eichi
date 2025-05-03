@@ -127,7 +127,8 @@ print(translate('Free VRAM {0} GB').format(free_mem_gb))
 print(translate('High-VRAM Mode: {0}').format(high_vram))
 
 # グローバルなモデル状態管理インスタンスを作成
-transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram)
+# F1モードではuse_f1_model=Trueを指定
+transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram, use_f1_model=True)
 text_encoder_manager = TextEncoderManager(device=gpu, high_vram_mode=high_vram)
 
 try:
