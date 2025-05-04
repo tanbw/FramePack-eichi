@@ -1676,7 +1676,7 @@ with block:
 
     with gr.Row():
         with gr.Column():
-            input_image = gr.Image(sources='upload', type="filepath", label="Image", height=320)
+            input_image = gr.Image(sources=['upload', 'clipboard'], type="filepath", label="Image", height=320)
 
             # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
             with gr.Group():
