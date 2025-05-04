@@ -1815,7 +1815,7 @@ with block:
         with gr.Column():
             # Final Frameの上に説明を追加
             gr.Markdown(translate("**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**"))
-            end_frame = gr.Image(sources='upload', type="filepath", label=translate("Final Frame (Optional)"), height=320)
+            end_frame = gr.Image(sources=['upload', 'clipboard'], type="filepath", label=translate("Final Frame (Optional)"), height=320)
             
             # End Frame画像のアップロード時のメタデータ抽出機能は一旦コメント化
             # def update_from_end_frame_metadata(image):
@@ -2130,7 +2130,7 @@ with block:
                         outputs=[section_image_inputs[0], section_image_inputs[1]]
                     )
 
-            input_image = gr.Image(sources='upload', type="filepath", label="Image", height=320)
+            input_image = gr.Image(sources=['upload', 'clipboard'], type="filepath", label="Image", height=320)
 
             # メタデータ抽出関数を定義（後で登録する）
             def update_from_image_metadata(image_path, copy_enabled=False):
