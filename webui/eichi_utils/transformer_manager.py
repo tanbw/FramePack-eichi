@@ -121,6 +121,18 @@ class TransformerManager:
     def _reload_transformer(self):
         """next_stateの設定でtransformerをリロード"""
         try:
+            # 既存のtransformerモデルを破棄してメモリを解放
+            if self.transformer is not None:
+                self.current_state['is_loaded'] = False
+                # モデルの参照を削除
+                del self.transformer
+                # 明示的にガベージコレクションを実行
+                import gc
+                gc.collect()
+                # CUDAキャッシュもクリア
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
             print(translate("\ntransformerをリロードします..."))
             print(translate("適用するtransformer設定:"))
             print(f"  - LoRA: {self.next_state['lora_path'] if self.next_state['lora_path'] else 'None'}")
