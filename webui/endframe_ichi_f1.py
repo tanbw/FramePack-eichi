@@ -642,6 +642,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
+            # Image影響度を計算：大きい値ほど始点の影響が強くなるよう変換
+            # 1.0/image_strengthを使用し、最小値を0.01に制限
+            strength_value = max(0.01, 1.0 / image_strength)
+            print(translate('Image影響度: UI値={0:.2f}（{1:.0f}%）→計算値={2:.4f}（値が小さいほど始点の影響が強い）').format(
+                image_strength, image_strength * 100, strength_value))
+            
             generated_latents = sample_hunyuan(
                 transformer=transformer,
                 sampler='unipc',
@@ -670,6 +676,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 clean_latent_2x_indices=clean_latent_2x_indices,
                 clean_latents_4x=clean_latents_4x,
                 clean_latent_4x_indices=clean_latent_4x_indices,
+                initial_latent=current_latent,  # 開始潜在空間を設定
+                strength=strength_value,        # 計算した影響度を使用
                 callback=callback,
             )
 
@@ -2119,11 +2127,11 @@ with block:
                 gr.Markdown(f"### " + translate("Image影響度調整"))
                 image_strength = gr.Slider(
                     label=translate("Image影響度"),
-                    minimum=0.01,
-                    maximum=1.00,
+                    minimum=1.00,
+                    maximum=1.02,
                     value=1.00,
-                    step=0.01,
-                    info=translate("開始フレーム(Image)が動画に与える影響の強さを調整します。1.00が通常の動作です。")
+                    step=0.001,
+                    info=translate("開始フレーム(Image)が動画に与える影響の強さを調整します。1.00が通常の動作（100%）です。値を大きくすると始点の影響が強まり、変化が少なくなります。100%-102%の範囲で0.1%刻みの微調整が可能です。")
                 )
 
             # 出力フォルダ設定
