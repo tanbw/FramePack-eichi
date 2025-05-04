@@ -699,23 +699,23 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
             else:
-                # セクション単位でのデコード処理
-                # フレーム数を計算
+                # latent_window_sizeが4.5の場合は特別に5を使用
                 if latent_window_size == 4.5:
-                    section_frames = 17  # 4.5 * 4 - 3 = 15（約17フレーム）
+                    section_latent_frames = 11 if is_last_section else 10  # 5 * 2 + 1 = 11, 5 * 2 = 10
+                    overlapped_frames = 17  # 5 * 4 - 3 = 17
                 else:
-                    section_frames = int(latent_window_size * 4 - 3)
+                    # +1は逆方向生成時の start_latent 分なのでカット
+                    section_latent_frames = int(latent_window_size * 2) if is_last_section else int(latent_window_size * 2)
+                    overlapped_frames = int(latent_window_size * 4 - 3)
+
+                # F1モードでは最新フレームは末尾にあるため、後方のセクションを取得
+                current_pixels = vae_decode(real_history_latents[:, :, -section_latent_frames:], vae).cpu()
                 
-                # 現在のセクションをデコード
-                current_pixels = vae_decode(real_history_latents[:, :, -section_frames:], vae).cpu()
-                
-                # 最初のセクションか後のセクションかで処理分け
+                # 引数の順序を修正 - history_pixelsが先、新しいcurrent_pixelsが後
                 if history_pixels is None:
                     history_pixels = current_pixels
                 else:
-                    # 単純に連結
-                    history_pixels = torch.cat([history_pixels, current_pixels], dim=2)
-
+                    history_pixels = soft_append_bcthw(history_pixels, current_pixels, overlapped_frames)
 
             # 各セクションの最終フレームを静止画として保存（セクション番号付き）
             if save_section_frames and history_pixels is not None:
