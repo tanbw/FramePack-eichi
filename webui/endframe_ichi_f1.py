@@ -565,16 +565,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # 単純なインデックスによる判定
             is_last_section = i_section == total_sections - 1
             
-            # オールパディングの場合のパディング値設定
-            if use_all_padding:
-                latent_padding = round(all_padding_value, 1)  # 小数点1桁に固定
-            else:
-                latent_padding = 1  # 固定値
+            # F1モードではオールパディング機能は無効化されているため、常に固定値を使用
+            # この値はF1モードでは実際には使用されないが、ログ出力のために計算する
+            latent_padding = 1  # 固定値
 
             latent_padding_size = int(latent_padding * latent_window_size)
 
-            # 定義後にログ出力
-            padding_info = translate("設定パディング値: {0}").format(all_padding_value) if use_all_padding else translate("パディング値: {0}").format(latent_padding)
+            # 定義後にログ出力（F1モードではオールパディングは常に無効）
+            padding_info = translate("パディング値: {0} (F1モードでは影響なし)").format(latent_padding)
             print(translate("\n■ セクション{0}の処理開始 ({1})").format(i_section, padding_info))
             print(translate("  - 現在の生成フレーム数: {0}フレーム").format(total_generated_latent_frames * 4 - 3))
             print(translate("  - 生成予定フレーム数: {0}フレーム").format(num_frames))
@@ -1413,11 +1411,8 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # FP8最適化設定のログ出力
     print(translate("\u25c6 FP8最適化: {0}").format(fp8_optimization))
 
-    # オールパディング設定のログ出力
-    if use_all_padding:
-        print(translate("\u25c6 オールパディング: 有効 (値: {0})").format(round(all_padding_value, 1)))
-    else:
-        print(translate("\u25c6 オールパディング: 無効"))
+    # オールパディング設定のログ出力（F1モードでは常に無効）
+    print(translate("\u25c6 オールパディング: F1モードでは無効化されています"))
 
     # LoRA情報のログ出力
     if use_lora and lora_file is not None:
@@ -1647,9 +1642,24 @@ with block:
                 info=translate("1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）")
             )
         with gr.Column(scale=1):
-            # オールパディング設定
-            use_all_padding = gr.Checkbox(label=translate("オールパディング"), value=False, info=translate("数値が小さいほど直前の絵への影響度が下がり動きが増える"), elem_id="all_padding_checkbox")
-            all_padding_value = gr.Slider(label=translate("パディング値"), minimum=0.2, maximum=3, value=1, step=0.1, info=translate("すべてのセクションに適用するパディング値（0.2〜3の整数）"), visible=False)
+            # オールパディング設定 (F1モードでは無効化)
+            use_all_padding = gr.Checkbox(
+                label=translate("オールパディング"), 
+                value=False, 
+                info=translate("F1モードでは使用できません。通常モードでのみ有効です。"), 
+                elem_id="all_padding_checkbox",
+                interactive=False  # F1モードでは非活性化
+            )
+            all_padding_value = gr.Slider(
+                label=translate("パディング値"), 
+                minimum=0.2, 
+                maximum=3, 
+                value=1, 
+                step=0.1, 
+                info=translate("F1モードでは使用できません"), 
+                visible=False,
+                interactive=False  # F1モードでは非活性化
+            )
 
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
             def toggle_all_padding_visibility(use_all_padding):
