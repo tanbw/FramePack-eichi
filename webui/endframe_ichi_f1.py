@@ -861,7 +861,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     section_latent_frames = 11 if is_last_section else 10  # 5 * 2 + 1 = 11, 5 * 2 = 10
                     overlapped_frames = 17  # 5 * 4 - 3 = 17
                 else:
-                    section_latent_frames = int(latent_window_size * 2 + 1) if is_last_section else int(latent_window_size * 2)
+                    # +1は逆方向生成時の start_latent 分なのでカット
+                    section_latent_frames = int(latent_window_size * 2) if is_last_section else int(latent_window_size * 2)
                     overlapped_frames = int(latent_window_size * 4 - 3)
 
                 # F1モードでは最新フレームは末尾にあるため、後方のセクションを取得
