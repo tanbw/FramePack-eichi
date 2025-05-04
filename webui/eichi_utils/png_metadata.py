@@ -24,8 +24,8 @@ def embed_metadata_to_png(image_path, metadata_dict):
         str: 処理したファイルのパス
     """
     try:
-        print(f"[DEBUG] メタデータ埋め込み開始: {image_path}")
-        print(f"[DEBUG] 埋め込むメタデータ: {metadata_dict}")
+        # print(f"[DEBUG] メタデータ埋め込み開始: {image_path}")
+        # print(f"[DEBUG] 埋め込むメタデータ: {metadata_dict}")
         
         img = Image.open(image_path)
         metadata = PngImagePlugin.PngInfo()
@@ -38,11 +38,11 @@ def embed_metadata_to_png(image_path, metadata_dict):
                 if isinstance(value, (dict, list)):
                     # 辞書やリストの場合はJSON文字列に変換
                     metadata.add_text(key, json.dumps(value))
-                    print(f"[DEBUG] JSON形式でメタデータ追加: {key}={json.dumps(value)}")
+                    # print(f"[DEBUG] JSON形式でメタデータ追加: {key}={json.dumps(value)}")
                 else:
                     # その他の値は文字列に変換
                     metadata.add_text(key, str(value))
-                    print(f"[DEBUG] 文字列形式でメタデータ追加: {key}={value}")
+                    # print(f"[DEBUG] 文字列形式でメタデータ追加: {key}={value}")
                     
                 # パラメータテキストの構築
                 if key == PROMPT_KEY:
@@ -57,7 +57,7 @@ def embed_metadata_to_png(image_path, metadata_dict):
         # パラメータテキストがあれば追加
         if parameters_text:
             metadata.add_text(PARAMETERS_KEY, parameters_text.strip())
-            print(f"[DEBUG] parameters形式でメタデータ追加: {parameters_text.strip()}")
+            # print(f"[DEBUG] parameters形式でメタデータ追加: {parameters_text.strip()}")
         
         # 保存（ファイル形式は変更せず）
         if image_path.lower().endswith('.png'):
@@ -68,7 +68,7 @@ def embed_metadata_to_png(image_path, metadata_dict):
             img.save(png_path, "PNG", pnginfo=metadata)
             image_path = png_path
             
-        print(f"[DEBUG] メタデータを埋め込みました: {image_path}")
+        # print(f"[DEBUG] メタデータを埋め込みました: {image_path}")
         return image_path
     
     except Exception as e:

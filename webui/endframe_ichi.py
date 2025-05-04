@@ -356,23 +356,24 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             """
             section_settings: DataFrame形式のリスト [[番号, 画像, プロンプト], ...]
             → {セクション番号: (画像, プロンプト)} のdict
-            プロンプトが空の場合や画像がない場合はセクション番号も記入しない
+            プロンプトやセクション番号のみの設定も許可する
             """
             result = {}
             if section_settings is not None:
                 for row in section_settings:
                     if row and len(row) > 0 and row[0] is not None:
-                        # 画像がない場合はスキップ
-                        if len(row) <= 1 or row[1] is None:
-                            continue
+                        # セクション番号を取得
+                        sec_num = int(row[0])
                         
                         # セクションプロンプトを取得
                         prm = row[2] if len(row) > 2 and row[2] is not None else ""
                         
-                        # セクションプロンプトが空の場合も画像があれば記入する
-                        sec_num = int(row[0])
-                        img = row[1]
-                        result[sec_num] = (img, prm)
+                        # 画像を取得（ない場合はNone）
+                        img = row[1] if len(row) > 1 and row[1] is not None else None
+                        
+                        # プロンプトまたは画像のどちらかがあればマップに追加
+                        if img is not None or (prm is not None and prm.strip() != ""):
+                            result[sec_num] = (img, prm)
             return result
 
         section_map = get_section_settings_map(section_settings)
@@ -394,8 +395,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             return None, None, None
 
         # セクション固有のプロンプト処理を行う関数
-        def process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask):
-            """セクションに固有のプロンプトがあればエンコードして返す
+        def process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask, embeddings_cache=None):
+            """セクションに固有のプロンプトがあればエンコードまたはキャッシュから取得して返す
             なければメインプロンプトのエンコード結果を返す
             返り値: (llama_vec, clip_l_pooler, llama_attention_mask)
             """
@@ -403,8 +404,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 print(translate("[ERROR] メインプロンプトのエンコード結果またはマスクが不正です"))
                 return llama_vec, clip_l_pooler, llama_attention_mask
 
+            # embeddings_cacheがNoneの場合は空の辞書で初期化
+            embeddings_cache = embeddings_cache or {}
+            
             # セクション固有のプロンプトがあるか確認
             section_info = None
+            section_num = None
             if section_map:
                 valid_section_nums = [k for k in section_map.keys() if k >= i_section]
                 if valid_section_nums:
@@ -412,9 +417,22 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     section_info = section_map[section_num]
 
             # セクション固有のプロンプトがあれば使用
-            if section_info and len(section_info) > 1:
-                _, section_prompt = section_info
+            if section_info:
+                img, section_prompt = section_info
                 if section_prompt and section_prompt.strip():
+                    # 事前にエンコードされたプロンプト埋め込みをキャッシュから取得
+                    if section_num in embeddings_cache:
+                        print(translate("[section_prompt] セクション{0}の専用プロンプトをキャッシュから取得: {1}...").format(i_section, section_prompt[:30]))
+                        # キャッシュからデータを取得
+                        cached_llama_vec, cached_clip_l_pooler, cached_llama_attention_mask = embeddings_cache[section_num]
+                        
+                        # データ型を明示的にメインプロンプトと合わせる（2回目のチェック）
+                        cached_llama_vec = cached_llama_vec.to(dtype=llama_vec.dtype, device=llama_vec.device)
+                        cached_clip_l_pooler = cached_clip_l_pooler.to(dtype=clip_l_pooler.dtype, device=clip_l_pooler.device)
+                        cached_llama_attention_mask = cached_llama_attention_mask.to(dtype=llama_attention_mask.dtype, device=llama_attention_mask.device)
+                        
+                        return cached_llama_vec, cached_clip_l_pooler, cached_llama_attention_mask
+                    
                     print(translate("[section_prompt] セクション{0}の専用プロンプトを処理: {1}...").format(i_section, section_prompt[:30]))
 
                     try:
@@ -473,6 +491,30 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
         llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
+        
+        # セクションプロンプトを事前にエンコードしておく
+        section_prompt_embeddings = {}
+        if section_map:
+            print(translate("セクションプロンプトを事前にエンコードしています..."))
+            for sec_num, (_, sec_prompt) in section_map.items():
+                if sec_prompt and sec_prompt.strip():
+                    try:
+                        # セクションプロンプトをエンコード
+                        print(translate("[section_prompt] セクション{0}の専用プロンプトを事前エンコード: {1}...").format(sec_num, sec_prompt[:30]))
+                        sec_llama_vec, sec_clip_l_pooler = encode_prompt_conds(sec_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
+                        sec_llama_vec, sec_llama_attention_mask = crop_or_pad_yield_mask(sec_llama_vec, length=512)
+                        
+                        # データ型を明示的にメインプロンプトと合わせる
+                        sec_llama_vec = sec_llama_vec.to(dtype=llama_vec.dtype, device=llama_vec.device)
+                        sec_clip_l_pooler = sec_clip_l_pooler.to(dtype=clip_l_pooler.dtype, device=clip_l_pooler.device)
+                        sec_llama_attention_mask = sec_llama_attention_mask.to(dtype=llama_attention_mask.dtype, device=llama_attention_mask.device)
+                        
+                        # 結果を保存
+                        section_prompt_embeddings[sec_num] = (sec_llama_vec, sec_clip_l_pooler, sec_llama_attention_mask)
+                        print(translate("[section_prompt] セクション{0}のプロンプトエンコード完了").format(sec_num))
+                    except Exception as e:
+                        print(translate("[ERROR] セクション{0}のプロンプトエンコードに失敗: {1}").format(sec_num, e))
+                        traceback.print_exc()
 
 
         # これ以降の処理は text_encoder, text_encoder_2 は不要なので、メモリ解放してしまって構わない
@@ -526,7 +568,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             
             # Pathの場合はPILで画像を開く
             if isinstance(img_path_or_array, str) and os.path.exists(img_path_or_array):
-                print(f"[DEBUG] ファイルから画像を読み込み: {img_path_or_array}")
+                # print(f"[DEBUG] ファイルから画像を読み込み: {img_path_or_array}")
                 img = np.array(Image.open(img_path_or_array).convert('RGB'))
             else:
                 # NumPy配列の場合はそのまま使う
@@ -547,14 +589,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         Image.fromarray(input_image_np).save(initial_image_path)
         
         # メタデータの埋め込み
-        print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
-        print(f"[DEBUG] prompt: {prompt}")
-        print(f"[DEBUG] seed: {seed}")
+        # print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
+        # print(f"[DEBUG] prompt: {prompt}")
+        # print(f"[DEBUG] seed: {seed}")
         metadata = {
             PROMPT_KEY: prompt,
             SEED_KEY: seed
         }
-        print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
+        # print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
         embed_metadata_to_png(initial_image_path, metadata)
 
         # VAE encoding
@@ -762,8 +804,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('end', None))
                 return
 
-            # セクション固有のプロンプトがあれば使用する
-            current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask)
+            # セクション固有のプロンプトがあれば使用する（事前にエンコードしたキャッシュを使用）
+            current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask, section_prompt_embeddings)
 
             print(translate('latent_padding_size = {0}, is_last_section = {1}').format(latent_padding_size, is_last_section))
 
@@ -1969,7 +2011,22 @@ with block:
                 # セクション情報zipファイルアップロード処理を追加
                 with gr.Group():
                     gr.Markdown(f"### " + translate("セクション情報一括アップロード"))
-                    upload_zipfile = gr.File(label=translate("セクション情報アップロードファイル"), file_types=[".zip"], interactive=True)
+                    # チェックボックスで表示/非表示を切り替え
+                    show_upload_section = gr.Checkbox(
+                        label=translate("一括アップロード機能を表示"),
+                        value=False,
+                        info=translate("チェックをオンにするとセクション情報の一括アップロード機能を表示します")
+                    )
+                    # 初期状態では非表示
+                    with gr.Group(visible=False) as upload_section_group:
+                        upload_zipfile = gr.File(label=translate("セクション情報アップロードファイル"), file_types=[".zip"], interactive=True)
+                    
+                    # チェックボックスの状態変更時に表示/非表示を切り替える
+                    show_upload_section.change(
+                        fn=lambda x: gr.update(visible=x),
+                        inputs=[show_upload_section],
+                        outputs=[upload_section_group]
+                    )
 
                 with gr.Group(elem_classes="section-container"):
                     section_title = gr.Markdown(initial_title)

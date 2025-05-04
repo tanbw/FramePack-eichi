@@ -62,7 +62,7 @@ from eichi_utils.video_mode_settings import (
     VIDEO_MODE_SETTINGS, get_video_modes, get_video_seconds, get_important_keyframes,
     get_copy_targets, get_max_keyframes_count, get_total_sections, generate_keyframe_guide_html,
     handle_mode_length_change, process_keyframe_change, MODE_TYPE_NORMAL
-    # F1版では不要な機能のインポートを削除
+    # F1モードでは不要な機能のインポートを削除
 )
 
 # 設定管理モジュールをインポート
@@ -430,14 +430,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         Image.fromarray(input_image_np).save(initial_image_path)
         
         # メタデータの埋め込み
-        print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
-        print(f"[DEBUG] prompt: {prompt}")
-        print(f"[DEBUG] seed: {seed}")
+        # print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
+        # print(f"[DEBUG] prompt: {prompt}")
+        # print(f"[DEBUG] seed: {seed}")
         metadata = {
             PROMPT_KEY: prompt,
             SEED_KEY: seed
         }
-        print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
+        # print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
         embed_metadata_to_png(initial_image_path, metadata)
 
         # VAE encoding
@@ -1394,7 +1394,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         frame_count = int(latent_window_size * 4 - 3)
     total_latent_sections = int(max(round((total_second_length * 30) / frame_count), 1))
 
-    # F1版では常に通常モード
+    # F1モードでは常に通常のみ
     mode_name = translate("通常モード")
 
     print(translate("\n==== 動画生成開始 ====="))
@@ -1631,8 +1631,8 @@ with block:
     # 一番上の行に「生成モード、セクションフレームサイズ、オールパディング、動画長」を配置
     with gr.Row():
         with gr.Column(scale=1):
-            # 生成モードのラジオボタン（F1版では通常モードのみ）
-            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL], value=MODE_TYPE_NORMAL, label=translate("生成モード"), info=translate("F1版では通常モードのみ利用可能"))
+            # 生成モードのラジオボタン（F1モードでは通常のみ）
+            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL], value=MODE_TYPE_NORMAL, label=translate("生成モード"), info=translate("F1モードでは通常のみ利用可能"))
         with gr.Column(scale=1):
             # フレームサイズ切替用のUIコントロール（名前を「セクションフレームサイズ」に変更）
             frame_size_radio = gr.Radio(
@@ -1646,7 +1646,7 @@ with block:
             use_all_padding = gr.Checkbox(
                 label=translate("オールパディング"), 
                 value=False, 
-                info=translate("F1モードでは使用できません。通常モードでのみ有効です。"), 
+                info=translate("F1モードでは使用できません。無印モードでのみ有効です。"), 
                 elem_id="all_padding_checkbox",
                 interactive=False  # F1モードでは非活性化
             )
@@ -1672,7 +1672,7 @@ with block:
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
-            length_radio = gr.Radio(choices=get_video_modes(), value=translate("1秒"), label=translate("動画長"), info=translate("動画の長さを設定"))
+            length_radio = gr.Radio(choices=get_video_modes(), value=translate("1秒"), label=translate("動画長"), info=translate("動画の長さを設定。F1モードでは右下の「動画の総長（秒）」で20秒より長い動画長を設定可能です"))
 
     with gr.Row():
         with gr.Column():
