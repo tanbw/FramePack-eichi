@@ -136,10 +136,87 @@ class TransformerManager:
             self.transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained(
                 model_path,
                 torch_dtype=torch.bfloat16
-            ).cpu()
-            
+            )
+
             print(translate("使用モデル: {0}").format(model_path))
+
+            # LoRAとFP8最適化の適用：ピークメモリ使用量を削減するために同時に適用
+            if self.next_state['lora_path'] is not None or self.next_state['fp8_enabled']:
+                # FP8最適化の適用可能性チェック
+                if self.next_state['fp8_enabled']:
+                    from lora_utils.fp8_optimization_utils import check_fp8_support
+                    has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
+                    
+                    if not has_e4m3:
+                        print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
+                        self.next_state['fp8_enabled'] = False
+
+                # 状態辞書を取得
+                state_dict = self.transformer.state_dict()
+
+                # LoRAの適用（重みのFP8最適化も必要なら同時に行う）
+                if self.next_state['lora_path'] is not None:
+                    try:
+                        from lora_utils.lora_loader import load_and_apply_lora
+                        state_dict = load_and_apply_lora(
+                            self.transformer,
+                            state_dict,
+                            self.next_state['lora_path'],
+                            self.next_state['lora_scale'],
+                            self.next_state['fp8_enabled'],
+                            device=self.device
+                        )
+                        print(translate("LoRAを直接適用しました (スケール: {0})").format(self.next_state['lora_scale']))
+                        
+                        # LoRA診断
+                        try:
+                            from lora_utils.lora_check_helper import check_lora_applied
+                            has_lora, source = check_lora_applied(self.transformer)
+                            print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
+                        except Exception as diagnostic_error:
+                            print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
+
+                    except Exception as e:
+                        print(translate("LoRA適用エラー: {0}").format(e))
+                        traceback.print_exc()
+                        raise e
+                        
+                # FP8最適化の適用
+                if self.next_state['fp8_enabled']:
+                    try:
+                        from lora_utils.fp8_optimization_utils import optimize_state_dict_with_fp8, apply_fp8_monkey_patch
+
+                        # LoRAが適用されている場合は、すでにFP8最適化されている
+                        if self.next_state['lora_path'] is None:
+                            # 最適化のターゲットと除外キーを設定
+                            TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
+                            EXCLUDE_KEYS = ["norm"]
+                            
+                            # 状態辞書をFP8形式に最適化
+                            print(translate("FP8形式で状態辞書を最適化しています..."))
+                            state_dict = optimize_state_dict_with_fp8(
+                                state_dict,
+                                self.device,
+                                TARGET_KEYS,
+                                EXCLUDE_KEYS,
+                                move_to_device=False
+                            )
+                            
+                        # モンキーパッチの適用
+                        print(translate("FP8モンキーパッチを適用しています..."))
+                        use_scaled_mm = has_scaled_mm and has_e5m2
+                        apply_fp8_monkey_patch(self.transformer, state_dict, use_scaled_mm=use_scaled_mm)
+                        
+                        print(translate("FP8最適化が適用されました！"))
+                    except Exception as e:
+                        print(translate("FP8最適化エラー: {0}").format(e))
+                        traceback.print_exc()
+                        raise e
+                
+                # 必要に応じてLoRA、FP8最適化が施された状態辞書を読み込み
+                self.transformer.load_state_dict(state_dict, strict=True)
             
+            self.transformer.cpu()
             self.transformer.eval()
             self.transformer.high_quality_fp32_output_for_inference = True
             print('transformer.high_quality_fp32_output_for_inference = True')
@@ -151,75 +228,6 @@ class TransformerManager:
                 DynamicSwapInstaller.install_model(self.transformer, device=self.device)
             else:
                 self.transformer.to(self.device)
-            
-            # LoRAの適用
-            if self.next_state['lora_path'] is not None:
-                try:
-                    from lora_utils.lora_loader import load_and_apply_lora
-                    self.transformer = load_and_apply_lora(
-                        self.transformer,
-                        self.next_state['lora_path'],
-                        self.next_state['lora_scale'],
-                        device=self.device
-                    )
-                    print(translate("LoRAを直接適用しました (スケール: {0})").format(self.next_state['lora_scale']))
-                    
-                    # LoRA診断
-                    try:
-                        from lora_utils.lora_check_helper import check_lora_applied
-                        has_lora, source = check_lora_applied(self.transformer)
-                        print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
-                    except Exception as diagnostic_error:
-                        print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
-
-                    
-                    # FP8最適化の適用 (LoRA適用時のみ有効)
-                    if self.next_state['fp8_enabled']:
-                        try:
-                            from lora_utils.fp8_optimization_utils import check_fp8_support, optimize_state_dict_with_fp8, apply_fp8_monkey_patch
-                            
-                            has_e4m3, has_e5m2, has_scaled_mm = check_fp8_support()
-                            
-                            if not has_e4m3:
-                                print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
-                            else:
-                                print(translate("FP8最適化を適用します..."))
-                                
-                                # 状態辞書を取得
-                                state_dict = self.transformer.state_dict()
-                                
-                                # 最適化のターゲットと除外キーを設定
-                                TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
-                                EXCLUDE_KEYS = ["norm"]
-                                
-                                # 状態辞書をFP8形式に最適化
-                                print(translate("FP8形式で状態辞書を最適化しています..."))
-                                state_dict = optimize_state_dict_with_fp8(
-                                    state_dict,
-                                    self.device,
-                                    TARGET_KEYS,
-                                    EXCLUDE_KEYS,
-                                    move_to_device=False
-                                )
-                                
-                                # モンキーパッチの適用
-                                print(translate("FP8モンキーパッチを適用しています..."))
-                                use_scaled_mm = has_scaled_mm and has_e5m2
-                                apply_fp8_monkey_patch(self.transformer, state_dict, use_scaled_mm=use_scaled_mm)
-                                
-                                # 状態辞書を読み込み
-                                self.transformer.load_state_dict(state_dict, strict=True)
-                                
-                                print(translate("FP8最適化が適用されました！"))
-                        except Exception as e:
-                            print(translate("FP8最適化エラー: {0}").format(e))
-                            traceback.print_exc()
-                            raise e
-                    
-                except Exception as e:
-                    print(translate("LoRA適用エラー: {0}").format(e))
-                    traceback.print_exc()
-                    raise e
             
             # 状態を更新
             self.next_state['is_loaded'] = True

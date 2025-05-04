@@ -99,7 +99,14 @@ def quantize_tensor_to_fp8(tensor, scale, exp_bits=4, mantissa_bits=3, sign_bits
     return quantized, scale
 
 def optimize_state_dict_with_fp8(
-    state_dict, calc_device, target_layer_keys=None, exclude_layer_keys=None, exp_bits=4, mantissa_bits=3, move_to_device=False
+    state_dict,
+    calc_device,
+    target_layer_keys=None,
+    exclude_layer_keys=None,
+    exp_bits=4,
+    mantissa_bits=3,
+    move_to_device=False,
+    weight_hook=None,
 ):
     """
     モデルの状態辞書内の線形レイヤーの重みをFP8形式に最適化
@@ -112,6 +119,7 @@ def optimize_state_dict_with_fp8(
         exp_bits (int): 指数部のビット数
         mantissa_bits (int): 仮数部のビット数
         move_to_device (bool): 最適化されたテンソルを計算デバイスに移動するかどうか
+        weight_hook (callable, optional): 重みのフック関数（Noneの場合は使用しない）、FP8最適化前に、FP8最適化の有無に関係なくすべての重みに適用される。
 
     Returns:
         dict: FP8最適化された状態辞書
@@ -132,7 +140,7 @@ def optimize_state_dict_with_fp8(
     optimized_count = 0
 
     # 対象キーの列挙
-    target_state_dict_keys = []
+    target_state_dict_keys = set()
     for key in state_dict.keys():
         # 対象パターンに一致し、除外パターンに一致しない重みキーを選択
         is_target = (target_layer_keys is None or any(pattern in key for pattern in target_layer_keys)) and key.endswith(".weight")
@@ -140,11 +148,19 @@ def optimize_state_dict_with_fp8(
         is_target = is_target and not is_excluded
 
         if is_target and isinstance(state_dict[key], torch.Tensor):
-            target_state_dict_keys.append(key)
+            target_state_dict_keys.add(key)
 
     # 各キーを処理
-    for key in tqdm(target_state_dict_keys, desc=translate("FP8最適化中")):
+    for key in tqdm(list(state_dict.keys()), desc=translate("FP8最適化中")):
         value = state_dict[key]
+
+        if weight_hook is not None:
+            # 重みフックが指定されている場合、フックを適用
+            value = weight_hook(key, value)
+        
+        if key not in target_state_dict_keys:
+            state_dict[key] = value
+            continue
 
         # 元のデバイスとデータ型を保存
         original_device = value.device

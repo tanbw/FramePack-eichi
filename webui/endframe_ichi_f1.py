@@ -1759,6 +1759,12 @@ with block:
                 F1モードではキーフレームコピー機能を削除済みのため、単純化
                 """
                 print("\n[DEBUG] F1モード：update_from_image_metadata関数が実行されました")
+                print(f"[DEBUG] メタデータ複写機能: {copy_enabled}")
+                
+                # 複写機能が無効の場合は何もしない
+                if not copy_enabled:
+                    print("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします")
+                    return [gr.update()] * 2
                 
                 if image_path is None:
                     print("[DEBUG] image_pathはNoneです")

@@ -12,47 +12,45 @@ from locales.i18n_extended import translate as _
 
 def load_and_apply_lora(
     model,
+    state_dict,
     lora_path,
     lora_scale=0.8,
+    fp8_enabled=False,
     device=None
 ):
     """
-    LoRA重みをロードしてモデルに適用する
+    LoRA重みをロードして重みに適用する
 
     Args:
         model: 適用先のモデル
+        state_dict: モデルの状態辞書
         lora_path: LoRAファイルのパス
         lora_scale: LoRAの適用強度
+        fp8_enabled: FP8最適化の有効/無効
         device: 計算に使用するデバイス
 
     Returns:
-        LoRAが適用されたモデル
+        LoRAが適用されたモデルの状態辞書
     """
     if not os.path.exists(lora_path):
         raise FileNotFoundError(_("LoRAファイルが見つかりません: {0}").format(lora_path))
 
     if device is None:
-        device = next(model.parameters()).device
+        device = torch.device("cpu") # CPUに fall back
 
     print(_("LoRAを読み込み中: {0} (スケール: {1})").format(os.path.basename(lora_path), lora_scale))
-
-    # モデルの状態辞書を取得
-    state_dict = model.state_dict()
 
     # LoRA重みを状態辞書にマージ
     print(_("フォーマット: HunyuanVideo"))
 
     # LoRAをマージ
-    merged_state_dict = merge_lora_to_state_dict(state_dict, lora_path, lora_scale, device)
-
-    # 状態辞書をモデルに読み込み
-    model.load_state_dict(merged_state_dict, strict=True)
+    merged_state_dict = merge_lora_to_state_dict(state_dict, lora_path, lora_scale, fp8_enabled, device)
 
     # LoRAが適用されたことを示すフラグを設定
     model._lora_applied = True
 
     print(_("LoRAの適用が完了しました"))
-    return model
+    return merged_state_dict
 
 def check_lora_applied(model):
     """

@@ -7,7 +7,7 @@ from tqdm import tqdm
 from locales.i18n_extended import translate as _
 
 def merge_lora_to_state_dict(
-    state_dict: dict[str, torch.Tensor], lora_file: str, multiplier: float, device: torch.device
+    state_dict: dict[str, torch.Tensor], lora_file: str, multiplier: float, fp8_enabled: bool, device: torch.device
 ) -> dict[str, torch.Tensor]:
     """
     Merge LoRA weights into the state dict of a model.
@@ -18,7 +18,7 @@ def merge_lora_to_state_dict(
     keys = list(lora_sd.keys())
     if keys[0].startswith("lora_unet_"):
         print(_("Musubi Tuner LoRA detected"))
-        return merge_musubi_tuner(lora_sd, state_dict, multiplier, device)
+        return merge_musubi_tuner(lora_sd, state_dict, multiplier, fp8_enabled, device)
 
     transformer_prefixes = ["diffusion_model", "transformer"]  # to ignore Text Encoder modules
     lora_suffix = None
@@ -35,14 +35,14 @@ def merge_lora_to_state_dict(
 
     if lora_suffix == "lora_A" and prefix is not None:
         print(_("Diffusion-pipe (?) LoRA detected"))
-        return merge_diffusion_pipe_or_something(lora_sd, state_dict, "lora_unet_", multiplier, device)
+        return merge_diffusion_pipe_or_something(lora_sd, state_dict, "lora_unet_", multiplier, fp8_enabled, device)
 
     print(_("LoRA file format not recognized: {0}").format(os.path.basename(lora_file)))
     return state_dict
 
 
 def merge_diffusion_pipe_or_something(
-    lora_sd: dict[str, torch.Tensor], state_dict: dict[str, torch.Tensor], prefix: str, multiplier: float, device: torch.device
+    lora_sd: dict[str, torch.Tensor], state_dict: dict[str, torch.Tensor], prefix: str, multiplier: float, fp8_enabled: bool, device: torch.device
 ) -> dict[str, torch.Tensor]:
     """
     Convert LoRA weights to the format used by the diffusion pipeline to Musubi Tuner.
@@ -72,11 +72,11 @@ def merge_diffusion_pipe_or_something(
     for lora_name, dim in lora_dims.items():
         new_weights_sd[f"{lora_name}.alpha"] = torch.tensor(dim)
 
-    return merge_musubi_tuner(new_weights_sd, state_dict, multiplier, device)
+    return merge_musubi_tuner(new_weights_sd, state_dict, multiplier, fp8_enabled, device)
 
 
 def merge_musubi_tuner(
-    lora_sd: dict[str, torch.Tensor], state_dict: dict[str, torch.Tensor], multiplier: float, device: torch.device
+    lora_sd: dict[str, torch.Tensor], state_dict: dict[str, torch.Tensor], multiplier: float, fp8_enabled: bool, device: torch.device
 ) -> dict[str, torch.Tensor]:
     """
     Merge LoRA weights into the state dict of a model.
@@ -94,55 +94,51 @@ def merge_musubi_tuner(
     # Merge LoRA weights into the state dict
     print(_("Merging LoRA weights into state dict. multiplier: {0}").format(multiplier))
 
-    # Create module map
-    name_to_original_key = {}
-    for key in state_dict.keys():
-        if key.endswith(".weight"):
-            lora_name = key.rsplit(".", 1)[0]  # remove trailing ".weight"
-            lora_name = "lora_unet_" + lora_name.replace(".", "_")
-            if lora_name not in name_to_original_key:
-                name_to_original_key[lora_name] = key
+    lora_weight_keys = set(lora_sd.keys())
 
-    # Merge LoRA weights
-    keys = list([k for k in lora_sd.keys() if "lora_down" in k])
-    for key in tqdm(keys, desc=_("Merging LoRA weights")):
-        up_key = key.replace("lora_down", "lora_up")
-        alpha_key = key[: key.index("lora_down")] + "alpha"
+    # make hook for LoRA merging
+    def weight_hook(model_weight_key, model_weight):
+        nonlocal lora_weight_keys
 
-        # find original key for this lora
-        module_name = ".".join(key.split(".")[:-2])  # remove trailing ".lora_down.weight"
-        if module_name not in name_to_original_key:
-            print(_("No module found for LoRA weight: {0}").format(key))
-            continue
+        if not model_weight_key.endswith(".weight"):
+            return model_weight
 
-        original_key = name_to_original_key[module_name]
+        # check if this weight has LoRA weights
+        lora_name = model_weight_key.rsplit(".", 1)[0]  # remove trailing ".weight"
+        lora_name = "lora_unet_" + lora_name.replace(".", "_")
+        down_key = lora_name + ".lora_down.weight"
+        up_key = lora_name + ".lora_up.weight"
+        alpha_key = lora_name + ".alpha"
+        if down_key not in lora_weight_keys or up_key not in lora_weight_keys:
+            return model_weight
 
-        down_weight = lora_sd[key]
+        # get LoRA weights
+        down_weight = lora_sd[down_key]
         up_weight = lora_sd[up_key]
 
         dim = down_weight.size()[0]
         alpha = lora_sd.get(alpha_key, dim)
         scale = alpha / dim
 
-        weight = state_dict[original_key]
-        original_device = weight.device
+        model_weight = state_dict[model_weight_key]
+        original_device = model_weight.device
         if original_device != device:
-            weight = weight.to(device)  # to make calculation faster
+            model_weight = model_weight.to(device)  # to make calculation faster
 
         down_weight = down_weight.to(device)
         up_weight = up_weight.to(device)
 
         # W <- W + U * D
-        if len(weight.size()) == 2:
+        if len(model_weight.size()) == 2:
             # linear
             if len(up_weight.size()) == 4:  # use linear projection mismatch
                 up_weight = up_weight.squeeze(3).squeeze(2)
                 down_weight = down_weight.squeeze(3).squeeze(2)
-            weight = weight + multiplier * (up_weight @ down_weight) * scale
+            model_weight = model_weight + multiplier * (up_weight @ down_weight) * scale
         elif down_weight.size()[2:4] == (1, 1):
             # conv2d 1x1
-            weight = (
-                weight
+            model_weight = (
+                model_weight
                 + multiplier
                 * (up_weight.squeeze(3).squeeze(2) @ down_weight.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
                 * scale
@@ -151,10 +147,44 @@ def merge_musubi_tuner(
             # conv2d 3x3
             conved = torch.nn.functional.conv2d(down_weight.permute(1, 0, 2, 3), up_weight).permute(1, 0, 2, 3)
             # logger.info(conved.size(), weight.size(), module.stride, module.padding)
-            weight = weight + multiplier * conved * scale
+            model_weight = model_weight + multiplier * conved * scale
 
-        weight = weight.to(original_device)  # move back to original device
-        state_dict[original_key] = weight
+        model_weight = model_weight.to(original_device)  # move back to original device
+
+        # remove LoRA keys from set
+        lora_weight_keys.remove(down_key)
+        lora_weight_keys.remove(up_key)
+        if alpha_key in lora_weight_keys:
+            lora_weight_keys.remove(alpha_key)
+
+        return model_weight
+
+    if fp8_enabled:
+        from lora_utils.fp8_optimization_utils import optimize_state_dict_with_fp8
+
+        # 最適化のターゲットと除外キーを設定
+        TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
+        EXCLUDE_KEYS = ["norm"]
+        
+        # 状態辞書をFP8形式に最適化
+        print(_("FP8形式で状態辞書を最適化しています..."))
+        state_dict = optimize_state_dict_with_fp8(
+            state_dict,
+            device,
+            TARGET_KEYS,
+            EXCLUDE_KEYS,
+            move_to_device=False,
+            weight_hook=weight_hook,
+        )
+    
+    else:
+        # Enumerate all keys in the state dict and find the corresponding LoRA key
+        for model_key in tqdm(list(state_dict.keys()), desc=_("Merging LoRA weights")):
+            state_dict[model_key] = weight_hook(model_key, state_dict[model_key])
+
+    # check if all LoRA keys are used
+    if len(lora_weight_keys) > 0:
+        print(_("Warning: not all LoRA keys are used: {0}").format(", ".join(lora_weight_keys)))
 
     return state_dict
 
