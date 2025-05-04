@@ -398,7 +398,8 @@ def get_max_keyframes_count():
                 max_kf = max(important_kfs)
 
         # 次にコピーパターンの中の最大値をチェック
-        for mode_type in [MODE_TYPE_NORMAL, MODE_TYPE_LOOP]:
+        # ループモード削除のためMODE_TYPE_NORMALのみをチェック
+        for mode_type in [MODE_TYPE_NORMAL]:
             if mode_type not in VIDEO_MODE_SETTINGS[mode_key]["copy_patterns"]:
                 continue
 
