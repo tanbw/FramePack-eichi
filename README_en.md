@@ -1,20 +1,41 @@
-# FramePack-eichi
+# FramePack-eichi | [日本語](README.md) | [繁體中文](README_zh.md)
 
 FramePack-eichi is an enhanced version of lllyasviel's [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack), built upon nirvash's fork [nirvash/FramePack](https://github.com/nirvash/FramePack). Based on nirvash's pioneering improvements, it includes numerous detailed features.
 
-Since v1.9, with permission from Kohya Tech, code from [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) has been integrated, significantly improving LoRA functionality and stability.
+Additionally, since v1.9, with permission from Kohya Tech, code from [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) has been integrated, significantly improving LoRA functionality and stability.
 
 We're extremely grateful to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for multilingual support cooperation.
 
-感謝您 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** 對多語言支援的協助。
+## 🌟 New Feature: F1 Model Addition (v1.9.1)
 
-Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for the multilingual support contribution.
-
-[Click here for Traditional Chinese documentation](README_zh.md)
-
-> Note: Currently, some documentation is available in Traditional Chinese. English README and other language versions will be added later. The current translations cover features up to v1.7.1, and translations for the latest v1.8 features are in progress.
+**FramePack-eichi v1.9.1** adds a new forward-generation model "FramePack-~~eichi~~ F1" alongside the traditional reverse-generation model "FramePack-eichi" (standard version).
 
 ![FramePack-eichi Screenshot 1](images/framepack_eichi_screenshot1.png)
+
+### 🆚 Differences Between F1 Model and Standard Model
+
+| Feature | F1 Model | Standard Model |
+|---------|----------|----------------|
+| Generation Direction | Forward generation (first to last) | Reverse generation (last to first) |
+| Movement Characteristics | More movement, intuitive results | More precise control possible |
+| UI Elements | Simplified | Detailed settings available |
+| Ease of Use | Beginner-friendly, intuitive | Advanced, complex control possible |
+| Keyframes | Image only | Image, Final, Section images |
+| Launch Method | run_endframe_ichi_f1.bat | run_endframe_ichi.bat |
+
+### 💡 Which One Should You Choose?
+
+- **First-time users or those wanting simplicity** → **F1 Model** recommended
+  - More natural movement results easily obtained
+  - Fewer settings for intuitive operation
+  - Available through dedicated launch script (`run_endframe_ichi_f1.bat`)
+
+- **Users wanting advanced control or experienced users** → **Standard Model** recommended
+  - Detailed control using multiple keyframe images
+  - Advanced features like section-specific prompts
+  - Available through traditional launch script (`run_endframe_ichi.bat`)
+
+**Note:** When launching the F1 model for the first time, approximately 24GB of additional model downloads will occur in addition to the standard model. The standard model will also be retained, allowing you to switch between them.
 
 ## 📘 Name Origin
 
@@ -25,13 +46,12 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
 - **I**nterface: Intuitive user experience and improved UI/UX
 
 The name "eichi" also evokes the Japanese word "叡智" (deep wisdom, intelligence), symbolizing the philosophy of this project to combine AI technology advancement with human creativity.
-In other words, it's a local modification specialized in creating videos from intelligently differentiated images.
+In other words, it's a ~~local~~ **worldwide** modification specialized in creating videos from intelligently differentiated images. **The eichi has crossed the ocean!**
 
 ## 🌟 Main Features
 
-- **Multilingual Support (i18n)**: UI in Japanese, English, and Traditional Chinese (added in v1.8.1)
-
 - **High-Quality Video Generation**: Generate natural motion videos from a single image (existing feature)
+- **F1 Model Support**: New model for forward generation, enabling more intuitive video creation (added in v1.9.1)
 - **Flexible Video Length Settings**: Support for 1-20 second section modes (unique feature)
 - **Section Frame Size Settings**: Toggle between 0.5-second and 1-second modes (added in v1.5)
 - **All-Padding Function**: Use the same padding value for all sections (added in v1.4)
@@ -40,15 +60,52 @@ In other words, it's a local modification specialized in creating videos from in
 - **Efficient Keyframe Image Copy with Red/Blue Frames**: Cover all sections with just two keyframes (added in v1.7)
 - **Tensor Data Saving and Combining**: Save and combine latent representations of videos (added in v1.8)
 - **Prompt Management**: Easy saving, editing, and reuse of prompts (added in v1.3)
+- **PNG Metadata Embedding**: Automatically record prompts, seed values, and section information in generated images (added in v1.9.1)
+- **Hunyuan/FramePack LoRA Support**: Add custom expressions through model customization (significantly improved in v1.9/v1.9.1)
+- **FP8 Optimization**: Reduce VRAM usage and optimize processing speed for LoRA application (added in v1.9.1)
 - **MP4 Compression Settings**: Adjust the balance between video file size and quality (merged from original in v1.6.2)
-- **[Experimental] Hunyuan LoRA Support**: Add custom expressions through model customization (added in v1.3)
 - **Output Folder Management**: Specify output folders and OS-independent folder opening (added in v1.2)
-- **Logging Features**: Detailed progress information, processing time at completion, and sound notifications on Windows (unique feature)
-- **Cross-Platform Support**: Basic features available on non-Windows environments (probably)
+- **Multilingual Support (i18n)**: UI in Japanese, English, and Traditional Chinese (added in v1.8.1)
+- **Docker Support**: Easily run FramePack-eichi in a containerized environment (added in v1.9.1)
 
 ![FramePack-eichi Screenshot 2](images/framepack_eichi_screenshot2.png)
 
-## 📝 Latest Update Information (v1.9)
+**Section Settings Screen**
+![FramePack-eichi Screenshot 3](images/framepack_eichi_screenshot3.png)
+
+## 📝 Latest Update Information (v1.9.1)
+
+### Major Changes
+
+#### 1. F1 Model Addition
+- **New Forward Generation Model**: Introduced the "FramePack_F1_I2V_HY_20250503" model supporting normal generation direction (first to last)
+- **Simplified Interface**: Removed Section (keyframe images) and Final (endframe) functions for F1 model
+- **Dedicated Launch Scripts**: Added `run_endframe_ichi_f1.bat` and multilingual version scripts
+- **Image Influence Adjustment**: Added function to control change from the initial Image in the first section (adjustable from 100.0% to 102.0%)
+
+#### 2. Memory Management Optimization
+- **Enhanced Model Management**: Efficient memory management with `transformer_manager.py` and `text_encoder_manager.py`
+- **FP8 Optimization**: Reduced VRAM usage through 8-bit floating-point format for LoRA application
+- **RTX 40 Series GPU Optimization**: Performance improvement with `scaled_mm` optimization
+
+#### 3. PNG Metadata Function
+- **Metadata Embedding**: Automatically save prompts, seeds, and section information in generated images
+- **Metadata Extraction**: Ability to retrieve settings from saved images
+- **Compatibility with SD Tools**: Compatibility with other tools through standard metadata format
+
+#### 4. Enhanced Clipboard Support
+- **Unified Support**: Clipboard support for Image and Final in standard version and Image in F1 version
+
+#### 5. Bulk Section Information Addition
+- **ZIP File Import**: Ability to set section images and prompts in bulk via zip file
+- **Automatic Section Configuration**: Automatic setting based on numbered images and YAML configuration file in zip file
+- **Composition Support**: Bulk registration of starting frame, ending frame, and each section image and prompt
+
+#### 6. Enhanced Docker Support
+- **Containerized Environment**: Easy setup using Dockerfile and docker-compose.yml
+- **Multilingual Support**: Container images supporting multiple languages (Japanese, English, Chinese)
+
+## 📝 Update Information (v1.9)
 
 ### Major Changes
 
@@ -208,47 +265,59 @@ First, you need to install the original FramePack.
 #### Installing FramePack-eichi
 
 1. Place the executable files in the FramePack root directory:
-   - `run_endframe_ichi.bat` - For Japanese version (default)
-   - `run_endframe_ichi_en.bat` - For English version (added in v1.8.1)
-   - `run_endframe_ichi_zh-tw.bat` - For Traditional Chinese version (added in v1.8.1)
+   - `run_endframe_ichi.bat` - Standard version/Japanese (default)
+   - `run_endframe_ichi_en.bat` - Standard version/English
+   - `run_endframe_ichi_zh-tw.bat` - Standard version/Traditional Chinese
+   - `run_endframe_ichi_f1.bat` - F1 version/Japanese (added in v1.9.1)
+   - `run_endframe_ichi_en_f1.bat` - F1 version/English (added in v1.9.1)
+   - `run_endframe_ichi_zh-tw_f1.bat` - F1 version/Traditional Chinese (added in v1.9.1)
 
 2. Place the following files and folders in the `webui` folder:
-   - `endframe_ichi.py` - Main application file
-   - `eichi_utils` folder - Utility modules (revised in v1.3.1, UI-related modules added in v1.6.2)
+   - `endframe_ichi.py` - Standard version main application file
+   - `endframe_ichi_f1.py` - F1 version main application file (added in v1.9.1)
+   - `eichi_utils` folder - Utility modules
      - `__init__.py`
      - `frame_calculator.py` - Frame size calculation module
      - `keyframe_handler.py` - Keyframe processing module
      - `keyframe_handler_extended.py` - Keyframe processing module
      - `preset_manager.py` - Preset management module
      - `settings_manager.py` - Settings management module
+     - `tensor_combiner.py` - Tensor combination module (added in v1.8)
      - `ui_styles.py` - UI style definition module (added in v1.6.2)
      - `video_mode_settings.py` - Video mode settings module
-   - `lora_utils` folder - LoRA-related modules (added in v1.3, significantly improved in v1.9)
+     - `png_metadata.py` - PNG metadata module (added in v1.9.1)
+     - `text_encoder_manager.py` - Text encoder management module (added in v1.9.1)
+     - `transformer_manager.py` - Transformer model management module (added in v1.9.1)
+   - `lora_utils` folder - LoRA-related modules
      - `__init__.py`
      - `dynamic_swap_lora.py` - LoRA management module (maintained for backward compatibility)
      - `lora_loader.py` - LoRA loader module
      - `lora_check_helper.py` - LoRA application status check module
      - `lora_utils.py` - LoRA state dictionary merging and conversion functionality (added in v1.9)
-     - `fp8_optimization_utils.py` - FP8 optimization functionality (added in v1.9)
-   - `diffusers_helper` folder - Utilities for improved model memory management (added in v1.9)
+     - `fp8_optimization_utils.py` - FP8 optimization functionality (added in v1.9.1)
+   - `diffusers_helper` folder - Utilities for improved model memory management
      - `memory.py` - Provides memory management functionality
+     - `bucket_tools.py` - Resolution bucket functionality (added in v1.9.1)
      - **Note**: This directory replaces source files from the original tool, so please back up as needed
-   - `locales` folder - Multilingual support modules (added in v1.8.1)
+   - `locales` folder - Multilingual support modules
      - `i18n.py` - Core implementation of internationalization (i18n) functionality
+     - `i18n_extended.py` - Extended internationalization functionality (added in v1.9.1)
      - `ja.json` - Japanese translation file (default language)
      - `en.json` - English translation file
      - `zh-tw.json` - Traditional Chinese translation file
 
-3. Run the executable file for your preferred language to start the FramePack-eichi Web UI:
-   - Japanese version: `run_endframe_ichi.bat`
-   - English version: `run_endframe_ichi_en.bat`
-   - Traditional Chinese version: `run_endframe_ichi_zh-tw.bat`
+3. Run the executable file for your preferred version and language to start the FramePack-eichi Web UI:
+   - Standard version/Japanese: `run_endframe_ichi.bat`
+   - Standard version/English: `run_endframe_ichi_en.bat`
+   - Standard version/Traditional Chinese: `run_endframe_ichi_zh-tw.bat`
+   - F1 version/Japanese: `run_endframe_ichi_f1.bat` (added in v1.9.1)
+   - F1 version/English: `run_endframe_ichi_en_f1.bat` (added in v1.9.1)
+   - F1 version/Traditional Chinese: `run_endframe_ichi_zh-tw_f1.bat` (added in v1.9.1)
 
    Alternatively, you can specify the language directly from the command line:
    ```bash
-   python endframe_ichi.py --lang en  # Start in English
-   python endframe_ichi.py --lang zh-tw  # Start in Traditional Chinese
-   python endframe_ichi.py  # Start in Japanese (default)
+   python endframe_ichi.py --lang en  # Start standard version in English
+   python endframe_ichi_f1.py --lang zh-tw  # Start F1 version in Traditional Chinese
    ```
 
 #### Docker Installation
@@ -321,16 +390,32 @@ On Linux, you can run it with the following steps:
 
 ## 🚀 How to Use
 
-### Basic Video Generation (Existing Feature)
+### Model Selection
+
+1. **Choose a Model Based on Your Needs**:
+   - **For beginners or those wanting simplicity**: Use the F1 model (`run_endframe_ichi_f1.bat`)
+   - **For experienced users wanting detailed control**: Use the standard model (`run_endframe_ichi.bat`)
+
+2. **Model Characteristics**:
+   - **F1 Model**: Forward generation, more dynamic movement, simpler operation
+   - **Standard Model**: Reverse generation, precise control, feature-rich
+
+### Basic Video Generation
 
 1. **Upload Image**: Upload an image to the "Image" frame
 2. **Enter Prompt**: Enter a prompt expressing the character's movement
 3. **Adjust Settings**: Set video length and seed value
 4. **Start Generation**: Click the "Start Generation" button
 
-### Advanced Settings
+### F1 Model Specific Settings (v1.9.1)
 
-- **Generation Mode Selection**: (Unique Feature)
+- **Image Influence**: Adjust the degree of change in the first section (100.0% to 102.0%)
+- **Prompt**: Emphasize movement descriptions in prompts for better results
+- **Note**: Section settings and Final Frame features are not available in the F1 model
+
+### Standard Model Advanced Settings
+
+- **Generation Mode Selection**:
   - **Normal Mode**: General video generation
   - **Loop Mode**: Generate cyclic videos where the final frame returns to the first frame
 
@@ -338,30 +423,40 @@ On Linux, you can run it with the following steps:
   - **All-Padding**: Use the same padding value for all sections
   - **Padding Value**: Integer value from 0 to 3
 
-- **Video Length Setting**: (Extended Unique Feature)
+- **Video Length Setting**:
   - **1-20 seconds**
 
 [Continued here](README_column.md#-advanced-settings)
 
 ## 🛠️ Configuration Information
 
+### FP8 Optimization Settings (v1.9.1)
+
+- **FP8 Optimization**: Reduce VRAM usage during LoRA application with 8-bit floating-point format
+- **RTX 40 Series GPU**: Acceleration with scaled_mm optimization
+- **Default is Off**: When enabled, LoRA becomes more usable in low VRAM environments
+
 ### Language Settings
 
 1. **Language Selection via Executable Files**:
-   - `run_endframe_ichi.bat` - Japanese version (default)
-   - `run_endframe_ichi_en.bat` - English version
-   - `run_endframe_ichi_zh-tw.bat` - Traditional Chinese version
+   - `run_endframe_ichi.bat` - Standard version/Japanese (default)
+   - `run_endframe_ichi_en.bat` - Standard version/English
+   - `run_endframe_ichi_zh-tw.bat` - Standard version/Traditional Chinese
+   - `run_endframe_ichi_f1.bat` - F1 version/Japanese
+   - `run_endframe_ichi_en_f1.bat` - F1 version/English
+   - `run_endframe_ichi_zh-tw_f1.bat` - F1 version/Traditional Chinese
 
 2. **Language Specification via Command Line**:
    ```
-   python endframe_ichi.py --lang en  # Start in English
-   python endframe_ichi.py --lang zh-tw  # Start in Traditional Chinese
-   python endframe_ichi.py  # Start in Japanese (default)
+   python endframe_ichi.py --lang en  # Start standard version in English
+   python endframe_ichi_f1.py --lang zh-tw  # Start F1 version in Traditional Chinese
    ```
 
 Note: Multilingual versions of the README will be added sequentially. For the Traditional Chinese version, please refer to [README_zh.md](README_zh.md).
 
 For detailed configuration information, please see [here](README_column.md#-%EF%B8%8F-configuration-information).
+
+For detailed usage instructions, please also refer to the [User Guide](README_userguide.md).
 
 ## 🔧 Troubleshooting
 
@@ -397,6 +492,52 @@ If "CUDA out of memory" or "RuntimeError: CUDA error" appears:
 2. Close other applications using the GPU
 3. Restart and try again
 4. Reduce image resolution (around 640x640 recommended)
+
+### Detailed Memory Consumption Analysis
+
+Based on detailed analysis of the entire source code, actual memory consumption is as follows:
+
+#### Basic Model Configuration and Load-Time Memory Consumption
+
+- **transformer** (FramePackI2V_HY): Approximately 25-30GB (when state dictionary is fully expanded)
+- **text_encoder**, **text_encoder_2**, **vae** total: Approximately 8-10GB
+  v1.9.1 adds unload processing to reduce RAM usage
+- **Other auxiliary models** (image_encoder, etc.): About 3-5GB
+- **Total baseline RAM consumption**: About 36-45GB
+
+#### Memory Consumption Pattern During LoRA Application
+
+LoRA application processing flow:
+1. **Original state dictionary**: About 25-30GB (transformer size)
+2. **LoRA file loading**: 50MB to 500MB
+3. **During merge processing**: Temporarily requires an additional 25-30GB as it duplicates the original state dictionary while merging with LoRA
+   Note: v1.9.1 revises this process, significantly reducing RAM consumption
+4. **Peak during application process**: Basic consumption + state dictionary duplication ≈ about 70-90GB
+
+**Important**: This significant memory consumption increase occurs only during the initial LoRA loading. When loading a different LoRA file or changing LoRA application strength or FP8 settings, such large memory peaks do not occur. For normal video generation operations after the initial load, memory usage remains at the basic consumption level (around 36-45GB).
+
+#### Recommended System Requirements
+
+- **Standard execution RAM requirement**: 36-45GB
+- **Temporary peak during LoRA application**: 70-90GB
+- **Recommended total memory**: Combined RAM + pagefile should be at least 40GB
+  
+For example:
+- 32GB RAM system → Set pagefile to approximately 40GB
+- 64GB RAM system → Set pagefile to approximately 20GB
+
+#### Additional Memory Requirements When Using the F1 Model
+
+When using the F1 model, the following additional memory is required on top of the standard model:
+- **F1 model initial download**: About 24GB
+- **Storage capacity when both models coexist**: About 54GB
+
+#### Note for No-Swap Environments like Google Colab
+
+Running in environments without swap memory has very strict limitations:
+- RAM limits (13-15GB) make it difficult to load even the basic model
+- Cannot handle the temporary memory peak of 70-90GB required during LoRA application
+- Without swap, the system crashes immediately with OOM errors when memory is insufficient
 
 ### Video Display Issues
 
@@ -441,6 +582,16 @@ This project is released under the [Apache License 2.0](LICENSE), in compliance 
 
 
 ## 📝 Update History
+
+The latest update information is shown below. For the full update history, please refer to the [Changelog](README_changelog.md).
+
+### 2025-05-04: Version 1.9.1
+- **F1 Model Addition**: Introduced new "FramePack_F1_I2V_HY_20250503" model supporting forward generation
+- **Enhanced Model Management**: Efficient model management with transformer_manager.py and text_encoder_manager.py
+- **Enhanced Docker Support**: Easy setup in containerized environments
+- **PNG Metadata Function**: Automatic embedding of prompts, seeds, and section information in generated images
+- **Optimal Resolution Bucket System**: Automatically select optimal resolution based on aspect ratio
+- **Enhanced Clipboard Support**: Clipboard support for Image and Final in standard version and Image in F1 version
 
 ### 2025-04-30: Version 1.9
 - **Introduction of kohya-ss/FramePack-LoRAReady**:
