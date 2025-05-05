@@ -1,4 +1,4 @@
-# FramePack-eichi | [日本語](README.md) | [繁體中文](README_zh.md)
+# FramePack-eichi | [日本語](../README.md) | [繁體中文](README_zh.md)
 
 FramePack-eichi is an enhanced version of lllyasviel's [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack), built upon nirvash's fork [nirvash/FramePack](https://github.com/nirvash/FramePack). Based on nirvash's pioneering improvements, it includes numerous detailed features.
 
@@ -10,7 +10,7 @@ We're extremely grateful to [https://github.com/hinablue](https://github.com/hin
 
 **FramePack-eichi v1.9.1** adds a new forward-generation model "FramePack-~~eichi~~ F1" alongside the traditional reverse-generation model "FramePack-eichi" (standard version).
 
-![FramePack-eichi Screenshot 1](images/framepack_eichi_screenshot1.png)
+![FramePack-eichi Screenshot 1](../images/framepack_eichi_screenshot1.png)
 
 ### 🆚 Differences Between F1 Model and Standard Model
 
@@ -68,10 +68,10 @@ In other words, it's a ~~local~~ **worldwide** modification specialized in creat
 - **Multilingual Support (i18n)**: UI in Japanese, English, and Traditional Chinese (added in v1.8.1)
 - **Docker Support**: Easily run FramePack-eichi in a containerized environment (added in v1.9.1)
 
-![FramePack-eichi Screenshot 2](images/framepack_eichi_screenshot2.png)
+![FramePack-eichi Screenshot 2](../images/framepack_eichi_screenshot2.png)
 
 **Section Settings Screen**
-![FramePack-eichi Screenshot 3](images/framepack_eichi_screenshot3.png)
+![FramePack-eichi Screenshot 3](../images/framepack_eichi_screenshot3.png)
 
 ## 📝 Latest Update Information (v1.9.1)
 
@@ -426,7 +426,7 @@ On Linux, you can run it with the following steps:
 - **Video Length Setting**:
   - **1-20 seconds**
 
-[Continued here](README_column.md#-advanced-settings)
+[Continued here](README_column_en.md#-advanced-settings)
 
 ## 🛠️ Configuration Information
 
@@ -454,9 +454,11 @@ On Linux, you can run it with the following steps:
 
 Note: Multilingual versions of the README will be added sequentially. For the Traditional Chinese version, please refer to [README_zh.md](README_zh.md).
 
-For detailed configuration information, please see [here](README_column.md#-%EF%B8%8F-configuration-information).
+For detailed configuration information, please see [here](README_column_en.md#-%EF%B8%8F-configuration-information).
 
-For detailed usage instructions, please also refer to the [User Guide](README_userguide.md).
+For detailed usage instructions, please also refer to the [User Guide](README_userguide_en.md).
+
+For comprehensive installation instructions, please check the [Setup Guide](README_setup_en.md).
 
 ## 🔧 Troubleshooting
 
@@ -467,7 +469,7 @@ When starting the tool and importing images for the first time, you may encounte
 
 **In most cases, the images are actually uploaded, but the thumbnail display fails. You can still proceed with video generation.**
 
-![FramePack-eichi Error Screen 1](images/framepack_eichi_error_screenshot1.png)
+![FramePack-eichi Error Screen 1](../images/framepack_eichi_error_screenshot1.png)
 ```
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):

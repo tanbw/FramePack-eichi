@@ -1,4 +1,4 @@
-# FramePack-eichi | [English](README_en.md) | [繁體中文](README_zh.md)
+# FramePack-eichi | [English](README/README_en.md) | [繁體中文](README/README_zh.md)
 
 FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/lllyasviel/FramePack)のフォークであるnirvash氏の[nirvash/FramePack](https://github.com/nirvash/FramePack)を元にして作成された機能追加バージョンです。nirvash氏の先駆的な改良に基づき、細かい機能が多数搭載されています。
 また、v1.9よりKohya Tech氏許諾のもと[kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady)のコードを導入し、LoRA機能の性能と安定性が大幅に向上しています。
@@ -333,7 +333,7 @@ Linuxでは、以下の手順で実行可能です：
 - **動画長設定**:
   - **1～20秒**
 
-[続きはこちら](README_column.md#--高度な設定)
+[続きはこちら](README/README_column.md#--高度な設定)
 
 ## 🛠️ 設定情報
 
@@ -359,11 +359,13 @@ Linuxでは、以下の手順で実行可能です：
    python endframe_ichi_f1.py --lang zh-tw  # F1版/繁体字中国語で起動
    ```
 
-※ READMEの多言語版も順次対応予定です。繁体字中国語版は[README_zh.md](README_zh.md)をご参照ください。
+※ READMEの多言語版も順次対応予定です。繁体字中国語版は[README/README_zh.md](README/README_zh.md)をご参照ください。
 
-設定に関する詳細情報は[こちら](README_column.md#--設定情報)をご覧ください。
+設定に関する詳細情報は[こちら](README/README_column.md#--設定情報)をご覧ください。
 
-詳細な使用方法については[使用ガイド](README_userguide.md)もご参照ください。
+詳細な使用方法については[使用ガイド](README/README_userguide.md)もご参照ください。
+
+インストール方法の詳細については[セットアップガイド](README/README_setup.md)をご確認ください。
 
 ## 🔧 トラブルシューティング
 
@@ -470,7 +472,7 @@ F1モデルを使用する場合、無印モデルに加えて以下の追加メ
 
 ## 📝 更新履歴
 
-最新の更新情報を以下に示します。更新履歴の全文は[更新履歴](README_changelog.md)をご参照ください。
+最新の更新情報を以下に示します。更新履歴の全文は[更新履歴](README/README_changelog.md)をご参照ください。
 
 ### 2025-05-04: バージョン1.9.1
 - **F1モデルの追加**: 順生成に対応した新モデル「FramePack_F1_I2V_HY_20250503」を導入

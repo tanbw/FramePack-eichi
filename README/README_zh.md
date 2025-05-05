@@ -1,4 +1,4 @@
-# FramePack-eichi | [日本語](README.md) | [English](README_en.md)
+# FramePack-eichi | [日本語](../README.md) | [English](README_en.md)
 
 FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack) 分支，由 nirvash 的 [nirvash/FramePack](https://github.com/nirvash/FramePack) 開發的功能增強版本。在 nirvash 的開創性改進基礎上，增加了許多細緻的功能。
 
@@ -10,7 +10,7 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 
 **FramePack-eichi v1.9.1** 在傳統的逆向生成模型「FramePack-eichi」（標準版）基礎上，添加了一個支持正向生成的新模型「FramePack-~~eichi~~ F1」。
 
-![FramePack-eichi畫面1](images/framepack_eichi_screenshot1.png)
+![FramePack-eichi畫面1](../images/framepack_eichi_screenshot1.png)
 
 ### 🆚 F1 模型和標準模型的區別
 
@@ -68,10 +68,10 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 - **多語言支援（i18n）**：支援日語、英語、繁體中文的 UI ※v1.8.1 新增
 - **Docker 支持**：在容器化環境中輕鬆運行 FramePack-eichi ※v1.9.1 新增
 
-![FramePack-eichi畫面2](images/framepack_eichi_screenshot2.png)
+![FramePack-eichi畫面2](../images/framepack_eichi_screenshot2.png)
 
 **分段設定畫面**
-![FramePack-eichi畫面3](images/framepack_eichi_screenshot3.png)
+![FramePack-eichi畫面3](../images/framepack_eichi_screenshot3.png)
 
 ## 📝 最新更新資訊 (v1.9.1)
 
@@ -434,7 +434,9 @@ FramePack-eichi 可以通過 Docker 輕鬆設置，在不同系統之間提供�
 
 有關設定的詳細資訊請參閱[這裡](README_column_zh.md#%E6%80%A7%E8%83%BD%E8%A8%AD%E5%AE%9A)。
 
-有關詳細使用說明，請參閱[使用指南](README_userguide.md)。
+有關詳細使用說明，請參閱[使用指南](README_userguide_zh.md)。
+
+有關詳細安裝說明，請查看[安裝指南](README_setup_zh.md)。
 
 ## 🔧 故障排除
 
@@ -445,7 +447,7 @@ FramePack-eichi 可以通過 Docker 輕鬆設置，在不同系統之間提供�
 
 **大多數情況下，圖片其實已經上傳了，只是縮圖顯示不正常，所以還是可以產生影片的。 **
 
-![FramePack-eichi錯誤畫面1](images/framepack_eichi_error_screenshot1.png)
+![FramePack-eichi錯誤畫面1](../images/framepack_eichi_error_screenshot1.png)
 ```
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
