@@ -1,18 +1,41 @@
-# FramePack-eichi
+# FramePack-eichi | [日本語](README.md) | [English](README_en.md)
 
 FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack) 分支，由 nirvash 的 [nirvash/FramePack](https://github.com/nirvash/FramePack) 開發的功能增強版本。在 nirvash 的開創性改進基礎上，增加了許多細緻的功能。
 
-[https://github.com/hinablue](https://github.com/hinablue) **Hina Chen氏**より多言語対応の協力をいただき非常に感謝しております。
+此外，從 v1.9 開始，在 Kohya Tech 的許可下，引入了 [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) 的代碼，大幅提升了 LoRA 功能的性能和穩定性。
 
 感謝您 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** 對多語言支援的協助。
 
-Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for the multilingual support contribution.
+## 🌟 新功能：F1 模型添加 (v1.9.1)
 
-[繁体字中文版说明文档请点击此处](README_zh.md)
-
-> 注意：目前部分文檔已提供繁體中文版本。英文版 README 和其他語言版本將在日後添加。目前的翻譯涵蓋 v1.7.1 的功能，最新 v1.8 功能的翻譯正在進行中。
+**FramePack-eichi v1.9.1** 在傳統的逆向生成模型「FramePack-eichi」（標準版）基礎上，添加了一個支持正向生成的新模型「FramePack-~~eichi~~ F1」。
 
 ![FramePack-eichi畫面1](images/framepack_eichi_screenshot1.png)
+
+### 🆚 F1 模型和標準模型的區別
+
+| 特點 | F1 模型 | 標準模型 |
+|------|----------|------------|
+| 生成方向 | 正向生成（從首到尾） | 逆向生成（從尾到首） |
+| 動作特點 | 動作更多，結果更直觀 | 可進行更精確的控制 |
+| UI 元素 | 簡化設計 | 可使用詳細設定 |
+| 易用性 | 適合初學者，更直觀 | 適合高級用戶，可進行複雜控制 |
+| 關鍵幀 | 僅使用 Image | Image、Final、分段圖像 |
+| 啟動方式 | run_endframe_ichi_f1.bat | run_endframe_ichi.bat |
+
+### 💡 應該選擇哪一個？
+
+- **初次使用或想要簡單操作的用戶** → 推薦使用 **F1 模型**
+  - 更容易獲得自然流暢的動態效果
+  - 設定項目較少，操作更直觀
+  - 通過專用啟動腳本（`run_endframe_ichi_f1.bat`）使用
+
+- **想要更高級控制或有經驗的用戶** → 推薦使用 **標準模型**
+  - 可使用多個關鍵幀圖像進行細致控制
+  - 可使用分段提示詞等高級功能
+  - 通過傳統啟動腳本（`run_endframe_ichi.bat`）使用
+
+**注意：** 首次啟動 F1 模型時，除了標準模型外，還會下載約 24GB 的額外模型。標準模型也會被保留，您可以在兩者之間切換使用。
 
 ## 📘 名稱的由來
 
@@ -23,13 +46,12 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
 - **I**nterface: 直感性的使用者體驗和 UI/UX 的提升
 
 「eichi」是日本語的「睿智」（深刻的智慧、英知）的表達，代表著 AI 技術的進化和人間創造性的的融合，象征著本專案的哲學。
-即叡智的差分幀從動畫製作中專案的現地改修仕別。
+即~~現地~~**世界範圍內**叡智的差分幀製作改修規格。**叡智已經跨越海洋！**
 
 ## 🌟 主要功能
 
-- **多語言支援（i18n）**：支援日語、英語、繁體中文的 UI ※v1.8.1 新增
-
 - **高品質影片生成**：從單一圖像生成自然流暢的影片 ※現有功能
+- **F1 模型支持**：支持正向生成的新模型，實現更直觀的影片創建 ※v1.9.1 新增
 - **靈活的影片長度設定**：支援 1-20 秒的各個區段模式 ※獨特功能
 - **區段幀大小設定**：可切換 0.5 秒模式和 1 秒模式 ※v1.5 新增
 - **全填充功能**：所有區段使用相同的填充值 ※v1.4 新增
@@ -38,15 +60,65 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
 - **紅框/藍框關鍵幀圖像高效複製**：僅需兩個關鍵幀即可覆蓋所有區段 ※v1.7 新增
 - **張量數據保存與合併**：可保存影片的潛在表示，並合併多個影片 ※v1.8 新增
 - **提示詞管理功能**：輕鬆保存、編輯和重用提示詞 ※v1.3 新增
+- **PNG 元數據嵌入**：自動記錄生成圖像中的提示詞、種子值和分段信息 ※v1.9.1 新增
+- **Hunyuan/FramePack LoRA 支援**：通過模型自定義添加獨特表現 ※v1.9/v1.9.1 大幅改進
+- **FP8 優化**：降低 LoRA 應用時的 VRAM 使用量並優化處理速度 ※v1.9.1 新增
 - **MP4 壓縮設定**：可調整影片檔案大小與品質的平衡 ※v1.6.2 從主版本合併
-- **【測試中】Hunyuan LoRA 支援**：通過模型自定義添加獨特表現 ※v1.3 新增
 - **輸出資料夾管理功能**：支援指定輸出資料夾和與作業系統無關的開啟方式 ※v1.2 新增
-- **日誌功能**：提供詳細的進度資訊，結束時顯示處理時間，Windows 版本還會發出提示音 ※獨特功能
-- **跨平台支援**：在 Windows 以外的環境中也能使用基本功能 ※可能
+- **多語言支援（i18n）**：支援日語、英語、繁體中文的 UI ※v1.8.1 新增
+- **Docker 支持**：在容器化環境中輕鬆運行 FramePack-eichi ※v1.9.1 新增
 
 ![FramePack-eichi畫面2](images/framepack_eichi_screenshot2.png)
 
-## 📝 最新更新資訊 (v1.8.1)
+**分段設定畫面**
+![FramePack-eichi畫面3](images/framepack_eichi_screenshot3.png)
+
+## 📝 最新更新資訊 (v1.9.1)
+
+### 主要變更
+
+#### 1. F1 模型添加
+- **新的正向生成模型**：引入了支持正常生成方向（從首到尾）的 "FramePack_F1_I2V_HY_20250503" 模型
+- **簡化的界面**：F1 模型中移除了分段（關鍵幀圖像）和 Final（終端幀）功能
+- **專用啟動腳本**：添加了 `run_endframe_ichi_f1.bat` 和多語言版本腳本
+- **圖像影響度調整**：添加了控制首個分段中初始圖像變化程度的功能（可在 100.0% 至 102.0% 範圍內調整）
+
+#### 2. 記憶體管理優化
+- **增強的模型管理**：通過 `transformer_manager.py` 和 `text_encoder_manager.py` 實現高效記憶體管理
+- **FP8 優化**：通過 8 位浮點格式減少 LoRA 應用時的 VRAM 使用量
+- **RTX 40 系列 GPU 優化**：通過 `scaled_mm` 優化提升性能
+
+#### 3. PNG 元數據功能
+- **元數據嵌入**：自動在生成圖像中保存提示詞、種子值和分段信息
+- **元數據提取**：能夠從保存的圖像中檢索設置
+- **與 SD 工具兼容**：通過標準元數據格式實現與其他工具的兼容性
+
+#### 4. 剪貼板支持增強
+- **統一支持**：標準版的 Image 和 Final 以及 F1 版的 Image 均支持剪貼板功能
+
+#### 5. 批量分段信息添加功能
+- **ZIP 文件導入**：可通過 zip 文件批量設置分段圖像和提示詞
+- **自動分段配置**：基於 zip 文件中的編號圖像和 YAML 配置文件自動設置
+- **組合支持**：批量註冊起始幀、結束幀以及每個分段圖像和提示詞
+
+#### 6. Docker 支持增強
+- **容器化環境**：使用 Dockerfile 和 docker-compose.yml 實現簡單設置
+- **多語言支持**：支持多種語言（日語、英語、中文）的容器鏡像
+
+## 📝 更新資訊 (v1.9)
+
+### 主要變更
+
+#### 1. 導入 kohya-ss/FramePack-LoRAReady
+- **LoRA 功能顯著改進**：在 Kohya Tech 許可下，提高了 LoRA 應用的穩定性和一致性
+- **高 VRAM 模式和低 VRAM 模式統一**：兩種模式採用相同的直接應用方式
+- **代碼複雜性降低**：通過使用共同的 `load_and_apply_lora` 函數提高可維護性
+- **廢棄 DynamicSwap 掛鉤方法**：完全過渡到更穩定的直接應用方式
+
+#### 2. 標準化為 HunyuanVideo 格式
+- **LoRA 格式標準化**：統一為 HunyuanVideo 格式，提高不同格式之間的兼容性
+
+## 📝 更新資訊 (v1.8.1)
 
 ### 主要變更
 
@@ -58,8 +130,6 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
   - `run_endframe_ichi_zh-tw.bat` - 繁體中文版
 - **UI 國際化**：按鈕、標籤、訊息等幾乎所有 UI 元素都已多語言化
 - **顯示語言保存**：可通過命令行參數選擇語言（例如：`--lang en`）
-
-※ 目前支援 v1.7.1 的功能，v1.8 的功能將在日後添加翻譯。
 
 ## 📝 更新資訊 (v1.8)
 
@@ -192,42 +262,59 @@ Special thanks to [https://github.com/hinablue](https://github.com/hinablue) **H
 #### 安裝FramePack-eichi
 
 1. 將執行檔放置在 FramePack 的根目錄中：
-   - `run_endframe_ichi.bat` - 日語版用（預設）
-   - `run_endframe_ichi_en.bat` - 英語版用（v1.8.1 新增）
-   - `run_endframe_ichi_zh-tw.bat` - 繁體中文版用（v1.8.1 新增）
+   - `run_endframe_ichi.bat` - 標準版/日語用（預設）
+   - `run_endframe_ichi_en.bat` - 標準版/英語用
+   - `run_endframe_ichi_zh-tw.bat` - 標準版/繁體中文用
+   - `run_endframe_ichi_f1.bat` - F1版/日語用（v1.9.1新增）
+   - `run_endframe_ichi_en_f1.bat` - F1版/英語用（v1.9.1新增）
+   - `run_endframe_ichi_zh-tw_f1.bat` - F1版/繁體中文用（v1.9.1新增）
 
 2. 將以下檔案和資料夾放在`webui`資料夾中：
-   - `endframe_ichi.py` - 主應用程式檔案
-   - `eichi_utils` 資料夾 - 工具模組（v1.3.1改進，v1.6.2新增UI相關模組）
+   - `endframe_ichi.py` - 標準版主應用程式檔案
+   - `endframe_ichi_f1.py` - F1版主應用程式檔案（v1.9.1新增）
+   - `eichi_utils` 資料夾 - 工具模組
      - `__init__.py`
      - `frame_calculator.py` - 幀大小計算模組
      - `keyframe_handler.py` - 關鍵幀處理模組
      - `keyframe_handler_extended.py` - 關鍵幀處理模組
      - `preset_manager.py` - 預設管理模組
      - `settings_manager.py` - 設定管理模組
+     - `tensor_combiner.py` - 張量合併模組（v1.8新增）
      - `ui_styles.py` - UI樣式定義模組（v1.6.2新增）
      - `video_mode_settings.py` - 影片模式設定模組
-   - `lora_utils` 資料夾 - LoRA相關模組（v1.3新增，v1.3.2改進）
+     - `png_metadata.py` - PNG元數據模組（v1.9.1新增）
+     - `text_encoder_manager.py` - 文本編碼器管理模組（v1.9.1新增）
+     - `transformer_manager.py` - 轉換器模型管理模組（v1.9.1新增）
+   - `lora_utils` 資料夾 - LoRA相關模組
      - `__init__.py`
-     - `dynamic_swap_lora.py` - LoRA管理模組（已廢棄掛鉤方式，僅支援直接應用方式）
+     - `dynamic_swap_lora.py` - LoRA管理模組（為兼容性保留）
      - `lora_loader.py` - LoRA載入模組
-     - `lora_check_helper.py` - LoRA應用狀態確認模組（v1.3.2新增）
-   - `locales` 資料夾 - 多語言支援模組（v1.8.1 新增）
+     - `lora_check_helper.py` - LoRA應用狀態確認模組
+     - `lora_utils.py` - LoRA狀態字典合併和轉換功能（v1.9新增）
+     - `fp8_optimization_utils.py` - FP8優化功能（v1.9.1新增）
+   - `diffusers_helper` 資料夾 - 模型記憶體管理改進工具
+     - `memory.py` - 提供記憶體管理功能
+     - `bucket_tools.py` - 解析度桶功能（v1.9.1新增）
+     - **注意**：此目錄替換原始工具的源文件，請根據需要進行備份
+   - `locales` 資料夾 - 多語言支援模組
      - `i18n.py` - 國際化（i18n）功能的核心實現
+     - `i18n_extended.py` - 擴展國際化功能（v1.9.1新增）
      - `ja.json` - 日語翻譯檔案（預設語言）
      - `en.json` - 英語翻譯檔案
      - `zh-tw.json` - 繁體中文翻譯檔案
 
-3. 執行所需語言的執行檔，FramePack-eichi 的 WebUI 將以對應語言啟動：
-   - 日語版：`run_endframe_ichi.bat`
-   - 英語版：`run_endframe_ichi_en.bat`
-   - 繁體中文版：`run_endframe_ichi_zh-tw.bat`
+3. 執行所需版本和語言的執行檔，FramePack-eichi 的 WebUI 將以對應設定啟動：
+   - 標準版/日語：`run_endframe_ichi.bat`
+   - 標準版/英語：`run_endframe_ichi_en.bat`
+   - 標準版/繁體中文：`run_endframe_ichi_zh-tw.bat`
+   - F1版/日語：`run_endframe_ichi_f1.bat`（v1.9.1新增）
+   - F1版/英語：`run_endframe_ichi_en_f1.bat`（v1.9.1新增）
+   - F1版/繁體中文：`run_endframe_ichi_zh-tw_f1.bat`（v1.9.1新增）
 
    或者，也可以從命令行直接指定語言啟動：
    ```bash
-   python endframe_ichi.py --lang en  # 以英語啟動
-   python endframe_ichi.py --lang zh-tw  # 以繁體中文啟動
-   python endframe_ichi.py  # 以日語啟動（預設）
+   python endframe_ichi.py --lang en  # 以標準版/英語啟動
+   python endframe_ichi_f1.py --lang zh-tw  # 以F1版/繁體中文啟動
    ```
 
 #### Docker 安裝
@@ -321,23 +408,33 @@ FramePack-eichi 可以通過 Docker 輕鬆設置，在不同系統之間提供�
 
 ## 🛠️ 配置資訊
 
+### FP8 優化設定 (v1.9.1)
+
+- **FP8 優化**: 使用 8 位浮點格式降低 LoRA 應用時的 VRAM 使用量
+- **RTX 40 系列 GPU**: 通過 scaled_mm 優化加速
+- **預設為關閉**: 啟用時可在低 VRAM 環境下更易使用 LoRA
+
 ### 語言設定
 
 1. **通過執行檔選擇語言**:
-   - `run_endframe_ichi.bat` - 日語版（預設）
-   - `run_endframe_ichi_en.bat` - 英語版
-   - `run_endframe_ichi_zh-tw.bat` - 繁體中文版
+   - `run_endframe_ichi.bat` - 標準版/日語（預設）
+   - `run_endframe_ichi_en.bat` - 標準版/英語
+   - `run_endframe_ichi_zh-tw.bat` - 標準版/繁體中文
+   - `run_endframe_ichi_f1.bat` - F1版/日語
+   - `run_endframe_ichi_en_f1.bat` - F1版/英語
+   - `run_endframe_ichi_zh-tw_f1.bat` - F1版/繁體中文
 
 2. **通過命令行指定語言**:
    ```bash
-   python endframe_ichi.py --lang en  # 以英語啟動
-   python endframe_ichi.py --lang zh-tw  # 以繁體中文啟動
-   python endframe_ichi.py  # 以日語啟動（預設）
+   python endframe_ichi.py --lang en  # 以標準版/英語啟動
+   python endframe_ichi_f1.py --lang zh-tw  # 以F1版/繁體中文啟動
    ```
 
 ※ README 的多語言版本將陸續推出。繁體中文版本請參閱 [README_zh.md](README_zh.md)。
 
 有關設定的詳細資訊請參閱[這裡](README_column_zh.md#%E6%80%A7%E8%83%BD%E8%A8%AD%E5%AE%9A)。
+
+有關詳細使用說明，請參閱[使用指南](README_userguide.md)。
 
 ## 🔧 故障排除
 
@@ -374,6 +471,52 @@ Traceback (most recent call last):
 3. 重新啟動應用程式
 4. 降低圖片解析度（640x640 附近）
 
+### 記憶體消耗的詳細分析
+
+根據對整個源代碼的詳細分析，實際記憶體消耗如下：
+
+#### 基本模型配置和加載時的記憶體消耗
+
+- **transformer** (FramePackI2V_HY)：約 25-30GB（狀態字典完全展開時）
+- **text_encoder**, **text_encoder_2**, **vae** 總計：約 8-10GB
+  v1.9.1 添加了卸載處理來減少 RAM 使用量
+- **其他輔助模型** (image_encoder等)：約 3-5GB
+- **基礎 RAM 消耗總計**：約 36-45GB
+
+#### LoRA 應用時的記憶體消耗模式
+
+LoRA 應用處理流程：
+1. **原始狀態字典**：約 25-30GB（transformer 大小）
+2. **LoRA 文件加載**：50MB 至 500MB
+3. **合併處理期間**：由於需要複製原始狀態字典並與 LoRA 合併，臨時需要額外 25-30GB
+   注意：v1.9.1 重新審視了此過程，大幅降低了 RAM 消耗
+4. **應用過程的峰值**：基本消耗 + 狀態字典複製 ≈ 約 70-90GB
+
+**重要**：這種顯著的記憶體消耗增加僅發生在初次 LoRA 加載時。當加載不同的 LoRA 文件或更改 LoRA 應用強度或 FP8 設置時，不會發生這種大型記憶體峰值。初次加載後的正常視頻生成操作中，記憶體使用量維持在基本消耗水平（約 36-45GB）。
+
+#### 推薦系統要求
+
+- **標準執行 RAM 要求**：36-45GB
+- **LoRA 應用期間的臨時峰值**：70-90GB
+- **推薦頁面文件**：與 RAM 總計至少應為 40GB
+  
+例如：
+- 32GB RAM 系統 → 頁面文件約 40GB
+- 64GB RAM 系統 → 頁面文件約 20GB
+
+#### 使用 F1 模型時的額外記憶體要求
+
+使用 F1 模型時，除標準模型外，還需以下額外記憶體：
+- **F1 模型初次下載**：約 24GB
+- **兩種模型共存時的存儲容量**：約 54GB
+
+#### Google Colab 等無交換空間環境注意事項
+
+在無交換記憶體的環境中運行有很嚴格的限制：
+- RAM 限制（13-15GB）使得即使加載基本模型也很困難
+- 無法處理 LoRA 應用時所需的 70-90GB 臨時記憶體峰值
+- 沒有交換空間，記憶體不足時系統會立即崩潰出現 OOM 錯誤
+
 ### 影片顯示問題
 
 產生的影片在某些瀏覽器（尤其是 Firefox）和 macOS 上無法顯示：
@@ -398,13 +541,38 @@ Traceback (most recent call last):
 
 ## 📝 更新日誌
 
+最新的更新資訊如下所示。完整的更新歷史請參考[更新日誌](README_changelog.md)。
+
+### 2025-05-04：版本 1.9.1
+- **F1 模型添加**：引入了支持正向生成的新模型 "FramePack_F1_I2V_HY_20250503"
+- **記憶體管理優化**：通過 transformer_manager.py 和 text_encoder_manager.py 實現高效模型管理
+- **Docker 支持增強**：在容器化環境中實現簡單設置
+- **PNG 元數據功能**：自動在生成圖像中嵌入提示詞、種子值和分段信息
+- **最佳解析度桶系統**：根據縱橫比自動選擇最佳解析度
+- **剪貼板支持增強**：支持標準版的 Image 和 Final 以及 F1 版的 Image 的剪貼板功能
+
+### 2025-04-30：版本 1.9
+- **導入 kohya-ss/FramePack-LoRAReady**：
+  - 在 Kohya Tech 許可下，LoRA 功能的性能和穩定性大幅提升
+  - 高 VRAM 模式和低 VRAM 模式統一為直接應用方式
+  - 通過使用共同的 load_and_apply_lora 函數降低代碼複雜性
+- **FP8 優化引入**：
+  - 通過使用 8 位浮點格式量化優化記憶體使用量和處理速度
+  - 建議預設為關閉（可能在某些環境中導致警告和錯誤）
+  - 還支持 RTX 40 系列 GPU 的加速選項
+- **目錄結構變更**：
+  - diffusers_helper：添加了改進模型記憶體管理的工具
+  - 替換原始工具的源文件，請根據需要進行備份
+- **標準化為 HunyuanVideo 格式**：
+  - 統一 LoRA 格式為 HunyuanVideo 格式，提高兼容性
+
 ### 2025-04-29：版本 1.8.1
-  -**多語言支援（i18n）實作**：
-    - 支援日語、英文、繁體中文三種語言
-    - 新增了特定語言的可執行檔（`run_endframe_ichi_en.bat`、`run_endframe_ichi_zh-tw.bat`）
-    - 所有元素支援多語言，包括 UI 文字、日誌訊息和錯誤訊息
-    - 使用基於 JSON 檔案的翻譯系統提高了可擴展性
-    - * 翻譯支援主要集中於 1.7.1 版的功能。 1.8 功能將在未來添加
+- **多語言支援（i18n）實作**：
+  - 支援日語、英文、繁體中文三種語言
+  - 新增了特定語言的可執行檔（`run_endframe_ichi_en.bat`、`run_endframe_ichi_zh-tw.bat`）
+  - 所有元素支援多語言，包括 UI 文字、日誌訊息和錯誤訊息
+  - 使用基於 JSON 檔案的翻譯系統提高了可擴展性
+  - 翻訳支援主要集中於 1.7.1 版的功能。 1.8 功能將在未來添加
 
 ### 2025-04-28：版本 1.8
 -**新增了張量資料連線**：

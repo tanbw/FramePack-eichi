@@ -61,8 +61,7 @@ import os.path
 from eichi_utils.video_mode_settings import (
     VIDEO_MODE_SETTINGS, get_video_modes, get_video_seconds, get_important_keyframes,
     get_copy_targets, get_max_keyframes_count, get_total_sections, generate_keyframe_guide_html,
-    handle_mode_length_change, process_keyframe_change, MODE_TYPE_NORMAL
-    # F1モードでは不要な機能のインポートを削除
+    handle_mode_length_change, process_keyframe_change, MODE_TYPE_NORMAL, MODE_TYPE_LOOP
 )
 
 # 設定管理モジュールをインポート
@@ -128,25 +127,25 @@ print(translate('Free VRAM {0} GB').format(free_mem_gb))
 print(translate('High-VRAM Mode: {0}').format(high_vram))
 
 # グローバルなモデル状態管理インスタンスを作成
-# F1モードではuse_f1_model=Trueを指定
-transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram, use_f1_model=True)
+# 通常モードではuse_f1_model=Falseを指定（デフォルト値なので省略可）
+transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram, use_f1_model=False)
 text_encoder_manager = TextEncoderManager(device=gpu, high_vram_mode=high_vram)
 
 try:
     tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
     tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
     vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
-
+    
     # text_encoderとtext_encoder_2の初期化
     if not text_encoder_manager.ensure_text_encoder_state():
         raise Exception(translate("text_encoderとtext_encoder_2の初期化に失敗しました"))
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
-
+    
     # transformerの初期化
     if not transformer_manager.ensure_transformer_state():
         raise Exception(translate("transformerの初期化に失敗しました"))
     transformer = transformer_manager.get_transformer()
-
+    
     # 他のモデルの読み込み
     feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
     image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
@@ -210,16 +209,21 @@ print(translate("設定から出力フォルダを読み込み: {0}").format(out
 outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
 
+
+# キーフレーム処理関数は keyframe_handler.py に移動済み
+
+# v1.9.1テスト実装
+
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
-    print(translate("[DEBUG] worker内 input_imageの型: {0}").format(type(input_image)))
+    print(f"[DEBUG] worker内 input_imageの型: {type(input_image)}")
     if isinstance(input_image, str):
-        print(translate("[DEBUG] input_imageはファイルパスです: {0}").format(input_image))
+        print(f"[DEBUG] input_imageはファイルパスです: {input_image}")
         has_any_image = (input_image is not None)
-    else:
-        print(translate("[DEBUG] input_imageはファイルパス以外です").format())
+    else: 
+        print(f"[DEBUG] input_imageはファイルパス以外です")
         has_any_image = (input_image is not None)
     last_visible_section_image = None
     last_visible_section_num = -1
@@ -238,9 +242,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # セクション数を計算
             total_frames = int(seconds * 30)
             total_display_sections = int(max(round(total_frames / frame_count), 1))
-            print(translate("[DEBUG] worker内の現在の設定によるセクション数: {0}").format(total_display_sections))
+            print(f"[DEBUG] worker内の現在の設定によるセクション数: {total_display_sections}")
         except Exception as e:
-            print(translate("[ERROR] worker内のセクション数計算エラー: {0}").format(e))
+            print(f"[ERROR] worker内のセクション数計算エラー: {e}")
 
         # 有効なセクション番号を収集
         valid_sections = []
@@ -260,7 +264,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             valid_sections.sort(key=lambda x: x[0])
             # 最後のセクションを取得
             last_visible_section_num, last_visible_section_image = valid_sections[-1]
-            print(translate("[DEBUG] worker内の最後のキーフレーム確認: セクション{0} (画像あり)").format(last_visible_section_num))
+            print(f"[DEBUG] worker内の最後のキーフレーム確認: セクション{last_visible_section_num} (画像あり)")
 
     has_any_image = has_any_image or (last_visible_section_image is not None)
     if not has_any_image:
@@ -268,7 +272,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
     # 入力画像がない場合はキーフレーム画像を使用
     if input_image is None and last_visible_section_image is not None:
-        print(translate("[INFO] 入力画像が指定されていないため、セクション{0}のキーフレーム画像を使用します").format(last_visible_section_num))
+        print(f"[INFO] 入力画像が指定されていないため、セクション{last_visible_section_num}のキーフレーム画像を使用します")
         input_image = last_visible_section_image
 
     # 出力フォルダの設定
@@ -294,9 +298,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     # フォルダが存在しない場合は作成
     os.makedirs(outputs_folder, exist_ok=True)
 
+
+
     # 処理時間計測の開始
     process_start_time = time.time()
 
+    
     # グローバル変数で状態管理しているモデル変数を宣言する
     global transformer, text_encoder, text_encoder_2
 
@@ -304,6 +311,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     if not text_encoder_manager.ensure_text_encoder_state():
         raise Exception(translate("text_encoderとtext_encoder_2の初期化に失敗しました"))
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
+
 
     # 既存の計算方法を保持しつつ、設定からセクション数も取得する
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
@@ -317,21 +325,146 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     batch_suffix = f"_batch{batch_index+1}" if batch_index is not None else ""
     job_id = generate_timestamp() + batch_suffix
 
-    # F1モードでは順生成を行うため、latent_paddingsのロジックは使用しない
-    # 全セクション数を設定
-    total_sections = total_latent_sections
+    # セクション处理の詳細ログを出力
+    if use_all_padding:
+        # オールパディングが有効な場合、すべてのセクションで同じ値を使用
+        padding_value = round(all_padding_value, 1)  # 小数点1桁に固定（小数点対応）
+        latent_paddings = [padding_value] * total_latent_sections
+        print(translate("オールパディングを有効化: すべてのセクションにパディング値 {0} を適用").format(padding_value))
+    else:
+        # 通常のパディング値計算
+        latent_paddings = reversed(range(total_latent_sections))
+        if total_latent_sections > 4:
+            latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
 
-    print(translate("\u25a0 セクション生成詳細 (F1モード):"))
-    print(translate("  - 合計セクション数: {0}").format(total_sections))
+    # 全セクション数を事前に計算して保存（イテレータの消費を防ぐため）
+    latent_paddings_list = list(latent_paddings)
+    total_sections = len(latent_paddings_list)
+    latent_paddings = latent_paddings_list  # リストに変換したものを使用
+
+    print(translate("\u25a0 セクション生成詳細:"))
+    print(translate("  - 生成予定セクション: {0}").format(latent_paddings))
     frame_count = latent_window_size * 4 - 3
     print(translate("  - 各セクションのフレーム数: 約{0}フレーム (latent_window_size: {1})").format(frame_count, latent_window_size))
+    print(translate("  - 合計セクション数: {0}").format(total_sections))
 
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
 
     try:
-        # F1モードのプロンプト処理
-        section_map = None
-        section_numbers_sorted = []
+        # セクション設定の前処理
+        def get_section_settings_map(section_settings):
+            """
+            section_settings: DataFrame形式のリスト [[番号, 画像, プロンプト], ...]
+            → {セクション番号: (画像, プロンプト)} のdict
+            プロンプトやセクション番号のみの設定も許可する
+            """
+            result = {}
+            if section_settings is not None:
+                for row in section_settings:
+                    if row and len(row) > 0 and row[0] is not None:
+                        # セクション番号を取得
+                        sec_num = int(row[0])
+                        
+                        # セクションプロンプトを取得
+                        prm = row[2] if len(row) > 2 and row[2] is not None else ""
+                        
+                        # 画像を取得（ない場合はNone）
+                        img = row[1] if len(row) > 1 and row[1] is not None else None
+                        
+                        # プロンプトまたは画像のどちらかがあればマップに追加
+                        if img is not None or (prm is not None and prm.strip() != ""):
+                            result[sec_num] = (img, prm)
+            return result
+
+        section_map = get_section_settings_map(section_settings)
+        section_numbers_sorted = sorted(section_map.keys()) if section_map else []
+
+        def get_section_info(i_section):
+            """
+            i_section: int
+            section_map: {セクション番号: (画像, プロンプト)}
+            指定がなければ次のセクション、なければNone
+            """
+            if not section_map:
+                return None, None, None
+            # i_section以降で最初に見つかる設定
+            for sec in range(i_section, max(section_numbers_sorted)+1):
+                if sec in section_map:
+                    img, prm = section_map[sec]
+                    return sec, img, prm
+            return None, None, None
+
+        # セクション固有のプロンプト処理を行う関数
+        def process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask, embeddings_cache=None):
+            """セクションに固有のプロンプトがあればエンコードまたはキャッシュから取得して返す
+            なければメインプロンプトのエンコード結果を返す
+            返り値: (llama_vec, clip_l_pooler, llama_attention_mask)
+            """
+            if not isinstance(llama_vec, torch.Tensor) or not isinstance(llama_attention_mask, torch.Tensor):
+                print(translate("[ERROR] メインプロンプトのエンコード結果またはマスクが不正です"))
+                return llama_vec, clip_l_pooler, llama_attention_mask
+
+            # embeddings_cacheがNoneの場合は空の辞書で初期化
+            embeddings_cache = embeddings_cache or {}
+            
+            # セクション固有のプロンプトがあるか確認
+            section_info = None
+            section_num = None
+            if section_map:
+                valid_section_nums = [k for k in section_map.keys() if k >= i_section]
+                if valid_section_nums:
+                    section_num = min(valid_section_nums)
+                    section_info = section_map[section_num]
+
+            # セクション固有のプロンプトがあれば使用
+            if section_info:
+                img, section_prompt = section_info
+                if section_prompt and section_prompt.strip():
+                    # 事前にエンコードされたプロンプト埋め込みをキャッシュから取得
+                    if section_num in embeddings_cache:
+                        print(translate("[section_prompt] セクション{0}の専用プロンプトをキャッシュから取得: {1}...").format(i_section, section_prompt[:30]))
+                        # キャッシュからデータを取得
+                        cached_llama_vec, cached_clip_l_pooler, cached_llama_attention_mask = embeddings_cache[section_num]
+                        
+                        # データ型を明示的にメインプロンプトと合わせる（2回目のチェック）
+                        cached_llama_vec = cached_llama_vec.to(dtype=llama_vec.dtype, device=llama_vec.device)
+                        cached_clip_l_pooler = cached_clip_l_pooler.to(dtype=clip_l_pooler.dtype, device=clip_l_pooler.device)
+                        cached_llama_attention_mask = cached_llama_attention_mask.to(dtype=llama_attention_mask.dtype, device=llama_attention_mask.device)
+                        
+                        return cached_llama_vec, cached_clip_l_pooler, cached_llama_attention_mask
+                    
+                    print(translate("[section_prompt] セクション{0}の専用プロンプトを処理: {1}...").format(i_section, section_prompt[:30]))
+
+                    try:
+                        # プロンプト処理
+                        section_llama_vec, section_clip_l_pooler = encode_prompt_conds(
+                            section_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2
+                        )
+
+                        # マスクの作成
+                        section_llama_vec, section_llama_attention_mask = crop_or_pad_yield_mask(
+                            section_llama_vec, length=512
+                        )
+
+                        # データ型を明示的にメインプロンプトと合わせる
+                        section_llama_vec = section_llama_vec.to(
+                            dtype=llama_vec.dtype, device=llama_vec.device
+                        )
+                        section_clip_l_pooler = section_clip_l_pooler.to(
+                            dtype=clip_l_pooler.dtype, device=clip_l_pooler.device
+                        )
+                        section_llama_attention_mask = section_llama_attention_mask.to(
+                            device=llama_attention_mask.device
+                        )
+
+                        return section_llama_vec, section_clip_l_pooler, section_llama_attention_mask
+                    except Exception as e:
+                        print(translate("[ERROR] セクションプロンプト処理エラー: {0}").format(e))
+
+            # 共通プロンプトを使用
+            print(translate("[section_prompt] セクション{0}は共通プロンプトを使用します").format(i_section))
+            return llama_vec, clip_l_pooler, llama_attention_mask
+
 
         # Clean GPU
         if not high_vram:
@@ -339,6 +472,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             unload_complete_models(
                 image_encoder, vae, transformer
             )
+
 
         # Text encoding
 
@@ -357,12 +491,37 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
         llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
+        
+        # セクションプロンプトを事前にエンコードしておく
+        section_prompt_embeddings = {}
+        if section_map:
+            print(translate("セクションプロンプトを事前にエンコードしています..."))
+            for sec_num, (_, sec_prompt) in section_map.items():
+                if sec_prompt and sec_prompt.strip():
+                    try:
+                        # セクションプロンプトをエンコード
+                        print(translate("[section_prompt] セクション{0}の専用プロンプトを事前エンコード: {1}...").format(sec_num, sec_prompt[:30]))
+                        sec_llama_vec, sec_clip_l_pooler = encode_prompt_conds(sec_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
+                        sec_llama_vec, sec_llama_attention_mask = crop_or_pad_yield_mask(sec_llama_vec, length=512)
+                        
+                        # データ型を明示的にメインプロンプトと合わせる
+                        sec_llama_vec = sec_llama_vec.to(dtype=llama_vec.dtype, device=llama_vec.device)
+                        sec_clip_l_pooler = sec_clip_l_pooler.to(dtype=clip_l_pooler.dtype, device=clip_l_pooler.device)
+                        sec_llama_attention_mask = sec_llama_attention_mask.to(dtype=llama_attention_mask.dtype, device=llama_attention_mask.device)
+                        
+                        # 結果を保存
+                        section_prompt_embeddings[sec_num] = (sec_llama_vec, sec_clip_l_pooler, sec_llama_attention_mask)
+                        print(translate("[section_prompt] セクション{0}のプロンプトエンコード完了").format(sec_num))
+                    except Exception as e:
+                        print(translate("[ERROR] セクション{0}のプロンプトエンコードに失敗: {1}").format(sec_num, e))
+                        traceback.print_exc()
 
 
         # これ以降の処理は text_encoder, text_encoder_2 は不要なので、メモリ解放してしまって構わない
         if not high_vram:
             text_encoder, text_encoder_2 = None, None
             text_encoder_manager.dispose_text_encoders()
+
 
         # テンソルデータのアップロードがあれば読み込み
         uploaded_tensor = None
@@ -395,26 +554,26 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         def preprocess_image(img_path_or_array, resolution=640):
             """Pathまたは画像配列を処理して適切なサイズに変換する"""
-            print(translate("[DEBUG] preprocess_image: img_path_or_array型 = {0}").format(type(img_path_or_array)))
-
+            print(f"[DEBUG] preprocess_image: img_path_or_array型 = {type(img_path_or_array)}")
+            
             if img_path_or_array is None:
                 # 画像がない場合は指定解像度の黒い画像を生成
                 img = np.zeros((resolution, resolution, 3), dtype=np.uint8)
                 height = width = resolution
                 return img, img, height, width
-
+            
             # TensorからNumPyへ変換する必要があれば行う
             if isinstance(img_path_or_array, torch.Tensor):
                 img_path_or_array = img_path_or_array.cpu().numpy()
-
+            
             # Pathの場合はPILで画像を開く
             if isinstance(img_path_or_array, str) and os.path.exists(img_path_or_array):
-                print(translate("[DEBUG] ファイルから画像を読み込み: {0}").format(img_path_or_array))
+                # print(f"[DEBUG] ファイルから画像を読み込み: {img_path_or_array}")
                 img = np.array(Image.open(img_path_or_array).convert('RGB'))
             else:
                 # NumPy配列の場合はそのまま使う
                 img = img_path_or_array
-
+                
             H, W, C = img.shape
             # 解像度パラメータを使用してサイズを決定
             height, width = find_nearest_bucket(H, W, resolution=resolution)
@@ -428,16 +587,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # 入力画像にメタデータを埋め込んで保存
         initial_image_path = os.path.join(outputs_folder, f'{job_id}.png')
         Image.fromarray(input_image_np).save(initial_image_path)
-
+        
         # メタデータの埋め込み
-        # print(translate("\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {0}").format(initial_image_path))
+        # print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
         # print(f"[DEBUG] prompt: {prompt}")
         # print(f"[DEBUG] seed: {seed}")
         metadata = {
             PROMPT_KEY: prompt,
             SEED_KEY: seed
         }
-        # print(translate("[DEBUG] 埋め込むメタデータ: {0}").format(metadata))
+        # print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
         embed_metadata_to_png(initial_image_path, metadata)
 
         # VAE encoding
@@ -480,8 +639,22 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # 常に入力画像から通常のエンコーディングを行う
         start_latent = vae_encode(input_image_pt, vae)
+        # end_frameも同じタイミングでencode
+        if end_frame is not None:
+            end_frame_np, end_frame_pt, _, _ = preprocess_image(end_frame, resolution=resolution)
+            end_frame_latent = vae_encode(end_frame_pt, vae)
+        else:
+            end_frame_latent = None
 
-        # 簡略化設計: section_latents機能を削除
+        # create section_latents here
+        section_latents = None
+        if section_map:
+            section_latents = {}
+            for sec_num, (img, prm) in section_map.items():
+                if img is not None:
+                    # 画像をVAE encode
+                    img_np, img_pt, _, _ = preprocess_image(img, resolution=resolution)
+                    section_latents[sec_num] = vae_encode(img_pt, vae)
 
         # CLIP Vision
 
@@ -512,13 +685,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         else:
             num_frames = int(latent_window_size * 4 - 3)
 
-        # 初期フレーム準備
-        history_latents = torch.zeros(size=(1, 16, 16 + 2 + 1, height // 8, width // 8), dtype=torch.float32).cpu()
+        history_latents = torch.zeros(size=(1, 16, 1 + 2 + 16, height // 8, width // 8), dtype=torch.float32).cpu()
         history_pixels = None
+        total_generated_latent_frames = 0
 
-        # 開始フレームをhistory_latentsに追加
-        history_latents = torch.cat([history_latents, start_latent.to(history_latents)], dim=2)
-        total_generated_latent_frames = 1  # 最初のフレームを含むので1から開始
+        # ここでlatent_paddingsを再定義していたのが原因だったため、再定義を削除します
+
 
         # -------- LoRA 設定 START ---------
 
@@ -531,7 +703,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # 次回のtransformer設定を更新
         current_lora_path = lora_file.name if use_lora and has_lora_support and lora_file is not None else None
         current_lora_scale = lora_scale if current_lora_path is not None else None
-
+        
         # LoRA設定を更新（リロードは行わない）
         transformer_manager.set_next_settings(
             lora_path=current_lora_path,
@@ -548,7 +720,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # transformerの状態を確認し、必要に応じてリロード
             if not transformer_manager.ensure_transformer_state():
                 raise Exception(translate("transformer状態の確認に失敗しました"))
-
+            
             # 最新のtransformerインスタンスを取得
             transformer = transformer_manager.get_transformer()
             print(translate("transformer状態チェック完了"))
@@ -557,38 +729,83 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             traceback.print_exc()
             raise e
 
-        # セクション順次処理
-        for i_section in range(total_sections):
+        for i_section, latent_padding in enumerate(latent_paddings):
             # 先に変数を定義
             is_first_section = i_section == 0
 
-            # 単純なインデックスによる判定
-            is_last_section = i_section == total_sections - 1
+            # オールパディングの場合の特別処理
+            if use_all_padding:
+                # 最後のセクションの判定
+                is_last_section = i_section == len(latent_paddings) - 1
 
-            # F1モードではオールパディング機能は無効化されているため、常に固定値を使用
-            # この値はF1モードでは実際には使用されないが、ログ出力のために計算する
-            latent_padding = 1  # 固定値
+                # 内部処理用に元の値を保存
+                orig_padding_value = latent_padding
 
+                # 最後のセクションが0より大きい場合は警告と強制変換
+                if is_last_section and float(latent_padding) > 0:
+                    print(translate("警告: 最後のセクションのパディング値は内部計算のために0に強制します。"))
+                    latent_padding = 0
+                elif isinstance(latent_padding, float):
+                    # 浮動小数点の場合はそのまま使用（小数点対応）
+                    # 小数点1桁に固定のみ行い、丸めは行わない
+                    latent_padding = round(float(latent_padding), 1)
+
+                # 値が変更された場合にデバッグ情報を出力
+                if float(orig_padding_value) != float(latent_padding):
+                    print(translate("パディング値変換: セクション{0}の値を{1}から{2}に変換しました").format(i_section, orig_padding_value, latent_padding))
+            else:
+                # 通常モードの場合
+                is_last_section = latent_padding == 0
+
+            use_end_latent = is_last_section and end_frame is not None
             latent_padding_size = int(latent_padding * latent_window_size)
 
-            # 定義後にログ出力（F1モードではオールパディングは常に無効）
-            padding_info = translate("パディング値: {0} (F1モードでは影響なし)").format(latent_padding)
+            # 定義後にログ出力
+            padding_info = translate("設定パディング値: {0}").format(all_padding_value) if use_all_padding else translate("パディング値: {0}").format(latent_padding)
             print(translate("\n■ セクション{0}の処理開始 ({1})").format(i_section, padding_info))
             print(translate("  - 現在の生成フレーム数: {0}フレーム").format(total_generated_latent_frames * 4 - 3))
             print(translate("  - 生成予定フレーム数: {0}フレーム").format(num_frames))
             print(translate("  - 最初のセクション?: {0}").format(is_first_section))
             print(translate("  - 最後のセクション?: {0}").format(is_last_section))
             # set current_latent here
-            # 常に開始フレームを使用
-            current_latent = start_latent
+            # セクションごとのlatentを使う場合
+            if section_map and section_latents is not None and len(section_latents) > 0:
+                # i_section以上で最小のsection_latentsキーを探す
+                valid_keys = [k for k in section_latents.keys() if k >= i_section]
+                if valid_keys:
+                    use_key = min(valid_keys)
+                    current_latent = section_latents[use_key]
+                    print(translate("[section_latent] section {0}: use section {1} latent (section_map keys: {2})").format(i_section, use_key, list(section_latents.keys())))
+                    print(translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
+                else:
+                    current_latent = start_latent
+                    print(translate("[section_latent] section {0}: use start_latent (no section_latent >= {1})").format(i_section, i_section))
+                    print(translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
+            else:
+                current_latent = start_latent
+                print(translate("[section_latent] section {0}: use start_latent (no section_latents)").format(i_section))
+                print(translate("[section_latent] current_latent id: {0}, min: {1:.4f}, max: {2:.4f}, mean: {3:.4f}").format(id(current_latent), current_latent.min().item(), current_latent.max().item(), current_latent.mean().item()))
 
+            if is_first_section and end_frame_latent is not None:
+                # EndFrame影響度設定を適用（デフォルトは1.0=通常の影響）
+                if end_frame_strength != 1.0:
+                    # 影響度を適用した潜在表現を生成
+                    # 値が小さいほど影響が弱まるように単純な乗算を使用
+                    # end_frame_strength=1.0のときは1.0倍（元の値）
+                    # end_frame_strength=0.01のときは0.01倍（影響が非常に弱い）
+                    modified_end_frame_latent = end_frame_latent * end_frame_strength
+                    print(translate("EndFrame影響度を{0}に設定（最終フレームの影響が{1}倍）").format(f"{end_frame_strength:.2f}", f"{end_frame_strength:.2f}"))
+                    history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
+                else:
+                    # 通常の処理（通常の影響）
+                    history_latents[:, :, 0:1, :, :] = end_frame_latent
 
             if stream.input_queue.top() == 'end':
                 stream.output_queue.push(('end', None))
                 return
 
-            # 共通プロンプトを使用
-            current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = llama_vec, clip_l_pooler, llama_attention_mask
+            # セクション固有のプロンプトがあれば使用する（事前にエンコードしたキャッシュを使用）
+            current_llama_vec, current_clip_l_pooler, current_llama_attention_mask = process_section_prompt(i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask, section_prompt_embeddings)
 
             print(translate('latent_padding_size = {0}, is_last_section = {1}').format(latent_padding_size, is_last_section))
 
@@ -600,13 +817,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             # latent_window_sizeが4.5の場合は特別に5を使用
             effective_window_size = 5 if latent_window_size == 4.5 else int(latent_window_size)
-            # 必ず整数のリストを使用
-            indices = torch.arange(0, sum([1, 16, 2, 1, effective_window_size])).unsqueeze(0)
-            clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, effective_window_size], dim=1)
-            clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
+            indices = torch.arange(0, sum([1, latent_padding_size, effective_window_size, 1, 2, 16])).unsqueeze(0)
+            clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, effective_window_size, 1, 2, 16], dim=1)
+            clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
-            clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
-            clean_latents = torch.cat([start_latent.to(history_latents), clean_latents_1x], dim=2)
+            clean_latents_pre = current_latent.to(history_latents)
+            clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
+            clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
             if not high_vram:
                 unload_complete_models()
@@ -640,12 +857,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
-            # Image影響度を計算：大きい値ほど始点の影響が強くなるよう変換
-            # 1.0/image_strengthを使用し、最小値を0.01に制限
-            strength_value = max(0.01, 1.0 / image_strength)
-            print(translate('Image影響度: UI値={0:.2f}（{1:.0f}%）→計算値={2:.4f}（値が小さいほど始点の影響が強い）').format(
-                image_strength, image_strength * 100, strength_value))
-
             generated_latents = sample_hunyuan(
                 transformer=transformer,
                 sampler='unipc',
@@ -674,17 +885,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 clean_latent_2x_indices=clean_latent_2x_indices,
                 clean_latents_4x=clean_latents_4x,
                 clean_latent_4x_indices=clean_latent_4x_indices,
-                initial_latent=current_latent,  # 開始潜在空間を設定
-                strength=strength_value,        # 計算した影響度を使用
                 callback=callback,
             )
 
-            # if is_last_section:
-            #     generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
+            if is_last_section:
+                generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
 
             total_generated_latent_frames += int(generated_latents.shape[2])
-            # 後方にフレームを追加
-            history_latents = torch.cat([history_latents, generated_latents.to(history_latents)], dim=2)
+            history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
 
             if not high_vram:
                 # 減圧時に使用するGPUメモリ値も明示的に浮動小数点に設定
@@ -693,14 +901,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 offload_model_from_device_for_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory_offload)
                 load_model_as_complete(vae, target_device=gpu)
 
-            # 最新フレームは末尾から切り出し
-            real_history_latents = history_latents[:, :, -total_generated_latent_frames:, :, :]
+            real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
             # COMMENTED OUT: VAEデコード前のメモリクリア（処理速度向上のため）
             # if torch.cuda.is_available():
             #     torch.cuda.synchronize()
             #     torch.cuda.empty_cache()
-            #     print(translate("VAEデコード前メモリ: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
+            #     print(f"VAEデコード前メモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
 
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
@@ -710,18 +917,17 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     section_latent_frames = 11 if is_last_section else 10  # 5 * 2 + 1 = 11, 5 * 2 = 10
                     overlapped_frames = 17  # 5 * 4 - 3 = 17
                 else:
-                    # +1は逆方向生成時の start_latent 分なのでカット
-                    section_latent_frames = int(latent_window_size * 2) if is_last_section else int(latent_window_size * 2)
+                    section_latent_frames = int(latent_window_size * 2 + 1) if is_last_section else int(latent_window_size * 2)
                     overlapped_frames = int(latent_window_size * 4 - 3)
 
-                # F1モードでは最新フレームは末尾にあるため、後方のセクションを取得
-                current_pixels = vae_decode(real_history_latents[:, :, -section_latent_frames:], vae).cpu()
+                current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
+                history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
 
-                # 引数の順序を修正 - history_pixelsが先、新しいcurrent_pixelsが後
-                if history_pixels is None:
-                    history_pixels = current_pixels
-                else:
-                    history_pixels = soft_append_bcthw(history_pixels, current_pixels, overlapped_frames)
+            # COMMENTED OUT: 明示的なCPU転送と不要テンソルの削除（処理速度向上のため）
+            # if torch.cuda.is_available():
+            #     # 必要なデコード後、明示的にキャッシュをクリア
+            #     torch.cuda.synchronize()
+            #     torch.cuda.empty_cache()
 
             # 各セクションの最終フレームを静止画として保存（セクション番号付き）
             if save_section_frames and history_pixels is not None:
@@ -736,37 +942,37 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     last_frame = last_frame.cpu().numpy()
                     last_frame = np.clip((last_frame * 127.5 + 127.5), 0, 255).astype(np.uint8)
                     last_frame = resize_and_center_crop(last_frame, target_width=width, target_height=height)
-
+                    
                     # メタデータを埋め込むための情報を収集
-                    print(translate("\n[DEBUG] セクション{0}のメタデータ埋め込み準備").format(i_section))
+                    print(f"\n[DEBUG] セクション{i_section}のメタデータ埋め込み準備")
                     section_metadata = {
                         PROMPT_KEY: prompt,  # メインプロンプト
                         SEED_KEY: seed,
                         SECTION_NUMBER_KEY: i_section
                     }
-                    print(translate("[DEBUG] 基本メタデータ: {0}").format(section_metadata))
-
+                    print(f"[DEBUG] 基本メタデータ: {section_metadata}")
+                    
                     # セクション固有のプロンプトがあれば取得
                     if section_map and i_section in section_map:
                         _, section_prompt = section_map[i_section]
                         if section_prompt and section_prompt.strip():
                             section_metadata[SECTION_PROMPT_KEY] = section_prompt
-                            print(translate("[DEBUG] セクションプロンプトを追加: {0}").format(section_prompt))
-
+                            print(f"[DEBUG] セクションプロンプトを追加: {section_prompt}")
+                    
                     # 画像の保存とメタデータの埋め込み
-                    if is_first_section:
+                    if is_first_section and end_frame is None:
                         frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}_end.png')
-                        print(translate("[DEBUG] セクション画像パス: {0}").format(frame_path))
+                        print(f"[DEBUG] セクション画像パス: {frame_path}")
                         Image.fromarray(last_frame).save(frame_path)
-                        print(translate("[DEBUG] メタデータ埋め込み実行: {0}").format(section_metadata))
+                        print(f"[DEBUG] メタデータ埋め込み実行: {section_metadata}")
                         embed_metadata_to_png(frame_path, section_metadata)
                     else:
                         frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}.png')
-                        print(translate("[DEBUG] セクション画像パス: {0}").format(frame_path))
+                        print(f"[DEBUG] セクション画像パス: {frame_path}")
                         Image.fromarray(last_frame).save(frame_path)
-                        print(translate("[DEBUG] メタデータ埋め込み実行: {0}").format(section_metadata))
+                        print(f"[DEBUG] メタデータ埋め込み実行: {section_metadata}")
                         embed_metadata_to_png(frame_path, section_metadata)
-
+                    
                     print(translate("\u2713 セクション{0}のフレーム画像をメタデータ付きで保存しました").format(i_section))
                 except Exception as e:
                     print(translate("[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
@@ -776,27 +982,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             output_filename = os.path.join(outputs_folder, f'{job_id}_{total_generated_latent_frames}.mp4')
 
-            # MP4保存前のデータ検証を追加
-            print(translate("[DEBUG] MP4保存前のhistory_pixels形状: {0}").format(history_pixels.shape))
-            print(translate("[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={0}, max={1}").format(history_pixels.min().item(), history_pixels.max().item()))
-
-            # MP4保存前のデバッグ情報を出力
-            print(translate("[DEBUG] MP4保存前のhistory_pixels形状: {0}").format(history_pixels.shape))
-            print(translate("[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={0}, max={1}").format(history_pixels.min().item(), history_pixels.max().item()))
-
-            # GPUメモリ状況の確認
-            if torch.cuda.is_available():
-                print(translate("[DEBUG] MP4保存前GPUメモリ: {0:.2f}GB/{1:.2f}GB").format(torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
-
-            # 出力ファイルパスの確認
-            print(translate("[DEBUG] MP4保存パス: {0}").format(os.path.abspath(output_filename)))
-
-            # もしhistory_pixelsの値が不適切な範囲にある場合、範囲を修正
-            if history_pixels.min() < -1.0 or history_pixels.max() > 1.0:
-                print(translate("[DEBUG] history_pixelsの値範囲を[-1.0, 1.0]に修正します"))
-                history_pixels = torch.clamp(history_pixels, -1.0, 1.0)
-
-            # MP4を保存
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30, crf=mp4_crf)
 
             print(translate('Decoded. Current latent shape {0}; pixel shape {1}').format(real_history_latents.shape, history_pixels.shape))
@@ -809,7 +994,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             #     gc.collect()
             #     memory_allocated = torch.cuda.memory_allocated()/1024**3
             #     memory_reserved = torch.cuda.memory_reserved()/1024**3
-            #     print(translate("セクション後メモリ状態: 割当={0:.2f}GB, 予約={1:.2f}GB").format(memory_allocated, memory_reserved))
+            #     print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
 
             print(translate("■ セクション{0}の処理完了").format(i_section))
             print(translate("  - 現在の累計フレーム数: {0}フレーム").format(int(max(0, total_generated_latent_frames * 4 - 3))))
@@ -1084,6 +1269,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 print(translate("テンソルデータの結合に失敗しました。"))
                                 stream.output_queue.push(('progress', (None, translate("テンソルデータの結合に失敗しました。"), make_progress_bar_html(100, translate('エラー')))))
 
+                            # 正しく結合された動画はすでに生成済みなので、ここでの処理は不要
+
+                            # この部分の処理はすでに上記のチャンク処理で完了しているため不要
 
                             # real_history_latentsとhistory_pixelsを結合済みのものに更新
                             real_history_latents = combined_history_latents
@@ -1348,14 +1536,14 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, save_tensor_data=False, section_settings=None, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1):
-    # メイン生成処理
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1):
     global stream
     global batch_stopped
-
+    
     # バッチ処理開始時に停止フラグをリセット
     batch_stopped = False
 
+    # バリデーション関数で既にチェック済みなので、ここでの再チェックは不要
 
     # フレームサイズ設定に応じてlatent_window_sizeを先に調整
     if frame_size_setting == "0.5秒 (17フレーム)":
@@ -1370,19 +1558,19 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # バッチ処理回数を確認し、詳細を出力
     batch_count = max(1, min(int(batch_count), 100))  # 1〜100の間に制限
     print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
-
+    
     # 解像度を安全な値に丸めてログ表示
     from diffusers_helper.bucket_tools import SAFE_RESOLUTIONS
-
+    
     # 解像度値を表示
     print(translate("\u25c6 UIから受け取った解像度値: {0}（型: {1}）").format(resolution, type(resolution).__name__))
-
+    
     # 安全な値に丸める
     if resolution not in SAFE_RESOLUTIONS:
         closest_resolution = min(SAFE_RESOLUTIONS, key=lambda x: abs(x - resolution))
         print(translate('安全な解像度値ではないため、{0}から{1}に自動調整しました').format(resolution, closest_resolution))
         resolution = closest_resolution
-
+    
     # 解像度設定を出力
     print(translate('解像度を設定: {0}').format(resolution))
 
@@ -1394,8 +1582,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         frame_count = int(latent_window_size * 4 - 3)
     total_latent_sections = int(max(round((total_second_length * 30) / frame_count), 1))
 
-    # F1モードでは常に通常のみ
-    mode_name = translate("通常モード")
+    mode_name = translate("通常モード") if mode_radio.value == MODE_TYPE_NORMAL else translate("ループモード")
 
     print(translate("\n==== 動画生成開始 ====="))
     print(translate("\u25c6 生成モード: {0}").format(mode_name))
@@ -1411,8 +1598,11 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # FP8最適化設定のログ出力
     print(translate("\u25c6 FP8最適化: {0}").format(fp8_optimization))
 
-    # オールパディング設定のログ出力（F1モードでは常に無効）
-    print(translate("\u25c6 オールパディング: F1モードでは無効化されています"))
+    # オールパディング設定のログ出力
+    if use_all_padding:
+        print(translate("\u25c6 オールパディング: 有効 (値: {0})").format(round(all_padding_value, 1)))
+    else:
+        print(translate("\u25c6 オールパディング: 無効"))
 
     # LoRA情報のログ出力
     if use_lora and lora_file is not None:
@@ -1438,7 +1628,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     # 元のシード値を保存（バッチ処理用）
     original_seed = seed
-
+    
     if use_random_seed:
         seed = random.randint(0, 2**32 - 1)
         # UIのseed欄もランダム値で更新
@@ -1449,61 +1639,61 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
     stream = AsyncStream()
-
+    
     # stream作成後、バッチ処理前もう一度フラグを確認
     if batch_stopped:
         print(translate("\nバッチ処理が中断されました（バッチ開始前）"))
         yield (
-            None,
-            gr.update(visible=False),
-            translate("バッチ処理が中断されました"),
-            '',
-            gr.update(interactive=True),
-            gr.update(interactive=False, value=translate("End Generation")),
+            None, 
+            gr.update(visible=False), 
+            translate("バッチ処理が中断されました"), 
+            '', 
+            gr.update(interactive=True), 
+            gr.update(interactive=False, value=translate("End Generation")), 
             gr.update()
         )
         return
-
+    
     # バッチ処理ループの開始
     for batch_index in range(batch_count):
         # 停止フラグが設定されている場合は全バッチ処理を中止
         if batch_stopped:
             print(translate("\nバッチ処理がユーザーによって中止されました"))
             yield (
-                None,
-                gr.update(visible=False),
-                translate("バッチ処理が中止されました。"),
-                '',
-                gr.update(interactive=True),
-                gr.update(interactive=False, value=translate("End Generation")),
+                None, 
+                gr.update(visible=False), 
+                translate("バッチ処理が中止されました。"), 
+                '', 
+                gr.update(interactive=True), 
+                gr.update(interactive=False, value=translate("End Generation")), 
                 gr.update()
             )
             break
-
+            
         # 現在のバッチ番号を表示
         if batch_count > 1:
             batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
             print(f"\n{batch_info}")
             # UIにもバッチ情報を表示
             yield None, gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True), gr.update()
-
+            
         # バッチインデックスに応じてSEED値を設定
         current_seed = original_seed + batch_index
         if batch_count > 1:
             print(translate("現在のSEED値: {0}").format(current_seed))
         # 現在のバッチ用のシードを設定
         seed = current_seed
-
+        
         # もう一度停止フラグを確認 - worker処理実行前
         if batch_stopped:
             print(translate("バッチ処理が中断されました。worker関数の実行をキャンセルします。"))
             # 中断メッセージをUIに表示
-            yield (None,
-                   gr.update(visible=False),
-                   translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index, batch_count),
+            yield (None, 
+                   gr.update(visible=False), 
+                   translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index, batch_count), 
                    '',
-                   gr.update(interactive=True),
-                   gr.update(interactive=False, value=translate("End Generation")),
+                   gr.update(interactive=True), 
+                   gr.update(interactive=False, value=translate("End Generation")), 
                    gr.update())
             break
 
@@ -1522,13 +1712,18 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 print(translate("[DEBUG] input_image path: {0}, type: {1}").format(input_image, type(input_image)))
             else:
                 print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
+        if end_frame is not None:
+            if isinstance(end_frame, str):
+                print(translate("[DEBUG] end_frame path: {0}, type: {1}").format(end_frame, type(end_frame)))
+            else:
+                print(translate("[DEBUG] end_frame shape: {0}, type: {1}").format(end_frame.shape, type(end_frame)))
         if section_settings is not None:
             print(translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
             valid_images = sum(1 for s in section_settings if s and s[1] is not None)
             print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
 
         # バッチ処理の各回で実行
-        async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, image_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_index)
+        async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_index)
 
         # 現在のバッチの出力ファイル名
         batch_output_filename = None
@@ -1561,31 +1756,31 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                     else:
                         completion_message = translate("バッチ処理が完了しました（{0}/{1}）").format(batch_count, batch_count)
                     yield (
-                        batch_output_filename,
-                        gr.update(value=None, visible=False),
-                        completion_message,
-                        '',
-                        gr.update(interactive=True),
-                        gr.update(interactive=False, value=translate("End Generation")),
+                        batch_output_filename, 
+                        gr.update(value=None, visible=False), 
+                        completion_message, 
+                        '', 
+                        gr.update(interactive=True), 
+                        gr.update(interactive=False, value=translate("End Generation")), 
                         gr.update()
                     )
                 else:
                     # 次のバッチに進むメッセージを表示
                     next_batch_message = translate("バッチ処理: {0}/{1} 完了、次のバッチに進みます...").format(batch_index + 1, batch_count)
                     yield (
-                        batch_output_filename,
-                        gr.update(value=None, visible=False),
-                        next_batch_message,
-                        '',
-                        gr.update(interactive=False),
-                        gr.update(interactive=True),
+                        batch_output_filename, 
+                        gr.update(value=None, visible=False), 
+                        next_batch_message, 
+                        '', 
+                        gr.update(interactive=False), 
+                        gr.update(interactive=True), 
                         gr.update()
                     )
                 break
-
+        
         # 最終的な出力ファイル名を更新
         output_filename = batch_output_filename
-
+        
         # バッチ処理が停止されている場合はループを抜ける
         if batch_stopped:
             print(translate("バッチ処理ループを中断します"))
@@ -1595,13 +1790,13 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 def end_process():
     global stream
     global batch_stopped
-
+    
     # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
     batch_stopped = True
     print(translate("\n停止ボタンが押されました。バッチ処理を停止します..."))
     # 現在実行中のバッチを停止
     stream.input_queue.push('end')
-
+    
     # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
     return gr.update(value=translate("停止処理中..."))
 
@@ -1623,7 +1818,7 @@ quick_prompts = [[x] for x in quick_prompts]
 css = get_app_css()
 block = gr.Blocks(css=css).queue()
 with block:
-    gr.HTML('<h1>FramePack<span class="title-suffix">-<s>eichi</s> F1</span></h1>')
+    gr.HTML('<h1>FramePack<span class="title-suffix">-eichi</span></h1>')
 
     # デバッグ情報の表示
     # print_keyframe_debug_info()
@@ -1631,8 +1826,7 @@ with block:
     # 一番上の行に「生成モード、セクションフレームサイズ、オールパディング、動画長」を配置
     with gr.Row():
         with gr.Column(scale=1):
-            # 生成モードのラジオボタン（F1モードでは通常のみ）
-            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL], value=MODE_TYPE_NORMAL, label=translate("生成モード"), info=translate("F1モードでは通常のみ利用可能"))
+            mode_radio = gr.Radio(choices=[MODE_TYPE_NORMAL, MODE_TYPE_LOOP], value=MODE_TYPE_NORMAL, label=translate("生成モード"), info=translate("通常：一般的な生成 / ループ：ループ動画用"))
         with gr.Column(scale=1):
             # フレームサイズ切替用のUIコントロール（名前を「セクションフレームサイズ」に変更）
             frame_size_radio = gr.Radio(
@@ -1642,24 +1836,9 @@ with block:
                 info=translate("1秒 = 高品質・通常速度 / 0.5秒 = よりなめらかな動き（実験的機能）")
             )
         with gr.Column(scale=1):
-            # オールパディング設定 (F1モードでは無効化)
-            use_all_padding = gr.Checkbox(
-                label=translate("オールパディング"),
-                value=False,
-                info=translate("F1モードでは使用できません。無印モードでのみ有効です。"),
-                elem_id="all_padding_checkbox",
-                interactive=False  # F1モードでは非活性化
-            )
-            all_padding_value = gr.Slider(
-                label=translate("パディング値"),
-                minimum=0.2,
-                maximum=3,
-                value=1,
-                step=0.1,
-                info=translate("F1モードでは使用できません"),
-                visible=False,
-                interactive=False  # F1モードでは非活性化
-            )
+            # オールパディング設定
+            use_all_padding = gr.Checkbox(label=translate("オールパディング"), value=False, info=translate("数値が小さいほど直前の絵への影響度が下がり動きが増える"), elem_id="all_padding_checkbox")
+            all_padding_value = gr.Slider(label=translate("パディング値"), minimum=0.2, maximum=3, value=1, step=0.1, info=translate("すべてのセクションに適用するパディング値（0.2〜3の整数）"), visible=False)
 
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
             def toggle_all_padding_visibility(use_all_padding):
@@ -1672,11 +1851,58 @@ with block:
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
-            length_radio = gr.Radio(choices=get_video_modes(), value=translate("1秒"), label=translate("動画長"), info=translate("動画の長さを設定。F1モードでは右下の「動画の総長（秒）」で20秒より長い動画長を設定可能です"))
+            length_radio = gr.Radio(choices=get_video_modes(), value=translate("1秒"), label=translate("動画長"), info=translate("キーフレーム画像のコピー範囲と動画の長さを設定"))
 
     with gr.Row():
         with gr.Column():
-            input_image = gr.Image(sources=['upload', 'clipboard'], type="filepath", label="Image", height=320)
+            # Final Frameの上に説明を追加
+            gr.Markdown(translate("**Finalは最後の画像、Imageは最初の画像(最終キーフレーム画像といずれか必須)となります。**"))
+            end_frame = gr.Image(sources=['upload', 'clipboard'], type="filepath", label=translate("Final Frame (Optional)"), height=320)
+            
+            # End Frame画像のアップロード時のメタデータ抽出機能は一旦コメント化
+            # def update_from_end_frame_metadata(image):
+            #     """End Frame画像からメタデータを抽出してUIに反映する"""
+            #     if image is None:
+            #         return [gr.update()] * 2
+            #     
+            #     try:
+            #         # NumPy配列からメタデータを抽出
+            #         metadata = extract_metadata_from_numpy_array(image)
+            #         
+            #         if not metadata:
+            #             print(translate("End Frame画像にメタデータが含まれていません"))
+            #             return [gr.update()] * 2
+            #         
+            #         print(translate("End Frame画像からメタデータを抽出しました: {0}").format(metadata))
+            #         
+            #         # プロンプトとSEEDをUIに反映
+            #         prompt_update = gr.update()
+            #         seed_update = gr.update()
+            #         
+            #         if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
+            #             prompt_update = gr.update(value=metadata[PROMPT_KEY])
+            #             print(translate("プロンプトをEnd Frame画像から取得: {0}").format(metadata[PROMPT_KEY]))
+            #         
+            #         if SEED_KEY in metadata and metadata[SEED_KEY]:
+            #             # SEED値を整数に変換
+            #             try:
+            #                 seed_value = int(metadata[SEED_KEY])
+            #                 seed_update = gr.update(value=seed_value)
+            #                 print(translate("SEED値をEnd Frame画像から取得: {0}").format(seed_value))
+            #             except (ValueError, TypeError):
+            #                 print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
+            #         
+            #         return [prompt_update, seed_update]
+            #     except Exception as e:
+            #         print(translate("End Frameメタデータ抽出エラー: {0}").format(e))
+            #         return [gr.update()] * 2
+            # 
+            # # End Frame画像アップロード時のメタデータ取得処理を登録
+            # end_frame.change(
+            #     fn=update_from_end_frame_metadata,
+            #     inputs=[end_frame],
+            #     outputs=[prompt, seed]
+            # )
 
             # テンソルデータ設定をグループ化して灰色のタイトルバーに変更
             with gr.Group():
@@ -1704,26 +1930,26 @@ with block:
                     inputs=[use_tensor_data],
                     outputs=[tensor_data_group]
                 )
-
+                
             # テンソルデータ設定の下に解像度スライダーとバッチ処理回数を追加
             with gr.Group():
                 with gr.Row():
                     with gr.Column(scale=2):
                         resolution = gr.Slider(
-                            label=translate("解像度"),
-                            minimum=512,
-                            maximum=768,
-                            value=640,
-                            step=128,
+                            label=translate("解像度"), 
+                            minimum=512, 
+                            maximum=768, 
+                            value=640, 
+                            step=128, 
                             info=translate("出力動画の基準解像度。現在は512か640か768のいずれかのみ対応（640推奨）")
                         )
                     with gr.Column(scale=1):
                         batch_count = gr.Slider(
-                            label=translate("バッチ処理回数"),
-                            minimum=1,
-                            maximum=100,
-                            value=1,
-                            step=1,
+                            label=translate("バッチ処理回数"), 
+                            minimum=1, 
+                            maximum=100, 
+                            value=1, 
+                            step=1, 
                             info=translate("同じ設定で連続生成する回数。SEEDは各回で+1されます")
                         )
 
@@ -1751,86 +1977,278 @@ with block:
 
             # 現在の必要セクション数を取得
             initial_sections_count = get_current_sections_count()
-            # 簡略化セクション表示
-            # セクションタイトルの関数は削除し、固定メッセージのみ表示
+            # セクション設定タイトルの定義と動的な更新用の関数
+            # 現在のセクション数に応じたMarkdownを返す関数
+            def generate_section_title(total_sections):
+                last_section = total_sections - 1
+                return translate('### セクション設定（逆順表示）\n\nセクションは逆時系列で表示されています。Image(始点)は必須でFinal(終点)から遡って画像を設定してください。**最終キーフレームの画像は、Image(始点)より優先されます。総数{0}**').format(total_sections)
+
+            # 動画のモードとフレームサイズに基づいてセクション数を計算し、タイトルを更新する関数
+            def update_section_title(frame_size, mode, length):
+                seconds = get_video_seconds(length)
+                latent_window_size = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
+                frame_count = latent_window_size * 4 - 3
+                total_frames = int(seconds * 30)
+                total_sections = int(max(round(total_frames / frame_count), 1))
+                # 表示セクション数の設定
+                # 例: 総セクション数が5の場合、4～0の5個のセクションが表示される
+                display_sections = total_sections
+                return generate_section_title(display_sections)
+
+            # 初期タイトルを計算
+            initial_title = update_section_title(translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, translate("1秒"))
 
             # 埋め込みプロンプトおよびシードを複写するチェックボックスの定義
             # グローバル変数として定義し、後で他の場所から参照できるようにする
             global copy_metadata
             copy_metadata = gr.Checkbox(
-                label=translate("埋め込みプロンプトおよびシードを複写する"),
-                value=False,
+                label=translate("埋め込みプロンプトおよびシードを複写する"), 
+                value=False, 
                 info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
             )
 
-            # F1モードではセクション設定は完全に削除
-            # 隠しコンポーネント（互換性のため）
-            section_image_inputs = []
-            section_number_inputs = []
-            section_prompt_inputs = []
-            section_row_groups = []
+            with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
+                # セクション情報zipファイルアップロード処理を追加
+                with gr.Group():
+                    gr.Markdown(f"### " + translate("セクション情報一括アップロード"))
+                    # チェックボックスで表示/非表示を切り替え
+                    show_upload_section = gr.Checkbox(
+                        label=translate("一括アップロード機能を表示"),
+                        value=False,
+                        info=translate("チェックをオンにするとセクション情報の一括アップロード機能を表示します")
+                    )
+                    # 初期状態では非表示
+                    with gr.Group(visible=False) as upload_section_group:
+                        upload_zipfile = gr.File(label=translate("セクション情報アップロードファイル"), file_types=[".zip"], interactive=True)
+                    
+                    # チェックボックスの状態変更時に表示/非表示を切り替える
+                    show_upload_section.change(
+                        fn=lambda x: gr.update(visible=x),
+                        inputs=[show_upload_section],
+                        outputs=[upload_section_group]
+                    )
 
+                with gr.Group(elem_classes="section-container"):
+                    section_title = gr.Markdown(initial_title)
+
+                    # セクション番号0の上にコピー機能チェックボックスを追加（ループモード時のみ表示）
+                    with gr.Row(visible=(mode_radio.value == MODE_TYPE_LOOP)) as copy_button_row:
+                        keyframe_copy_checkbox = gr.Checkbox(label=translate("キーフレーム自動コピー機能を有効にする"), value=True, info=translate("オンにするとキーフレーム間の自動コピーが行われます"))
+
+                    for i in range(max_keyframes):
+                        with gr.Row(visible=(i < initial_sections_count), elem_classes="section-row") as row_group:
+                            # 左側にセクション番号とプロンプトを配置
+                            with gr.Column(scale=1):
+                                section_number = gr.Number(label=translate("セクション番号 {0}").format(i), value=i, precision=0)
+                                section_prompt = gr.Textbox(label=translate("セクションプロンプト {0}").format(i), placeholder=translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), lines=2)
+
+                            # 右側にキーフレーム画像のみ配置
+                            with gr.Column(scale=2):
+                                section_image = gr.Image(label=translate("キーフレーム画像 {0}").format(i), sources="upload", type="filepath", height=200)
+                                
+                                # 各キーフレーム画像のアップロード時のメタデータ抽出処理
+                                # クロージャーで現在のセクション番号を捕捉
+                                def create_section_metadata_handler(section_idx, section_prompt_input):
+                                    def update_from_section_image_metadata(image_path, copy_enabled=False):
+                                        print(f"\n[DEBUG] セクション{section_idx}の画像メタデータ抽出処理が開始されました")
+                                        print(f"[DEBUG] メタデータ複写機能: {copy_enabled}")
+                                        
+                                        # 複写機能が無効の場合は何もしない
+                                        if not copy_enabled:
+                                            print(f"[DEBUG] セクション{section_idx}: メタデータ複写機能が無効化されているため、処理をスキップします")
+                                            return gr.update()
+                                        
+                                        if image_path is None:
+                                            print(f"[DEBUG] セクション{section_idx}の画像パスがNoneです")
+                                            return gr.update()
+                                        
+                                        print(f"[DEBUG] セクション{section_idx}の画像パス: {image_path}")
+                                        
+                                        try:
+                                            # ファイルパスから直接メタデータを抽出
+                                            print(f"[DEBUG] セクション{section_idx}からextract_metadata_from_pngを直接呼び出し")
+                                            metadata = extract_metadata_from_png(image_path)
+                                            
+                                            if not metadata:
+                                                print(f"[DEBUG] セクション{section_idx}の画像からメタデータが抽出されませんでした")
+                                                return gr.update()
+                                            
+                                            print(f"[DEBUG] セクション{section_idx}の抽出されたメタデータ: {metadata}")
+                                            
+                                            # セクションプロンプトを取得
+                                            if SECTION_PROMPT_KEY in metadata and metadata[SECTION_PROMPT_KEY]:
+                                                section_prompt_value = metadata[SECTION_PROMPT_KEY]
+                                                print(f"[DEBUG] セクション{section_idx}のプロンプトを画像から取得: {section_prompt_value}")
+                                                print(translate("セクション{0}のプロンプトを画像から取得: {1}").format(section_idx, section_prompt_value))
+                                                return gr.update(value=section_prompt_value)
+                                            
+                                            # 通常のプロンプトがあればそれをセクションプロンプトに設定
+                                            elif PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
+                                                prompt_value = metadata[PROMPT_KEY]
+                                                print(f"[DEBUG] セクション{section_idx}のプロンプトを画像の一般プロンプトから取得: {prompt_value}")
+                                                print(translate("セクション{0}のプロンプトを画像の一般プロンプトから取得: {1}").format(section_idx, prompt_value))
+                                                return gr.update(value=prompt_value)
+                                        except Exception as e:
+                                            print(f"[ERROR] セクション{section_idx}のメタデータ抽出エラー: {e}")
+                                            traceback.print_exc()
+                                            print(translate("セクション{0}のメタデータ抽出エラー: {1}").format(section_idx, e))
+                                        
+                                        return gr.update()
+                                    return update_from_section_image_metadata
+                                
+                                # キーフレーム画像アップロード時のメタデータ取得処理を登録
+                                section_image.change(
+                                    fn=create_section_metadata_handler(i, section_prompt),
+                                    inputs=[section_image, copy_metadata],
+                                    outputs=[section_prompt]
+                                )
+                            section_number_inputs.append(section_number)
+                            section_image_inputs.append(section_image)
+                            section_prompt_inputs.append(section_prompt)
+                            section_row_groups.append(row_group)  # 行全体をリストに保存
+
+                    # ※ enable_keyframe_copy変数は後で使用するため、ここで定義（モードに応じた初期値設定）
+                    enable_keyframe_copy = gr.State(mode_radio.value == MODE_TYPE_LOOP) # ループモードの場合はTrue、通常モードの場合はFalse
+
+                    # キーフレーム自動コピーチェックボックスの変更をenable_keyframe_copyに反映させる関数
+                    def update_keyframe_copy_state(value):
+                        return value
+
+                    # チェックボックスの変更がenable_keyframe_copyに反映されるようにイベントを設定
+                    keyframe_copy_checkbox.change(
+                        fn=update_keyframe_copy_state,
+                        inputs=[keyframe_copy_checkbox],
+                        outputs=[enable_keyframe_copy]
+                    )
+
+                    # チェックボックス変更時に赤枠/青枠の表示を切り替える
+                    def update_frame_visibility_from_checkbox(value, mode):
+                    #   print(f"チェックボックス変更: 値={value}, モード={mode}")
+                        # モードとチェックボックスの両方に基づいて枠表示を決定
+                        is_loop = (mode == MODE_TYPE_LOOP)
+
+                        # 通常モードでは常に赤枠/青枠を非表示 (最優先で確認)
+                        if not is_loop:
+                        #   print(f"通常モード (チェックボックス値={value}): 赤枠/青枠を強制的に非表示にします")
+                            # 通常モードでは常にelm_classesを空にして赤枠/青枠を非表示に確定する
+                            return gr.update(elem_classes=""), gr.update(elem_classes="")
+
+                        # ループモードでチェックボックスがオンの場合のみ枠を表示
+                        if value:
+                        #   print(f"ループモード + チェックボックスオン: 赤枠/青枠を表示します")
+                            return gr.update(elem_classes="highlighted-keyframe-red"), gr.update(elem_classes="highlighted-keyframe-blue")
+                        else:
+                        #   print(f"ループモード + チェックボックスオフ: 赤枠/青枠を非表示にします")
+                            # ループモードでもチェックがオフなら必ずelem_classesを空にして赤枠/青枠を非表示にする
+                            return gr.update(elem_classes=""), gr.update(elem_classes="")
+
+                    keyframe_copy_checkbox.change(
+                        fn=update_frame_visibility_from_checkbox,
+                        inputs=[keyframe_copy_checkbox, mode_radio],
+                        outputs=[section_image_inputs[0], section_image_inputs[1]]
+                    )
+
+                    # モード切り替え時にチェックボックスの値と表示状態を制御する
+                    def toggle_copy_checkbox_visibility(mode):
+                        """モード切り替え時にチェックボックスの表示/非表示を切り替える"""
+                        is_loop = (mode == MODE_TYPE_LOOP)
+                        # 通常モードの場合はチェックボックスを非表示に設定、コピー機能を必ずFalseにする
+                        if not is_loop:
+                        #   print(f"モード切替: {mode} -> チェックボックス非表示、コピー機能を無効化")
+                            return gr.update(visible=False, value=False), gr.update(visible=False), False
+                        # ループモードの場合は表示し、デフォルトでオンにする
+                    #   print(f"モード切替: {mode} -> チェックボックス表示かつオンに設定")
+                        return gr.update(visible=True, value=True), gr.update(visible=True), True
+
+                    # モード切り替え時にチェックボックスの表示/非表示と値を制御するイベントを設定
+                    mode_radio.change(
+                        fn=toggle_copy_checkbox_visibility,
+                        inputs=[mode_radio],
+                        outputs=[keyframe_copy_checkbox, copy_button_row, enable_keyframe_copy]
+                    ) # ループモードに切替時は常にチェックボックスをオンにし、通常モード時は常にオフにする
+
+                    # モード切り替え時に赤枠/青枠の表示を更新
+                    def update_frame_visibility_from_mode(mode):
+                        # モードに基づいて枠表示を決定
+                        is_loop = (mode == MODE_TYPE_LOOP)
+
+                        # 通常モードでは無条件で赤枠/青枠を非表示 (最優先で確定)
+                        if not is_loop:
+                        #   print(f"モード切替: 通常モード -> 枠を強制的に非表示")
+                            return gr.update(elem_classes=""), gr.update(elem_classes="")
+                        else:
+                            # ループモードではチェックボックスが常にオンになるので枠を表示
+                        #   print(f"モード切替: ループモード -> チェックボックスオンなので枠を表示")
+                            return gr.update(elem_classes="highlighted-keyframe-red"), gr.update(elem_classes="highlighted-keyframe-blue")
+
+                    mode_radio.change(
+                        fn=update_frame_visibility_from_mode,
+                        inputs=[mode_radio],
+                        outputs=[section_image_inputs[0], section_image_inputs[1]]
+                    )
+
+            input_image = gr.Image(sources=['upload', 'clipboard'], type="filepath", label="Image", height=320)
 
             # メタデータ抽出関数を定義（後で登録する）
             def update_from_image_metadata(image_path, copy_enabled=False):
                 """Imageアップロード時にメタデータを抽出してUIに反映する
-                F1モードではキーフレームコピー機能を削除済みのため、単純化
+                copy_enabled: メタデータの複写が有効化されているかどうか
                 """
-                print(translate("\n[DEBUG] F1モード：update_from_image_metadata関数が実行されました"))
-                print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
-
+                print("\n[DEBUG] update_from_image_metadata関数が実行されました")
+                print(f"[DEBUG] メタデータ複写機能: {copy_enabled}")
+                
                 # 複写機能が無効の場合は何もしない
                 if not copy_enabled:
-                    print(translate("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします"))
+                    print("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします")
                     return [gr.update()] * 2
-
+                
                 if image_path is None:
-                    print(translate("[DEBUG] image_pathはNoneです"))
+                    print("[DEBUG] image_pathはNoneです")
                     return [gr.update()] * 2
-
-                print(translate("[DEBUG] 画像パス: {0}").format(image_path))
-
+                
+                print(f"[DEBUG] 画像パス: {image_path}")
+                
                 try:
                     # ファイルパスから直接メタデータを抽出
-                    print(translate("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します"))
+                    print("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します")
                     metadata = extract_metadata_from_png(image_path)
-
+                    
                     if not metadata:
-                        print(translate("[DEBUG] メタデータが抽出されませんでした"))
+                        print("[DEBUG] メタデータが抽出されませんでした")
                         print(translate("アップロードされた画像にメタデータが含まれていません"))
                         return [gr.update()] * 2
-
-                    print(translate("[DEBUG] メタデータサイズ: {0}, 内容: {1}").format(len(metadata), metadata))
+                    
+                    print(f"[DEBUG] メタデータサイズ: {len(metadata)}, 内容: {metadata}")
                     print(translate("画像からメタデータを抽出しました: {0}").format(metadata))
-
+                    
                     # プロンプトとSEEDをUIに反映
                     prompt_update = gr.update()
                     seed_update = gr.update()
-
+                    
                     if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
                         prompt_update = gr.update(value=metadata[PROMPT_KEY])
-                        print(translate("[DEBUG] プロンプトを更新: {0}").format(metadata[PROMPT_KEY]))
+                        print(f"[DEBUG] プロンプトを更新: {metadata[PROMPT_KEY]}")
                         print(translate("プロンプトを画像から取得: {0}").format(metadata[PROMPT_KEY]))
-
+                    
                     if SEED_KEY in metadata and metadata[SEED_KEY]:
                         # SEED値を整数に変換
                         try:
                             seed_value = int(metadata[SEED_KEY])
                             seed_update = gr.update(value=seed_value)
-                            print(translate("[DEBUG] SEED値を更新: {0}").format(seed_value))
+                            print(f"[DEBUG] SEED値を更新: {seed_value}")
                             print(translate("SEED値を画像から取得: {0}").format(seed_value))
                         except (ValueError, TypeError):
-                            print(translate("[DEBUG] SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
+                            print(f"[DEBUG] SEED値の変換エラー: {metadata[SEED_KEY]}")
                             print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
-
-                    print(translate("[DEBUG] 更新結果: prompt_update={0}, seed_update={1}").format(prompt_update, seed_update))
+                    
+                    print(f"[DEBUG] 更新結果: prompt_update={prompt_update}, seed_update={seed_update}")
                     return [prompt_update, seed_update]
                 except Exception as e:
-                    print(translate("[ERROR] メタデータ抽出処理中のエラー: {0}").format(e))
+                    print(f"[ERROR] メタデータ抽出処理中のエラー: {e}")
                     traceback.print_exc()
                     print(translate("メタデータ抽出エラー: {0}").format(e))
                     return [gr.update()] * 2
-
+            
             # 注意: イベント登録は変数定義後に行うため、後で実行する
             # メタデータ抽出処理の登録は、promptとseed変数の定義後に移動します
 
@@ -1935,13 +2353,23 @@ with block:
                 # section_prompt_inputs
                 # section_row_groups
 
-                # collect_section_settings関数は未使用のため削除
+                # section_settingsは入力欄の値をまとめてリスト化
+                def collect_section_settings(*args):
+                    # args: [num1, img1, prompt1, num2, img2, prompt2, ...]
+                    return [[args[i], args[i+1], args[i+2]] for i in range(0, len(args), 3)]
 
-                # シンプルな互換性のためのダミーステートを作成
                 section_settings = gr.State([[None, None, ""] for _ in range(max_keyframes)])
                 section_inputs = []
+                for i in range(max_keyframes):
+                    section_inputs.extend([section_number_inputs[i], section_image_inputs[i], section_prompt_inputs[i]])
 
-                # update_section_settings関数は未使用のため削除
+                # section_inputsをまとめてsection_settings Stateに格納
+                def update_section_settings(*args):
+                    return collect_section_settings(*args)
+
+                # section_inputsが変化したらsection_settings Stateを更新
+                for inp in section_inputs:
+                    inp.change(fn=update_section_settings, inputs=section_inputs, outputs=section_settings)
 
                 # フレームサイズ変更時の処理を追加
                 def update_section_calculation(frame_size, mode, length):
@@ -1959,13 +2387,13 @@ with block:
 
                     # 計算詳細を表示するHTMLを生成
                     html = f"""<div style='padding: 10px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px;'>
-                    {translate('<strong>計算詳細</strong>: フレームサイズ={0}, 総フレーム数={1}, セクションあたり={2}フレーム, 必要セクション数={3}').format(frame_size, total_frames, frame_count, total_sections)}
+                    {translate('<strong>計算詳細</strong>: モード={0}, フレームサイズ={1}, 総フレーム数={2}, セクションあたり={3}フレーム, 必要セクション数={4}').format(length, frame_size, total_frames, frame_count, total_sections)}
                     <br>
                     {translate('動画モード {0} とフレームサイズ {1} で必要なセクション数: <strong>{2}</strong>').format(length, frame_size, total_sections)}
                     </div>"""
 
                     # デバッグ用ログ
-                    print(translate("計算結果: モード=通常, フレームサイズ={0}, latent_window_size={1}, 総フレーム数={2}, 必要セクション数={3}").format(frame_size, latent_window_size, total_frames, total_sections))
+                    print(translate("計算結果: モード={0}, フレームサイズ={1}, latent_window_size={2}, 総フレーム数={3}, 必要セクション数={4}").format(length, frame_size, latent_window_size, total_frames, total_sections))
 
                     return html
 
@@ -1980,15 +2408,55 @@ with block:
                     outputs=[section_calc_display]
                 )
 
-                # セクション表示機能をシンプル化
-                def update_section_visibility(mode, length, frame_size=None):
-                    """F1モードではシンプル化された関数"""
-                    # 秒数だけ計算して返す
-                    seconds = get_video_seconds(length)
-                    print(translate("F1モード：シンプル設定（不要な機能を削除済み）"))
+                # フレームサイズ変更時にセクションタイトルも更新
+                frame_size_radio.change(
+                    fn=update_section_title,
+                    inputs=[frame_size_radio, mode_radio, length_radio],
+                    outputs=[section_title]
+                )
 
-                    # 最低限の返値（入力に対応するだけの空更新）
-                    return [gr.update()] * 2 + [] + [gr.update(value=seconds)] + []
+                # セクションの表示/非表示のみを制御する関数
+                def update_section_visibility(mode, length, frame_size=None):
+                    """画像は初期化せずにセクションの表示/非表示のみを制御する関数"""
+                    # フレームサイズに基づくセクション数計算
+                    seconds = get_video_seconds(length)
+                    latent_window_size_value = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
+                    frame_count = latent_window_size_value * 4 - 3
+                    total_frames = int(seconds * 30)
+                    total_sections = int(max(round(total_frames / frame_count), 1))
+
+                    # 通常モードの場合は全てのセクションの赤枠青枠を強制的にクリア
+                    is_normal_mode = (mode == MODE_TYPE_NORMAL)
+                    section_image_updates = []
+
+                    print(translate("セクション視認性更新: モード={mode}, 長さ={length}, 必要セクション数={total_sections}").format(mode=mode, length=length, total_sections=total_sections))
+
+                    for i in range(len(section_image_inputs)):
+                        if is_normal_mode:
+                            # 通常モードではすべてのセクション画像の赤枠青枠を強制的にクリア
+                            # 重要: 通常モードでは無条件で済む結果を返す
+                            # print(translate("  セクション{i}: 通常モードなので赤枠/青枠を強制的にクリア").format(i=i))
+                            section_image_updates.append(gr.update(elem_classes=""))  # 必ずelem_classesを空に設定
+                        else:
+                            # ループモードではセクション0と1に赤枠青枠を設定
+                            # ループモードではチェックボックスが常にオンになることを利用
+                            if i == 0:
+                                # print(translate("  セクション{i}: ループモードのセクション0に赤枠を設定").format(i=i))
+                                section_image_updates.append(gr.update(elem_classes="highlighted-keyframe-red"))
+                            elif i == 1:
+                                # print(translate("  セクション{i}: ループモードのセクション1に青枠を設定").format(i=i))
+                                section_image_updates.append(gr.update(elem_classes="highlighted-keyframe-blue"))
+                            else:
+                                # print(translate("  セクション{i}: ループモードの他セクションは空枠に設定").format(i=i))
+                                section_image_updates.append(gr.update(elem_classes=""))
+
+                    # 各セクションの表示/非表示のみを更新
+                    section_row_updates = []
+                    for i in range(len(section_row_groups)):
+                        section_row_updates.append(gr.update(visible=(i < total_sections)))
+
+                    # 返値の設定 - input_imageとend_frameは更新せず
+                    return [gr.update()] * 2 + section_image_updates + [gr.update(value=seconds)] + section_row_updates
 
                 # 注意: この関数のイベント登録は、total_second_lengthのUIコンポーネント定義後に行うため、
                 # ここでは関数の定義のみ行い、実際のイベント登録はUIコンポーネント定義後に行います。
@@ -2000,7 +2468,12 @@ with block:
                     outputs=[section_calc_display]
                 )
 
-                # F1モードではセクションタイトルは不要
+                # 動画長変更時にセクションタイトルも更新
+                length_radio.change(
+                    fn=update_section_title,
+                    inputs=[frame_size_radio, mode_radio, length_radio],
+                    outputs=[section_title]
+                )
 
                 # モード変更時にも計算を更新
                 mode_radio.change(
@@ -2009,23 +2482,219 @@ with block:
                     outputs=[section_calc_display]
                 )
 
-                # F1モードではセクションタイトルは不要
+                # モード変更時にセクションタイトルも更新
+                mode_radio.change(
+                    fn=update_section_title,
+                    inputs=[frame_size_radio, mode_radio, length_radio],
+                    outputs=[section_title]
+                )
 
                 # モード変更時の処理もtotal_second_lengthコンポーネント定義後に行います
 
                 # 動画長変更時のセクション表示更新もtotal_second_lengthコンポーネント定義後に行います
 
-                # F1モードでは終端フレームとループモード関連の機能をすべて削除
+                # 入力画像変更時の処理 - ループモード用に復活
+                # 通常モードでセクションにコピーする処理はコメント化したまま
+                # ループモードのLastにコピーする処理のみ復活
 
-                # キーフレーム処理関数とZipファイルアップロード処理関数は未使用のため削除
+                # 終端フレームハンドラ関数（FinalからImageへのコピーのみ実装）
+                def loop_mode_final_handler(img, mode, length):
+                    """end_frameの変更時、ループモードの場合のみコピーを行う関数"""
+                    if img is None:
+                        # 画像が指定されていない場合は何もしない
+                        return gr.update()
 
+                    # ループモードかどうかで処理を分岐
+                    if mode == MODE_TYPE_LOOP:
+                        # ループモード: ImageにFinalFrameをコピー
+                        return gr.update(value=img)  # input_imageにコピー
+                    else:
+                        # 通常モード: 何もしない
+                        return gr.update()
+
+                # 終端フレームの変更ハンドラを登録
+                end_frame.change(
+                    fn=loop_mode_final_handler,
+                    inputs=[end_frame, mode_radio, length_radio],
+                    outputs=[input_image]
+                )
+
+                # 各キーフレーム画像の変更イベントを個別に設定
+                # 一度に複数のコンポーネントを更新する代わりに、個別の更新関数を使用
+                def create_single_keyframe_handler(src_idx, target_idx):
+                    def handle_single_keyframe(img, mode, length, enable_copy):
+                        # ループモード以外では絶対にコピーを行わない
+                        if mode != MODE_TYPE_LOOP:
+                            # 通常モードでは絶対にコピーしない
+                        #   print(translate("通常モードでのコピー要求を拒否: src={src_idx}, target={target_idx}").format(src_idx=src_idx, target_idx=target_idx))
+                            return gr.update()
+
+                        # コピー条件をチェック
+                        if img is None or not enable_copy:
+                            return gr.update()
+
+                        # 現在のセクション数を動的に計算
+                        seconds = get_video_seconds(length)
+                        # フレームサイズに応じたlatent_window_sizeの調整（ここではUIの設定によらず計算）
+                        frame_size = frame_size_radio.value
+                        latent_window_size = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
+                        frame_count = latent_window_size * 4 - 3
+                        total_frames = int(seconds * 30)
+                        total_sections = int(max(round(total_frames / frame_count), 1))
+
+                        # 対象セクションが有効範囲を超えている場合はコピーしない(項目数的に+1)
+                        if target_idx >= total_sections:
+                        #   print(translate("コピー対象セクション{target_idx}が有効範囲({total_sections}まで)を超えています").format(target_idx=target_idx, total_sections=total_sections))
+                            return gr.update()
+
+                        # コピー先のチェック - セクション0は偶数番号に、セクション1は奇数番号にコピー
+                        if src_idx == 0 and target_idx % 2 == 0 and target_idx != 0:
+                            # 詳細ログ出力
+                        #   print(translate("赤枠(0)から偶数セクション{target_idx}へのコピー実行 (動的セクション数:{total_sections})").format(target_idx=target_idx, total_sections=total_sections))
+                            return gr.update(value=img)
+                        elif src_idx == 1 and target_idx % 2 == 1 and target_idx != 1:
+                            # 詳細ログ出力
+                        #   print(translate("青枠(1)から奇数セクション{target_idx}へのコピー実行 (動的セクション数:{total_sections})").format(target_idx=target_idx, total_sections=total_sections))
+                            return gr.update(value=img)
+
+                        # 条件に合わない場合
+                        return gr.update()
+                    return handle_single_keyframe
+
+                # アップロードファイルの内容を各セクション、end_frame、start_frameに反映する関数
+                def upload_zipfile_handler(file):
+                    if file is None:
+                        # ×で削除した場合、全セクションをクリア
+                        gr_outputs = []
+                        for i in range(0, max_keyframes):
+                            # gradio入力フォームの登録順に追加すること
+                            gr_outputs.append(i)
+                            gr_outputs.append("")
+                            gr_outputs.append(None)
+                        # end_frame
+                        gr_outputs.append(None)
+                        # start_frame
+                        gr_outputs.append(None)
+                        return gr_outputs
+                    else:
+                        # 一時ディレクトリで処理
+                        # temp_dir配下のフォルダを削除（前回アップロードファイルをクリア）
+                        if os.path.exists(temp_dir):
+                            for root, dirs, files in os.walk(temp_dir, topdown=False):
+                                for name in files:
+                                    os.remove(os.path.join(root, name))
+                                for name in dirs:
+                                    os.rmdir(os.path.join(root, name))
+                            os.rmdir(temp_dir)
+                        # zip展開
+                        with zipfile.ZipFile(file.name, "r") as zip_ref:
+                            zip_ref.extractall(temp_dir)
+                        # 展開されたファイルをフルパスでリストアップ
+                        extracted_files = []
+                        for root, dirs, files in os.walk(temp_dir):
+                            if len(files) > 0:
+                                extracted_files.extend([os.path.join(root, f) for f in files])
+                                break
+                            elif len(dirs) > 0:
+                                zdir0 = os.path.join(root, dirs[0])
+                                extracted_files.extend([os.path.join(zdir0, f) for f in os.listdir(zdir0)])
+                                break
+
+                        # 展開されたファイルのリストを表示
+                        # print("展開されたファイル:")
+                        # print("  - " + "\n  - ".join(extracted_files))
+
+                        # プロンプトファイルを取得（1つのみ）
+                        prompt_file = [f for f in extracted_files if f.endswith("sections.yml") or f.endswith("sections.yaml")][0]
+
+                        # 画像ファイルを取得
+                        image_files = [f for f in extracted_files if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp"))]
+                        # セクション用画像のファイルを取得しソートする。ファイル名は3桁の0始まりの数字とする。
+                        section_image_files = sorted([f for f in image_files if os.path.basename(f)[:3].isdigit()])
+                        # end_frame、start_frame向けの画像ファイルを取得
+                        end_frame_image_from_zip = None
+                        start_frame_image_from_zip = None
+                        end_files = [f for f in image_files if os.path.basename(f).lower().startswith("end")]
+                        if len(end_files) > 0:
+                            end_frame_image_from_zip = end_files[0]
+                        start_files = [f for f in image_files if os.path.basename(f).lower().startswith("start")]
+                        if len(start_files) > 0:
+                            start_frame_image_from_zip = start_files[0]
+
+                        # プロンプトファイルを読み込んでセクションプロンプトに設定
+                        with open(prompt_file, "r", encoding="utf-8") as file:
+                            prompt_data = yaml.safe_load(file)
+
+                        # セクション入力情報（zipファイルから取得した情報）
+                        section_number_list_from_zip = []
+                        section_image_list_from_zip = []
+                        section_prompt_list_from_zip = []
+
+                        # yamlファイルのsection_infoからプロンプトを抽出してリスト化
+                        for section_num in range(0, max_keyframes):
+                            section_number_list_from_zip.append(section_num)
+                            section_prompt_list_from_zip.append(next((section["prompt"] for section in prompt_data.get("section_info", []) if section.get("section") == section_num), ""))
+                            # image_filesからファイル名の先頭番号を抽出して補間
+                            image_file_map = {
+                                int(os.path.basename(img_file)[:3]): img_file for img_file in section_image_files
+                            }
+                            for section_num in section_number_list_from_zip:
+                                if section_num not in image_file_map:
+                                    # セクション番号に対応する画像がない場合は補間
+                                    image_file_map[section_num] = None
+                            # セクション番号順にソートしてリスト化
+                            section_image_list_from_zip = [image_file_map[section_num] for section_num in section_number_list_from_zip]
+                        print("sections.yamlファイルに従ってセクションに設定します。")
+
+                        # セクションの入力順にする（セクション番号、セクションプロンプト、キーフレーム画像）
+                        # 注意：この方式で画像ファイルを更新すると、gradioのtempフォルダへのアップロードは行われず、指定したファイルパス（temp_dir配下）を直接参照する
+                        gr_outputs = []
+                        for i in range(0, max_keyframes):
+                            gr_outputs.append(section_number_list_from_zip[i])
+                            gr_outputs.append(section_prompt_list_from_zip[i])
+                            gr_outputs.append(section_image_list_from_zip[i])
+                        # end_frameを設定
+                        if end_frame_image_from_zip:
+                            gr_outputs.append(end_frame_image_from_zip)
+                        else:
+                            gr_outputs.append(None)
+                        # start_frameを設定
+                        if start_frame_image_from_zip:
+                            gr_outputs.append(start_frame_image_from_zip)
+                        else:
+                            gr_outputs.append(None)
+
+                        # セクションにzipの内容を設定
+                        return gr_outputs
+
+                # ファイルアップロード時のセクション変更
+                gr_outputs = []
+                for i in range(0, max_keyframes):
+                    gr_outputs.append(section_number_inputs[i])
+                    gr_outputs.append(section_prompt_inputs[i])
+                    gr_outputs.append(section_image_inputs[i])
+                # end_frameを設定
+                gr_outputs.append(end_frame)
+                # start_frameを設定
+                gr_outputs.append(input_image)
+                upload_zipfile.change(fn=upload_zipfile_handler, inputs=[upload_zipfile], outputs=gr_outputs)
+
+                # 各キーフレームについて、影響を受ける可能性のある後続のキーフレームごとに個別のイベントを設定
+                # ここではイベント登録の定義のみ行い、実際の登録はUIコンポーネント定義後に行う
+
+                # キーフレーム自動コピーの初期値はStateでデフォルトでTrueに設定済み
+                # enable_keyframe_copyは既にTrueに初期化されているのでここでは特に何もしない
+
+                # モード切り替え時に赤枠/青枠の表示を切り替える関数
+                # トグル関数は不要になったため削除
+                # 代わりにcheckbox値のみに依存するシンプルな条件分岐を各関数で直接実装
 
         with gr.Column():
             result_video = gr.Video(
-                label=translate("Finished Frames"),
-                autoplay=True,
-                show_share_button=False,
-                height=512,
+                label=translate("Finished Frames"), 
+                autoplay=True, 
+                show_share_button=False, 
+                height=512, 
                 loop=True,
                 format="mp4",
                 interactive=False,
@@ -2057,22 +2726,51 @@ with block:
                 inputs=[input_image, copy_metadata],
                 outputs=[prompt, seed]
             )
-
+            
             # チェックボックスの変更時に再読み込みを行う
             def check_metadata_on_checkbox_change(copy_enabled, image_path):
                 if not copy_enabled or image_path is None:
                     return [gr.update()] * 2
                 # チェックボックスオン時に、画像があれば再度メタデータを読み込む
                 return update_from_image_metadata(image_path, copy_enabled)
-
-            # update_section_metadata_on_checkbox_change関数は未使用のため削除
-
+            
+            # セクション画像のメタデータをチェックボックス変更時に再読み込みする関数
+            def update_section_metadata_on_checkbox_change(copy_enabled, *section_images):
+                if not copy_enabled:
+                    # チェックボックスがオフの場合は何もしない
+                    return [gr.update()] * max_keyframes
+                
+                # 各セクションの画像があれば、それぞれのメタデータを再取得する
+                updates = []
+                for i, section_image in enumerate(section_images):
+                    if section_image is not None:
+                        # セクションメタデータハンドラを直接利用してメタデータを取得
+                        # 前に定義したハンドラを再利用するため、仮引数としてNoneを設定
+                        handler = create_section_metadata_handler(i, None)
+                        # メタデータを取得
+                        update = handler(section_image, copy_enabled)
+                        updates.append(update)
+                    else:
+                        updates.append(gr.update())
+                
+                # 不足分を追加
+                while len(updates) < max_keyframes:
+                    updates.append(gr.update())
+                
+                return updates[:max_keyframes]
+                
             copy_metadata.change(
                 fn=check_metadata_on_checkbox_change,
                 inputs=[copy_metadata, input_image],
                 outputs=[prompt, seed]
             )
-
+            
+            # セクション画像のメタデータを再読み込みするイベントを追加
+            copy_metadata.change(
+                fn=update_section_metadata_on_checkbox_change,
+                inputs=[copy_metadata] + section_image_inputs,
+                outputs=section_prompt_inputs
+            )
 
             def set_random_seed(is_checked):
                 if is_checked:
@@ -2110,38 +2808,45 @@ with block:
             save_section_frames = gr.Checkbox(label=translate("Save Section Frames"), value=False, info=translate("各セクションの最終フレームを静止画として保存します（デフォルトOFF）"))
 
             # UIコンポーネント定義後のイベント登録
-            # F1モードではセクション機能を削除済み - シンプル化したイベントハンドラ
+            # mode_radio.changeの登録 - セクションの表示/非表示と赤枠青枠の表示を同時に更新
             mode_radio.change(
                 fn=update_section_visibility,
                 inputs=[mode_radio, length_radio, frame_size_radio],
-                outputs=[input_image, input_image, total_second_length]
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
             )
 
-            # フレームサイズ変更時の処理（シンプル化）
+            # frame_size_radio.changeの登録 - セクションの表示/非表示のみを更新
             frame_size_radio.change(
                 fn=update_section_visibility,
                 inputs=[mode_radio, length_radio, frame_size_radio],
-                outputs=[input_image, input_image, total_second_length]
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
             )
 
-            # 動画長変更時の処理（シンプル化）
+            # length_radio.changeの登録 - セクションの表示/非表示のみを更新
             length_radio.change(
                 fn=update_section_visibility,
                 inputs=[mode_radio, length_radio, frame_size_radio],
-                outputs=[input_image, input_image, total_second_length]
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
+            )
+
+            # mode_radio.changeの登録 - 拡張モード変更ハンドラを使用
+            mode_radio.change(
+                fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups),
+                inputs=[mode_radio, length_radio],
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
             )
 
 
-            # Image影響度調整スライダー
+            # EndFrame影響度調整スライダー
             with gr.Group():
-                gr.Markdown(f"### " + translate("Image影響度調整"))
-                image_strength = gr.Slider(
-                    label=translate("Image影響度"),
-                    minimum=1.00,
-                    maximum=1.02,
+                gr.Markdown(f"### " + translate("EndFrame影響度調整"))
+                end_frame_strength = gr.Slider(
+                    label=translate("EndFrame影響度"),
+                    minimum=0.01,
+                    maximum=1.00,
                     value=1.00,
-                    step=0.001,
-                    info=translate("開始フレーム(Image)が動画に与える影響の強さを調整します。1.00が通常の動作（100%）です。値を大きくすると始点の影響が強まり、変化が少なくなります。100%-102%の範囲で0.1%刻みの微調整が可能です。")
+                    step=0.01,
+                    info=translate("最終フレームが動画全体に与える影響の強さを調整します。値を小さくすると最終フレームの影響が弱まり、最初のフレームに早く移行します。1.00が通常の動作です。")
                 )
 
             # 出力フォルダ設定
@@ -2204,18 +2909,20 @@ with block:
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
         input_img = args[0]  # 入力の最初が入力画像
         section_settings = args[24]  # section_settings引数のインデックス
-        # 注意: ips変数では[28]はresolution、[29]がbatch_count
-        batch_count = args[29] if len(args) > 29 else 1  # バッチ処理回数のインデックス
-        resolution_value = args[28] if len(args) > 28 else 640  # 解像度値のインデックス
-
+        # 注意: ips変数では[29]はresolution、[30]がbatch_count
+        batch_count = args[30] if len(args) > 30 else 1  # バッチ処理回数のインデックス
+        resolution_value = args[29] if len(args) > 29 else 640  # 解像度値のインデックス
+        
         # 解像度値をデバッグ出力（verify）
-        print(translate("[DEBUG] validate_and_process: 解像度値を確認({0})").format(resolution_value))
-
+        print(f"[DEBUG] validate_and_process: 解像度値を確認({resolution_value})")
+        
         # バッチ回数を有効な範囲に制限
         batch_count = max(1, min(int(batch_count), 100))
-
-        # F1モードでは簡易化
-        section_settings = [[None, None, ""] for _ in range(50)]
+        
+        # section_settingsがブール値の場合は空のリストで初期化
+        if isinstance(section_settings, bool):
+            print(f"[DEBUG] section_settings is bool ({section_settings}), initializing as empty list")
+            section_settings = [[None, None, ""] for _ in range(50)]
 
         # 現在の動画長設定とフレームサイズ設定を渡す
         is_valid, error_message = validate_images(input_img, section_settings, length_radio, frame_size_radio)
@@ -2226,33 +2933,53 @@ with block:
             return
 
         # 画像がある場合は通常の処理を実行
-        # 元のパラメータを使用
+        # 修正したsection_settingsとbatch_countでargsを更新
         new_args = list(args)
-
+        new_args[24] = section_settings
+        
         # batch_countとresolutionを確実に設定
-        # batch_countはインデックス29
-        if len(new_args) <= 29:
+        # batch_countはインデックス30
+        if len(new_args) <= 30:
             # 不足している場合は追加
-            if len(new_args) <= 28:
+            if len(new_args) <= 29:
                 # resolutionもない場合
                 new_args.append(resolution_value)  # resolutionを追加
             new_args.append(batch_count)  # batch_countを追加
         else:
             # 既に存在する場合は更新
-            new_args[29] = batch_count  # batch_count
-            new_args[28] = resolution_value  # resolution
-
+            new_args[30] = batch_count  # batch_count
+            new_args[29] = resolution_value  # resolution
+        
         # process関数のジェネレータを返す
         yield from process(*new_args)
 
     # 実行ボタンのイベント
-    # F1モードではシンプル化：section_settingsを含めない
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, image_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, use_all_padding, use_lora, save_tensor_data, section_settings, tensor_data_input, fp8_optimization, resolution, batch_count]
-
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count]
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process, outputs=[end_button])
 
-    # F1モードではセクション機能とキーフレームコピー機能を削除済み
+    # キーフレーム画像変更時のイベント登録
+    # セクション0（赤枚)からの自動コピー処理
+    for target_idx in range(1, max_keyframes):
+        # 偶数セクションにのみコピー
+        if target_idx % 2 == 0:  # 偶数先セクション
+            single_handler = create_single_keyframe_handler(0, target_idx)
+            section_image_inputs[0].change(
+                fn=single_handler,
+                inputs=[section_image_inputs[0], mode_radio, length_radio, enable_keyframe_copy],
+                outputs=[section_image_inputs[target_idx]]
+            )
+
+    # セクション1（青枠)からの自動コピー処理
+    for target_idx in range(2, max_keyframes):
+        # 奇数セクションにのみコピー
+        if target_idx % 2 == 1:  # 奇数先セクション
+            single_handler = create_single_keyframe_handler(1, target_idx)
+            section_image_inputs[1].change(
+                fn=single_handler,
+                inputs=[section_image_inputs[1], mode_radio, length_radio, enable_keyframe_copy],
+                outputs=[section_image_inputs[target_idx]]
+            )
 
     # 注: create_single_keyframe_handler関数はフレームサイズや動画長に基づいた動的セクション数を計算します
     # UIでフレームサイズや動画長を変更すると、動的に計算されたセクション数に従ってコピー処理が行われます
@@ -2355,7 +3082,8 @@ with block:
         outputs=[result_message, preset_dropdown]
     )
 
-# F1モードではキーフレームコピー機能を削除済み
+# enable_keyframe_copyの初期化（グローバル変数）
+enable_keyframe_copy = True
 
 allowed_paths = [os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './outputs')))]
 
