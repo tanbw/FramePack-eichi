@@ -2134,7 +2134,7 @@ with block:
 
             # Image影響度調整スライダー
             with gr.Group():
-                gr.Markdown(f"### " + translate("Image影響度調整"))
+                gr.Markdown("### " + translate("Image影響度調整"))
                 image_strength = gr.Slider(
                     label=translate("Image影響度"),
                     minimum=1.00,
