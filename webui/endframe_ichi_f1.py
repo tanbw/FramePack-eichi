@@ -143,9 +143,9 @@ try:
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
 
     # transformerの初期化
-    if not transformer_manager.ensure_transformer_state():
-        raise Exception(translate("transformerの初期化に失敗しました"))
-    transformer = transformer_manager.get_transformer()
+    # if not transformer_manager.ensure_transformer_state():
+    #     raise Exception(translate("transformerの初期化に失敗しました"))
+    transformer = transformer_manager.get_transformer()  # 仮想デバイス上のtransformerを取得
 
     # 他のモデルの読み込み
     feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
@@ -171,7 +171,7 @@ image_encoder.requires_grad_(False)
 
 if not high_vram:
     # DynamicSwapInstaller is same as huggingface's enable_sequential_offload but 3x faster
-    DynamicSwapInstaller.install_model(transformer, device=gpu)
+    DynamicSwapInstaller.install_model(transformer, device=gpu) # クラスを操作するので仮想デバイス上のtransformerでもOK
 else:
     image_encoder.to(gpu)
     vae.to(gpu)
@@ -337,7 +337,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if not high_vram:
             # モデルをCPUにアンロード
             unload_complete_models(
-                image_encoder, vae, transformer
+                image_encoder, vae
             )
 
         # Text encoding

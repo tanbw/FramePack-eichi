@@ -11,10 +11,9 @@ from .lora_utils import merge_lora_to_state_dict
 from locales.i18n_extended import translate as _
 
 def load_and_apply_lora(
-    model,
-    state_dict,
-    lora_path,
-    lora_scale=0.8,
+    model_files,
+    lora_paths,
+    lora_scales=None,
     fp8_enabled=False,
     device=None
 ):
@@ -22,32 +21,42 @@ def load_and_apply_lora(
     LoRA重みをロードして重みに適用する
 
     Args:
-        model: 適用先のモデル
-        state_dict: モデルの状態辞書
-        lora_path: LoRAファイルのパス
-        lora_scale: LoRAの適用強度
+        model_files: モデルファイルのリスト
+        lora_paths: LoRAファイルのパスのリスト
+        lora_scales: LoRAの適用強度のリスト
         fp8_enabled: FP8最適化の有効/無効
         device: 計算に使用するデバイス
 
     Returns:
         LoRAが適用されたモデルの状態辞書
     """
-    if not os.path.exists(lora_path):
-        raise FileNotFoundError(_("LoRAファイルが見つかりません: {0}").format(lora_path))
+    if lora_paths is None:
+        lora_paths = []
+    for lora_path in lora_paths:
+        if not os.path.exists(lora_path):
+            raise FileNotFoundError(_("LoRAファイルが見つかりません: {0}").format(lora_path))
+
+    if lora_scales is None:
+        lora_scales = [0.8] * len(lora_paths)
+    if len(lora_scales)> len(lora_paths):
+        lora_scales = lora_scales[:len(lora_paths)]
+    if len(lora_scales) < len(lora_paths):
+        lora_scales += [0.8] * (len(lora_paths) - len(lora_scales))
 
     if device is None:
         device = torch.device("cpu") # CPUに fall back
 
-    print(_("LoRAを読み込み中: {0} (スケール: {1})").format(os.path.basename(lora_path), lora_scale))
+    for lora_path, lora_scale in zip(lora_paths, lora_scales):
+        print(_("LoRAを読み込み中: {0} (スケール: {1})").format(os.path.basename(lora_path), lora_scale))
 
     # LoRA重みを状態辞書にマージ
     print(_("フォーマット: HunyuanVideo"))
 
     # LoRAをマージ
-    merged_state_dict = merge_lora_to_state_dict(state_dict, lora_path, lora_scale, fp8_enabled, device)
+    merged_state_dict = merge_lora_to_state_dict(model_files, lora_paths, lora_scales, fp8_enabled, device)
 
-    # LoRAが適用されたことを示すフラグを設定
-    model._lora_applied = True
+    # # LoRAが適用されたことを示すフラグを設定
+    # model._lora_applied = True
 
     print(_("LoRAの適用が完了しました"))
     return merged_state_dict

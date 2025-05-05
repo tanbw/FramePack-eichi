@@ -1,5 +1,8 @@
+import os
+import glob
 import torch
 import traceback
+from accelerate import init_empty_weights
 from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModelPacked
 from diffusers_helper.memory import DynamicSwapInstaller
 from locales.i18n_extended import translate
@@ -36,6 +39,10 @@ class TransformerManager:
 
         # 次回のロード時に適用する設定
         self.next_state = self.current_state.copy()
+
+        # 仮想デバイスへのtransformerのロード
+        self._load_virtual_transformer()
+        print(translate("transformerを仮想デバイスにロードしました"))
         
     def set_next_settings(self, lora_path=None, lora_scale=None, fp8_enabled=False, high_vram_mode=False, use_f1_model=None):
         """次回のロード時に使用する設定をセット（即時のリロードは行わない）
@@ -118,6 +125,25 @@ class TransformerManager:
         print(translate("ロード済みのtransformerを再度利用します"))
         return True
     
+    def _load_virtual_transformer(self):
+        """仮想デバイスへのtransformerのロードを行う"""
+        # モードに応じたモデルパスを選択
+        model_path = self.MODEL_PATH_F1 if self.next_state.get('use_f1_model', False) else self.MODEL_PATH_NORMAL
+
+        with init_empty_weights():
+            config = HunyuanVideoTransformer3DModelPacked.load_config(model_path)
+            self.transformer = HunyuanVideoTransformer3DModelPacked.from_config(config, torch_dtype=torch.bfloat16)
+        self.transformer.to(torch.bfloat16)  # 明示的に型を指定しないと transformer.dtype が float32 を返す
+
+    def _find_model_files(self, model_path):
+        """指定されたモデルパスから状態辞書のファイルを取得
+        Diffusersの実装に依存するので望ましくない。"""
+        model_root = os.environ['HF_HOME']  # './hf_download'
+        subdir = os.path.join(model_root, 'hub', 'models--' + model_path.replace('/', '--'))
+        model_files = glob.glob(os.path.join(subdir, '**', '*.safetensors'), recursive=True)
+        model_files.sort()
+        return model_files
+
     def _reload_transformer(self):
         """next_stateの設定でtransformerをリロード"""
         try:
@@ -144,16 +170,19 @@ class TransformerManager:
             # モードに応じたモデルパスを選択
             model_path = self.MODEL_PATH_F1 if self.next_state.get('use_f1_model', False) else self.MODEL_PATH_NORMAL
             
-            # 新しいtransformerインスタンスを作成
-            self.transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained(
-                model_path,
-                torch_dtype=torch.bfloat16
-            )
+            if self.next_state['lora_path'] is None and self.next_state['fp8_enabled']:
+                # LoRAとFP8最適化が無効な場合は、from_pretrained で新しいtransformerインスタンスを作成
+                self.transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained(
+                    model_path,
+                    torch_dtype=torch.bfloat16
+                )
 
-            print(translate("使用モデル: {0}").format(model_path))
+                print(translate("使用モデル: {0}").format(model_path))
+                self.transformer.to(dtype=torch.bfloat16)
 
-            # LoRAとFP8最適化の適用：ピークメモリ使用量を削減するために同時に適用
-            if self.next_state['lora_path'] is not None or self.next_state['fp8_enabled']:
+            else:
+                # LoRAとFP8最適化の適用：ピークメモリ使用量を削減するために同時に適用
+
                 # FP8最適化の適用可能性チェック
                 if self.next_state['fp8_enabled']:
                     from lora_utils.fp8_optimization_utils import check_fp8_support
@@ -163,60 +192,53 @@ class TransformerManager:
                         print(translate("FP8最適化が有効化されていますが、サポートされていません。PyTorch 2.1以上が必要です。"))
                         self.next_state['fp8_enabled'] = False
 
-                # 状態辞書を取得
-                state_dict = self.transformer.state_dict()
+                # 状態辞書のファイルを取得
+                model_files = self._find_model_files(model_path)
+                if len(model_files) == 0:
+                    # モデルファイルが見つからない場合はエラーをスロー TODO from_pretrained で取得するようにする
+                    raise FileNotFoundError(translate("モデルファイルが見つかりませんでした。"))
 
-                # LoRAの適用（重みのFP8最適化も必要なら同時に行う）
-                if self.next_state['lora_path'] is not None:
-                    try:
-                        from lora_utils.lora_loader import load_and_apply_lora
-                        state_dict = load_and_apply_lora(
-                            self.transformer,
-                            state_dict,
-                            self.next_state['lora_path'],
-                            self.next_state['lora_scale'],
-                            self.next_state['fp8_enabled'],
-                            device=self.device
-                        )
-                        print(translate("LoRAを直接適用しました (スケール: {0})").format(self.next_state['lora_scale']))
-                        
-                        # LoRA診断
-                        try:
-                            from lora_utils.lora_check_helper import check_lora_applied
-                            has_lora, source = check_lora_applied(self.transformer)
-                            print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
-                        except Exception as diagnostic_error:
-                            print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
+                # LoRAの適用および重みのFP8最適化
+                lora_paths = [self.next_state['lora_path']] if self.next_state['lora_path'] is not None else []
+                lora_scales = [self.next_state['lora_scale']] if self.next_state['lora_path'] is not None else []
 
-                    except Exception as e:
-                        print(translate("LoRA適用エラー: {0}").format(e))
-                        traceback.print_exc()
-                        raise e
+                try:
+                    from lora_utils.lora_loader import load_and_apply_lora
+                    state_dict = load_and_apply_lora(
+                        model_files, 
+                        lora_paths,
+                        lora_scales,
+                        self.next_state['fp8_enabled'],
+                        device=self.device
+                    )
+                    print(translate("LoRAを直接適用しました (スケール: {0})").format(self.next_state['lora_scale']))
+                    
+                    # # LoRA診断 適切な診断方法が思いつかないのでいったんコメントアウト
+                    # try:
+                    #     from lora_utils.lora_check_helper import check_lora_applied
+                    #     has_lora, source = check_lora_applied(self.transformer)
+                    #     print(translate("LoRA適用状況: {0}, 適用方法: {1}").format(has_lora, source))
+                    # except Exception as diagnostic_error:
+                    #     print(translate("LoRA診断エラー: {0}").format(diagnostic_error))
+
+                except Exception as e:
+                    print(translate("LoRA適用エラー: {0}").format(e))
+                    traceback.print_exc()
+                    raise e
                         
+                # FP8最適化の適用前に、transformerを仮想デバイスにロードし、monkey patchを当てられるようにする
+                print(translate("使用モデル: {0}").format(model_path))
+                self._load_virtual_transformer()
+
                 # FP8最適化の適用
                 if self.next_state['fp8_enabled']:
                     try:
-                        from lora_utils.fp8_optimization_utils import optimize_state_dict_with_fp8, apply_fp8_monkey_patch
+                        from lora_utils.fp8_optimization_utils import apply_fp8_monkey_patch
 
-                        # LoRAが適用されている場合は、すでにFP8最適化されている
-                        if self.next_state['lora_path'] is None:
-                            # 最適化のターゲットと除外キーを設定
-                            TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
-                            EXCLUDE_KEYS = ["norm"]
-                            
-                            # 状態辞書をFP8形式に最適化
-                            print(translate("FP8形式で状態辞書を最適化しています..."))
-                            state_dict = optimize_state_dict_with_fp8(
-                                state_dict,
-                                self.device,
-                                TARGET_KEYS,
-                                EXCLUDE_KEYS,
-                                move_to_device=False
-                            )
-                            
                         # モンキーパッチの適用
                         print(translate("FP8モンキーパッチを適用しています..."))
-                        use_scaled_mm = has_scaled_mm and has_e5m2
+                        # use_scaled_mm = has_scaled_mm and has_e5m2
+                        use_scaled_mm = False  # 品質が大幅に劣化するので無効化
                         apply_fp8_monkey_patch(self.transformer, state_dict, use_scaled_mm=use_scaled_mm)
                         
                         print(translate("FP8最適化が適用されました！"))
@@ -225,14 +247,14 @@ class TransformerManager:
                         traceback.print_exc()
                         raise e
                 
-                # 必要に応じてLoRA、FP8最適化が施された状態辞書を読み込み
-                self.transformer.load_state_dict(state_dict, strict=True)
+                # 必要に応じてLoRA、FP8最適化が施された状態辞書を読み込み。assign=Trueで仮想デバイスのテンソルを置換
+                self.transformer.load_state_dict(state_dict, assign=True, strict=True)
             
             self.transformer.cpu()
             self.transformer.eval()
             self.transformer.high_quality_fp32_output_for_inference = True
             print('transformer.high_quality_fp32_output_for_inference = True')
-            self.transformer.to(dtype=torch.bfloat16)
+            # self.transformer.to(dtype=torch.bfloat16) # fp8が解除されてしまうのでコメントアウト
             self.transformer.requires_grad_(False)
             
             # VRAMモードに応じた設定

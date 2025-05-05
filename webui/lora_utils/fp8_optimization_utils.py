@@ -10,6 +10,7 @@ FramePack-LoRAReadyから移植されています。
 - RTX 40シリーズ向けのscaled_mm最適化対応
 """
 
+import os
 import torch
 
 # 警告メッセージが表示されたかを追跡するフラグ
@@ -98,8 +99,8 @@ def quantize_tensor_to_fp8(tensor, scale, exp_bits=4, mantissa_bits=3, sign_bits
 
     return quantized, scale
 
-def optimize_state_dict_with_fp8(
-    state_dict,
+def optimize_state_dict_with_fp8_on_the_fly(
+    model_files,
     calc_device,
     target_layer_keys=None,
     exclude_layer_keys=None,
@@ -112,7 +113,7 @@ def optimize_state_dict_with_fp8(
     モデルの状態辞書内の線形レイヤーの重みをFP8形式に最適化
 
     Args:
-        state_dict (dict): 最適化する状態辞書（インプレース更新）
+        model_files (list): 最適化するモデルファイルのリスト（読み込みながら更新）
         calc_device (str): テンソルを量子化するデバイス
         target_layer_keys (list, optional): 対象とするレイヤーキーのパターン（Noneの場合はすべての線形レイヤー）
         exclude_layer_keys (list, optional): 除外するレイヤーキーのパターン
@@ -136,69 +137,72 @@ def optimize_state_dict_with_fp8(
     max_value = calculate_fp8_maxval(exp_bits, mantissa_bits)
     min_value = -max_value  # この関数は符号付きFP8のみサポート
 
-    # 最適化されたレイヤーのカウンター
-    optimized_count = 0
+    # 最適化された状態辞書を作成する
 
-    # 対象キーの列挙
-    target_state_dict_keys = set()
-    for key in state_dict.keys():
-        # 対象パターンに一致し、除外パターンに一致しない重みキーを選択
+    def is_target_key(key):
+        # 重みキーが対象パターンに一致し、除外パターンに一致しないかを確認
         is_target = (target_layer_keys is None or any(pattern in key for pattern in target_layer_keys)) and key.endswith(".weight")
         is_excluded = exclude_layer_keys is not None and any(pattern in key for pattern in exclude_layer_keys)
         is_target = is_target and not is_excluded
+        return is_target
 
-        if is_target and isinstance(state_dict[key], torch.Tensor):
-            target_state_dict_keys.add(key)
+    # 最適化されたレイヤーのカウンター
+    optimized_count = 0
+    
+    # それぞれのモデルファイルを処理        
+    from lora_utils.safetensors_utils import MemoryEfficientSafeOpen
 
-    # 各キーを処理
-    for key in tqdm(list(state_dict.keys()), desc=translate("FP8最適化中")):
-        value = state_dict[key]
+    state_dict = {}
+    for model_file in model_files:
+        with MemoryEfficientSafeOpen(model_file) as f:
+            keys = f.keys()
+            for key in tqdm(keys, desc=f"Loading {os.path.basename(model_file)}", unit="key"):
+                value = f.get_tensor(key)
+                if weight_hook is not None:
+                    # 重みフックが指定されている場合、フックを適用
+                    value = weight_hook(key, value)
 
-        if weight_hook is not None:
-            # 重みフックが指定されている場合、フックを適用
-            value = weight_hook(key, value)
-        
-        if key not in target_state_dict_keys:
-            state_dict[key] = value
-            continue
+                if not is_target_key(key):
+                    state_dict[key] = value
+                    continue
 
-        # 元のデバイスとデータ型を保存
-        original_device = value.device
-        original_dtype = value.dtype
+                # 元のデバイスとデータ型を保存
+                original_device = value.device
+                original_dtype = value.dtype
 
-        # 計算デバイスに移動
-        if calc_device is not None:
-            value = value.to(calc_device)
+                # 計算デバイスに移動
+                if calc_device is not None:
+                    value = value.to(calc_device)
 
-        # スケールファクターを計算
-        scale = torch.max(torch.abs(value.flatten())) / max_value
+                # スケールファクターを計算
+                scale = torch.max(torch.abs(value.flatten())) / max_value
 
-        # 重みをFP8に量子化
-        quantized_weight, _ = quantize_tensor_to_fp8(value, scale, exp_bits, mantissa_bits, 1, max_value, min_value)
+                # 重みをFP8に量子化
+                quantized_weight, _ = quantize_tensor_to_fp8(value, scale, exp_bits, mantissa_bits, 1, max_value, min_value)
 
-        # 重みに元のキー、スケールに新しいキーを使用
-        fp8_key = key
-        scale_key = key.replace(".weight", ".scale_weight")
+                # 重みに元のキー、スケールに新しいキーを使用
+                fp8_key = key
+                scale_key = key.replace(".weight", ".scale_weight")
 
-        # FP8データ型に変換
-        quantized_weight = quantized_weight.to(fp8_dtype)
+                # FP8データ型に変換
+                quantized_weight = quantized_weight.to(fp8_dtype)
 
-        # デバイスの指定がない場合は元のデバイスに戻す
-        if not move_to_device:
-            quantized_weight = quantized_weight.to(original_device)
+                # デバイスの指定がない場合は元のデバイスに戻す
+                if not move_to_device:
+                    quantized_weight = quantized_weight.to(original_device)
 
-        # スケールテンソルを作成
-        scale_tensor = torch.tensor([scale], dtype=original_dtype, device=quantized_weight.device)
+                # スケールテンソルを作成
+                scale_tensor = torch.tensor([scale], dtype=original_dtype, device=quantized_weight.device)
 
-        # 状態辞書に追加
-        state_dict[fp8_key] = quantized_weight
-        state_dict[scale_key] = scale_tensor
+                # 状態辞書に追加
+                state_dict[fp8_key] = quantized_weight
+                state_dict[scale_key] = scale_tensor
 
-        optimized_count += 1
+                optimized_count += 1
 
-        # 計算デバイスのメモリを定期的に解放
-        if calc_device is not None and optimized_count % 10 == 0:
-            torch.cuda.empty_cache()
+                # 計算デバイスのメモリを定期的に解放
+                if calc_device is not None  and optimized_count % 10 == 0:
+                    torch.cuda.empty_cache()
 
     print(translate("最適化された線形レイヤー数: {0}").format(optimized_count))
     return state_dict
