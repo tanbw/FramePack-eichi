@@ -6,6 +6,17 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 
 感謝您 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** 對多語言支援的協助。
 
+## 📘 名稱的由來
+
+**Endframe Image CHain Interface (EICHI)**
+- **E**ndframe: 強化和最佳化終端幀功能
+- **I**mage: 改善關鍵幀圖像處理和視覺回饋
+- **CH**ain: 複數的關鍵幀間的連接和關係的強化
+- **I**nterface: 直感性的使用者體驗和 UI/UX 的提升
+
+「eichi」是日本語的「睿智」（深刻的智慧、英知）的表達，代表著 AI 技術的進化和人間創造性的的融合，象征著本專案的哲學。
+即~~現地~~**世界範圍內**叡智的差分幀製作改修規格。**叡智已經跨越海洋！**
+
 ## 🌟 新功能：F1 模型添加 (v1.9.1)
 
 **FramePack-eichi v1.9.1** 在傳統的逆向生成模型「FramePack-eichi」（標準版）基礎上，添加了一個支持正向生成的新模型「FramePack-~~eichi~~ F1」。
@@ -36,17 +47,6 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
   - 通過傳統啟動腳本（`run_endframe_ichi.bat`）使用
 
 **注意：** 首次啟動 F1 模型時，除了標準模型外，還會下載約 24GB 的額外模型。標準模型也會被保留，您可以在兩者之間切換使用。
-
-## 📘 名稱的由來
-
-**Endframe Image CHain Interface (EICHI)**
-- **E**ndframe: 強化和最佳化終端幀功能
-- **I**mage: 改善關鍵幀圖像處理和視覺回饋
-- **CH**ain: 複數的關鍵幀間的連接和關係的強化
-- **I**nterface: 直感性的使用者體驗和 UI/UX 的提升
-
-「eichi」是日本語的「睿智」（深刻的智慧、英知）的表達，代表著 AI 技術的進化和人間創造性的的融合，象征著本專案的哲學。
-即~~現地~~**世界範圍內**叡智的差分幀製作改修規格。**叡智已經跨越海洋！**
 
 ## 🌟 主要功能
 

@@ -6,6 +6,17 @@ Additionally, since v1.9, with permission from Kohya Tech, code from [kohya-ss/F
 
 We're extremely grateful to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for multilingual support cooperation.
 
+## 📘 Name Origin
+
+**Endframe Image CHain Interface (EICHI)**
+- **E**ndframe: Enhancement and optimization of endframe functionality
+- **I**mage: Improvement of keyframe image processing and visual feedback
+- **CH**ain: Strengthening connectivity and relationships between multiple keyframes
+- **I**nterface: Intuitive user experience and improved UI/UX
+
+The name "eichi" also evokes the Japanese word "叡智" (deep wisdom, intelligence), symbolizing the philosophy of this project to combine AI technology advancement with human creativity.
+In other words, it's a ~~local~~ **worldwide** modification specialized in creating videos from intelligently differentiated images. **The eichi has crossed the ocean!**
+
 ## 🌟 New Feature: F1 Model Addition (v1.9.1)
 
 **FramePack-eichi v1.9.1** adds a new forward-generation model "FramePack-~~eichi~~ F1" alongside the traditional reverse-generation model "FramePack-eichi" (standard version).
@@ -36,17 +47,6 @@ We're extremely grateful to [https://github.com/hinablue](https://github.com/hin
   - Available through traditional launch script (`run_endframe_ichi.bat`)
 
 **Note:** When launching the F1 model for the first time, approximately 24GB of additional model downloads will occur in addition to the standard model. The standard model will also be retained, allowing you to switch between them.
-
-## 📘 Name Origin
-
-**Endframe Image CHain Interface (EICHI)**
-- **E**ndframe: Enhancement and optimization of endframe functionality
-- **I**mage: Improvement of keyframe image processing and visual feedback
-- **CH**ain: Strengthening connectivity and relationships between multiple keyframes
-- **I**nterface: Intuitive user experience and improved UI/UX
-
-The name "eichi" also evokes the Japanese word "叡智" (deep wisdom, intelligence), symbolizing the philosophy of this project to combine AI technology advancement with human creativity.
-In other words, it's a ~~local~~ **worldwide** modification specialized in creating videos from intelligently differentiated images. **The eichi has crossed the ocean!**
 
 ## 🌟 Main Features
 
