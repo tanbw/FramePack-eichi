@@ -502,6 +502,8 @@
   "埋め込みプロンプトおよびシードを複写する": "Copy the embedded prompt and seed",
   "EndFrame影響度": "EndFrame Impact Level",
   "セクション情報一括アップロード": "Batch Upload of Section Information",
+  "一括アップロード機能を表示": "Show batch upload feature",
+  "チェックをオンにするとセクション情報の一括アップロード機能を表示します": "When this checkbox is turned on, the batch upload functionality for section information will be displayed",
   "セクション情報アップロードファイル": "Section Information Upload File",
 
   "[DEBUG] worker内 input_imageの型: {0}": "[DEBUG] input_image type in worker: {0}",
