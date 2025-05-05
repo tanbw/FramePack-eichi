@@ -73,6 +73,13 @@ In other words, it's a ~~local~~ **worldwide** modification specialized in creat
 **Section Settings Screen**
 ![FramePack-eichi Screenshot 3](../images/framepack_eichi_screenshot3.png)
 
+## 📚 Related Documents
+
+- **[Setup Guide](README_setup_en.md)** - Detailed installation instructions
+- **[User Guide](README_userguide_en.md)** - Detailed usage instructions
+- **[Configuration Information](README_column_en.md#-%EF%B8%8F-configuration-information)** - Detailed configuration options
+- **[Changelog](README_changelog.md)** - Complete update history
+
 ## 📝 Latest Update Information (v1.9.1)
 
 ### Major Changes
@@ -453,12 +460,6 @@ On Linux, you can run it with the following steps:
    ```
 
 Note: Multilingual versions of the README will be added sequentially. For the Traditional Chinese version, please refer to [README_zh.md](README_zh.md).
-
-For detailed configuration information, please see [here](README_column_en.md#-%EF%B8%8F-configuration-information).
-
-For detailed usage instructions, please also refer to the [User Guide](README_userguide_en.md).
-
-For comprehensive installation instructions, please check the [Setup Guide](README_setup_en.md).
 
 ## 🔧 Troubleshooting
 

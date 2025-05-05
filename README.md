@@ -72,6 +72,13 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 **セクション設定使用時**
 ![FramePack-eichi画面3](images/framepack_eichi_screenshot3.png)
 
+## 📚 関連資料
+
+- **[セットアップガイド](README/README_setup.md)** - インストール方法の詳細
+- **[使用ガイド](README/README_userguide.md)** - 詳細な使用方法
+- **[設定情報](README/README_column.md#--設定情報)** - 設定に関する詳細情報
+- **[更新履歴](README/README_changelog.md)** - 全バージョンの更新内容
+
 ## 📝 最新アップデート情報 (v1.9.1)
 
 ### 主要な変更点
@@ -360,12 +367,6 @@ Linuxでは、以下の手順で実行可能です：
    ```
 
 ※ READMEの多言語版も順次対応予定です。繁体字中国語版は[README/README_zh.md](README/README_zh.md)をご参照ください。
-
-設定に関する詳細情報は[こちら](README/README_column.md#--設定情報)をご覧ください。
-
-詳細な使用方法については[使用ガイド](README/README_userguide.md)もご参照ください。
-
-インストール方法の詳細については[セットアップガイド](README/README_setup.md)をご確認ください。
 
 ## 🔧 トラブルシューティング
 

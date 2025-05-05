@@ -73,6 +73,13 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 **分段設定畫面**
 ![FramePack-eichi畫面3](../images/framepack_eichi_screenshot3.png)
 
+## 📚 相關文檔
+
+- **[安裝指南](README_setup_zh.md)** - 詳細安裝說明
+- **[使用指南](README_userguide_zh.md)** - 詳細使用說明
+- **[配置信息](README_column_zh.md#%E6%80%A7%E8%83%BD%E8%A8%AD%E5%AE%9A)** - 詳細配置選項
+- **[更新日誌](README_changelog.md)** - 完整更新歷史
+
 ## 📝 最新更新資訊 (v1.9.1)
 
 ### 主要變更
@@ -431,12 +438,6 @@ FramePack-eichi 可以通過 Docker 輕鬆設置，在不同系統之間提供�
    ```
 
 ※ README 的多語言版本將陸續推出。繁體中文版本請參閱 [README_zh.md](README_zh.md)。
-
-有關設定的詳細資訊請參閱[這裡](README_column_zh.md#%E6%80%A7%E8%83%BD%E8%A8%AD%E5%AE%9A)。
-
-有關詳細使用說明，請參閱[使用指南](README_userguide_zh.md)。
-
-有關詳細安裝說明，請查看[安裝指南](README_setup_zh.md)。
 
 ## 🔧 故障排除
 
