@@ -136,17 +136,17 @@ try:
     tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
     tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
     vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
-    
+
     # text_encoderとtext_encoder_2の初期化
     if not text_encoder_manager.ensure_text_encoder_state():
         raise Exception(translate("text_encoderとtext_encoder_2の初期化に失敗しました"))
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
-    
+
     # transformerの初期化
     if not transformer_manager.ensure_transformer_state():
         raise Exception(translate("transformerの初期化に失敗しました"))
     transformer = transformer_manager.get_transformer()
-    
+
     # 他のモデルの読み込み
     feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
     image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
@@ -214,12 +214,12 @@ os.makedirs(outputs_folder, exist_ok=True)
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
-    print(f"[DEBUG] worker内 input_imageの型: {type(input_image)}")
+    print(translate("[DEBUG] worker内 input_imageの型: {0}").format(type(input_image)))
     if isinstance(input_image, str):
-        print(f"[DEBUG] input_imageはファイルパスです: {input_image}")
+        print(translate("[DEBUG] input_imageはファイルパスです: {0}").format(input_image))
         has_any_image = (input_image is not None)
-    else: 
-        print(f"[DEBUG] input_imageはファイルパス以外です")
+    else:
+        print(translate("[DEBUG] input_imageはファイルパス以外です").format())
         has_any_image = (input_image is not None)
     last_visible_section_image = None
     last_visible_section_num = -1
@@ -238,9 +238,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # セクション数を計算
             total_frames = int(seconds * 30)
             total_display_sections = int(max(round(total_frames / frame_count), 1))
-            print(f"[DEBUG] worker内の現在の設定によるセクション数: {total_display_sections}")
+            print(translate("[DEBUG] worker内の現在の設定によるセクション数: {0}").format(total_display_sections))
         except Exception as e:
-            print(f"[ERROR] worker内のセクション数計算エラー: {e}")
+            print(translate("[ERROR] worker内のセクション数計算エラー: {0}").format(e))
 
         # 有効なセクション番号を収集
         valid_sections = []
@@ -260,7 +260,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             valid_sections.sort(key=lambda x: x[0])
             # 最後のセクションを取得
             last_visible_section_num, last_visible_section_image = valid_sections[-1]
-            print(f"[DEBUG] worker内の最後のキーフレーム確認: セクション{last_visible_section_num} (画像あり)")
+            print(translate("[DEBUG] worker内の最後のキーフレーム確認: セクション{0} (画像あり)").format(last_visible_section_num))
 
     has_any_image = has_any_image or (last_visible_section_image is not None)
     if not has_any_image:
@@ -268,7 +268,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
     # 入力画像がない場合はキーフレーム画像を使用
     if input_image is None and last_visible_section_image is not None:
-        print(f"[INFO] 入力画像が指定されていないため、セクション{last_visible_section_num}のキーフレーム画像を使用します")
+        print(translate("[INFO] 入力画像が指定されていないため、セクション{0}のキーフレーム画像を使用します").format(last_visible_section_num))
         input_image = last_visible_section_image
 
     # 出力フォルダの設定
@@ -320,7 +320,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     # F1モードでは順生成を行うため、latent_paddingsのロジックは使用しない
     # 全セクション数を設定
     total_sections = total_latent_sections
-    
+
     print(translate("\u25a0 セクション生成詳細 (F1モード):"))
     print(translate("  - 合計セクション数: {0}").format(total_sections))
     frame_count = latent_window_size * 4 - 3
@@ -395,26 +395,26 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         def preprocess_image(img_path_or_array, resolution=640):
             """Pathまたは画像配列を処理して適切なサイズに変換する"""
-            print(f"[DEBUG] preprocess_image: img_path_or_array型 = {type(img_path_or_array)}")
-            
+            print(translate("[DEBUG] preprocess_image: img_path_or_array型 = {0}").format(type(img_path_or_array)))
+
             if img_path_or_array is None:
                 # 画像がない場合は指定解像度の黒い画像を生成
                 img = np.zeros((resolution, resolution, 3), dtype=np.uint8)
                 height = width = resolution
                 return img, img, height, width
-            
+
             # TensorからNumPyへ変換する必要があれば行う
             if isinstance(img_path_or_array, torch.Tensor):
                 img_path_or_array = img_path_or_array.cpu().numpy()
-            
+
             # Pathの場合はPILで画像を開く
             if isinstance(img_path_or_array, str) and os.path.exists(img_path_or_array):
-                print(f"[DEBUG] ファイルから画像を読み込み: {img_path_or_array}")
+                print(translate("[DEBUG] ファイルから画像を読み込み: {0}").format(img_path_or_array))
                 img = np.array(Image.open(img_path_or_array).convert('RGB'))
             else:
                 # NumPy配列の場合はそのまま使う
                 img = img_path_or_array
-                
+
             H, W, C = img.shape
             # 解像度パラメータを使用してサイズを決定
             height, width = find_nearest_bucket(H, W, resolution=resolution)
@@ -428,16 +428,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # 入力画像にメタデータを埋め込んで保存
         initial_image_path = os.path.join(outputs_folder, f'{job_id}.png')
         Image.fromarray(input_image_np).save(initial_image_path)
-        
+
         # メタデータの埋め込み
-        # print(f"\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {initial_image_path}")
+        # print(translate("\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {0}").format(initial_image_path))
         # print(f"[DEBUG] prompt: {prompt}")
         # print(f"[DEBUG] seed: {seed}")
         metadata = {
             PROMPT_KEY: prompt,
             SEED_KEY: seed
         }
-        # print(f"[DEBUG] 埋め込むメタデータ: {metadata}")
+        # print(translate("[DEBUG] 埋め込むメタデータ: {0}").format(metadata))
         embed_metadata_to_png(initial_image_path, metadata)
 
         # VAE encoding
@@ -515,11 +515,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # 初期フレーム準備
         history_latents = torch.zeros(size=(1, 16, 16 + 2 + 1, height // 8, width // 8), dtype=torch.float32).cpu()
         history_pixels = None
-        
+
         # 開始フレームをhistory_latentsに追加
         history_latents = torch.cat([history_latents, start_latent.to(history_latents)], dim=2)
         total_generated_latent_frames = 1  # 最初のフレームを含むので1から開始
-        
+
         # -------- LoRA 設定 START ---------
 
         # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
@@ -531,7 +531,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # 次回のtransformer設定を更新
         current_lora_path = lora_file.name if use_lora and has_lora_support and lora_file is not None else None
         current_lora_scale = lora_scale if current_lora_path is not None else None
-        
+
         # LoRA設定を更新（リロードは行わない）
         transformer_manager.set_next_settings(
             lora_path=current_lora_path,
@@ -548,7 +548,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # transformerの状態を確認し、必要に応じてリロード
             if not transformer_manager.ensure_transformer_state():
                 raise Exception(translate("transformer状態の確認に失敗しました"))
-            
+
             # 最新のtransformerインスタンスを取得
             transformer = transformer_manager.get_transformer()
             print(translate("transformer状態チェック完了"))
@@ -564,7 +564,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             # 単純なインデックスによる判定
             is_last_section = i_section == total_sections - 1
-            
+
             # F1モードではオールパディング機能は無効化されているため、常に固定値を使用
             # この値はF1モードでは実際には使用されないが、ログ出力のために計算する
             latent_padding = 1  # 固定値
@@ -604,7 +604,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             indices = torch.arange(0, sum([1, 16, 2, 1, effective_window_size])).unsqueeze(0)
             clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, effective_window_size], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
-            
+
             clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
             clean_latents = torch.cat([start_latent.to(history_latents), clean_latents_1x], dim=2)
 
@@ -645,7 +645,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             strength_value = max(0.01, 1.0 / image_strength)
             print(translate('Image影響度: UI値={0:.2f}（{1:.0f}%）→計算値={2:.4f}（値が小さいほど始点の影響が強い）').format(
                 image_strength, image_strength * 100, strength_value))
-            
+
             generated_latents = sample_hunyuan(
                 transformer=transformer,
                 sampler='unipc',
@@ -700,7 +700,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # if torch.cuda.is_available():
             #     torch.cuda.synchronize()
             #     torch.cuda.empty_cache()
-            #     print(f"VAEデコード前メモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB")
+            #     print(translate("VAEデコード前メモリ: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
 
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
@@ -716,7 +716,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 # F1モードでは最新フレームは末尾にあるため、後方のセクションを取得
                 current_pixels = vae_decode(real_history_latents[:, :, -section_latent_frames:], vae).cpu()
-                
+
                 # 引数の順序を修正 - history_pixelsが先、新しいcurrent_pixelsが後
                 if history_pixels is None:
                     history_pixels = current_pixels
@@ -736,37 +736,37 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     last_frame = last_frame.cpu().numpy()
                     last_frame = np.clip((last_frame * 127.5 + 127.5), 0, 255).astype(np.uint8)
                     last_frame = resize_and_center_crop(last_frame, target_width=width, target_height=height)
-                    
+
                     # メタデータを埋め込むための情報を収集
-                    print(f"\n[DEBUG] セクション{i_section}のメタデータ埋め込み準備")
+                    print(translate("\n[DEBUG] セクション{0}のメタデータ埋め込み準備").format(i_section))
                     section_metadata = {
                         PROMPT_KEY: prompt,  # メインプロンプト
                         SEED_KEY: seed,
                         SECTION_NUMBER_KEY: i_section
                     }
-                    print(f"[DEBUG] 基本メタデータ: {section_metadata}")
-                    
+                    print(translate("[DEBUG] 基本メタデータ: {0}").format(section_metadata))
+
                     # セクション固有のプロンプトがあれば取得
                     if section_map and i_section in section_map:
                         _, section_prompt = section_map[i_section]
                         if section_prompt and section_prompt.strip():
                             section_metadata[SECTION_PROMPT_KEY] = section_prompt
-                            print(f"[DEBUG] セクションプロンプトを追加: {section_prompt}")
-                    
+                            print(translate("[DEBUG] セクションプロンプトを追加: {0}").format(section_prompt))
+
                     # 画像の保存とメタデータの埋め込み
                     if is_first_section:
                         frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}_end.png')
-                        print(f"[DEBUG] セクション画像パス: {frame_path}")
+                        print(translate("[DEBUG] セクション画像パス: {0}").format(frame_path))
                         Image.fromarray(last_frame).save(frame_path)
-                        print(f"[DEBUG] メタデータ埋め込み実行: {section_metadata}")
+                        print(translate("[DEBUG] メタデータ埋め込み実行: {0}").format(section_metadata))
                         embed_metadata_to_png(frame_path, section_metadata)
                     else:
                         frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}.png')
-                        print(f"[DEBUG] セクション画像パス: {frame_path}")
+                        print(translate("[DEBUG] セクション画像パス: {0}").format(frame_path))
                         Image.fromarray(last_frame).save(frame_path)
-                        print(f"[DEBUG] メタデータ埋め込み実行: {section_metadata}")
+                        print(translate("[DEBUG] メタデータ埋め込み実行: {0}").format(section_metadata))
                         embed_metadata_to_png(frame_path, section_metadata)
-                    
+
                     print(translate("\u2713 セクション{0}のフレーム画像をメタデータ付きで保存しました").format(i_section))
                 except Exception as e:
                     print(translate("[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
@@ -777,23 +777,23 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             output_filename = os.path.join(outputs_folder, f'{job_id}_{total_generated_latent_frames}.mp4')
 
             # MP4保存前のデータ検証を追加
-            print(f"[DEBUG] MP4保存前のhistory_pixels形状: {history_pixels.shape}")
-            print(f"[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={history_pixels.min().item():.4f}, max={history_pixels.max().item():.4f}")
+            print(translate("[DEBUG] MP4保存前のhistory_pixels形状: {0}").format(history_pixels.shape))
+            print(translate("[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={0}, max={1}").format(history_pixels.min().item(), history_pixels.max().item()))
 
             # MP4保存前のデバッグ情報を出力
-            print(f"[DEBUG] MP4保存前のhistory_pixels形状: {history_pixels.shape}")
-            print(f"[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={history_pixels.min().item():.4f}, max={history_pixels.max().item():.4f}")
-            
+            print(translate("[DEBUG] MP4保存前のhistory_pixels形状: {0}").format(history_pixels.shape))
+            print(translate("[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={0}, max={1}").format(history_pixels.min().item(), history_pixels.max().item()))
+
             # GPUメモリ状況の確認
             if torch.cuda.is_available():
-                print(f"[DEBUG] MP4保存前GPUメモリ: {torch.cuda.memory_allocated()/1024**3:.2f}GB/{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f}GB")
-            
+                print(translate("[DEBUG] MP4保存前GPUメモリ: {0:.2f}GB/{1:.2f}GB").format(torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
+
             # 出力ファイルパスの確認
-            print(f"[DEBUG] MP4保存パス: {os.path.abspath(output_filename)}")
-            
+            print(translate("[DEBUG] MP4保存パス: {0}").format(os.path.abspath(output_filename)))
+
             # もしhistory_pixelsの値が不適切な範囲にある場合、範囲を修正
             if history_pixels.min() < -1.0 or history_pixels.max() > 1.0:
-                print("[DEBUG] history_pixelsの値範囲を[-1.0, 1.0]に修正します")
+                print(translate("[DEBUG] history_pixelsの値範囲を[-1.0, 1.0]に修正します"))
                 history_pixels = torch.clamp(history_pixels, -1.0, 1.0)
 
             # MP4を保存
@@ -809,7 +809,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             #     gc.collect()
             #     memory_allocated = torch.cuda.memory_allocated()/1024**3
             #     memory_reserved = torch.cuda.memory_reserved()/1024**3
-            #     print(f"セクション後メモリ状態: 割当={memory_allocated:.2f}GB, 予約={memory_reserved:.2f}GB")
+            #     print(translate("セクション後メモリ状態: 割当={0:.2f}GB, 予約={1:.2f}GB").format(memory_allocated, memory_reserved))
 
             print(translate("■ セクション{0}の処理完了").format(i_section))
             print(translate("  - 現在の累計フレーム数: {0}フレーム").format(int(max(0, total_generated_latent_frames * 4 - 3))))
@@ -1352,7 +1352,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # メイン生成処理
     global stream
     global batch_stopped
-    
+
     # バッチ処理開始時に停止フラグをリセット
     batch_stopped = False
 
@@ -1370,19 +1370,19 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # バッチ処理回数を確認し、詳細を出力
     batch_count = max(1, min(int(batch_count), 100))  # 1〜100の間に制限
     print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
-    
+
     # 解像度を安全な値に丸めてログ表示
     from diffusers_helper.bucket_tools import SAFE_RESOLUTIONS
-    
+
     # 解像度値を表示
     print(translate("\u25c6 UIから受け取った解像度値: {0}（型: {1}）").format(resolution, type(resolution).__name__))
-    
+
     # 安全な値に丸める
     if resolution not in SAFE_RESOLUTIONS:
         closest_resolution = min(SAFE_RESOLUTIONS, key=lambda x: abs(x - resolution))
         print(translate('安全な解像度値ではないため、{0}から{1}に自動調整しました').format(resolution, closest_resolution))
         resolution = closest_resolution
-    
+
     # 解像度設定を出力
     print(translate('解像度を設定: {0}').format(resolution))
 
@@ -1438,7 +1438,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     # 元のシード値を保存（バッチ処理用）
     original_seed = seed
-    
+
     if use_random_seed:
         seed = random.randint(0, 2**32 - 1)
         # UIのseed欄もランダム値で更新
@@ -1449,61 +1449,61 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
     stream = AsyncStream()
-    
+
     # stream作成後、バッチ処理前もう一度フラグを確認
     if batch_stopped:
         print(translate("\nバッチ処理が中断されました（バッチ開始前）"))
         yield (
-            None, 
-            gr.update(visible=False), 
-            translate("バッチ処理が中断されました"), 
-            '', 
-            gr.update(interactive=True), 
-            gr.update(interactive=False, value=translate("End Generation")), 
+            None,
+            gr.update(visible=False),
+            translate("バッチ処理が中断されました"),
+            '',
+            gr.update(interactive=True),
+            gr.update(interactive=False, value=translate("End Generation")),
             gr.update()
         )
         return
-    
+
     # バッチ処理ループの開始
     for batch_index in range(batch_count):
         # 停止フラグが設定されている場合は全バッチ処理を中止
         if batch_stopped:
             print(translate("\nバッチ処理がユーザーによって中止されました"))
             yield (
-                None, 
-                gr.update(visible=False), 
-                translate("バッチ処理が中止されました。"), 
-                '', 
-                gr.update(interactive=True), 
-                gr.update(interactive=False, value=translate("End Generation")), 
+                None,
+                gr.update(visible=False),
+                translate("バッチ処理が中止されました。"),
+                '',
+                gr.update(interactive=True),
+                gr.update(interactive=False, value=translate("End Generation")),
                 gr.update()
             )
             break
-            
+
         # 現在のバッチ番号を表示
         if batch_count > 1:
             batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
             print(f"\n{batch_info}")
             # UIにもバッチ情報を表示
             yield None, gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True), gr.update()
-            
+
         # バッチインデックスに応じてSEED値を設定
         current_seed = original_seed + batch_index
         if batch_count > 1:
             print(translate("現在のSEED値: {0}").format(current_seed))
         # 現在のバッチ用のシードを設定
         seed = current_seed
-        
+
         # もう一度停止フラグを確認 - worker処理実行前
         if batch_stopped:
             print(translate("バッチ処理が中断されました。worker関数の実行をキャンセルします。"))
             # 中断メッセージをUIに表示
-            yield (None, 
-                   gr.update(visible=False), 
-                   translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index, batch_count), 
+            yield (None,
+                   gr.update(visible=False),
+                   translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index, batch_count),
                    '',
-                   gr.update(interactive=True), 
-                   gr.update(interactive=False, value=translate("End Generation")), 
+                   gr.update(interactive=True),
+                   gr.update(interactive=False, value=translate("End Generation")),
                    gr.update())
             break
 
@@ -1561,31 +1561,31 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                     else:
                         completion_message = translate("バッチ処理が完了しました（{0}/{1}）").format(batch_count, batch_count)
                     yield (
-                        batch_output_filename, 
-                        gr.update(value=None, visible=False), 
-                        completion_message, 
-                        '', 
-                        gr.update(interactive=True), 
-                        gr.update(interactive=False, value=translate("End Generation")), 
+                        batch_output_filename,
+                        gr.update(value=None, visible=False),
+                        completion_message,
+                        '',
+                        gr.update(interactive=True),
+                        gr.update(interactive=False, value=translate("End Generation")),
                         gr.update()
                     )
                 else:
                     # 次のバッチに進むメッセージを表示
                     next_batch_message = translate("バッチ処理: {0}/{1} 完了、次のバッチに進みます...").format(batch_index + 1, batch_count)
                     yield (
-                        batch_output_filename, 
-                        gr.update(value=None, visible=False), 
-                        next_batch_message, 
-                        '', 
-                        gr.update(interactive=False), 
-                        gr.update(interactive=True), 
+                        batch_output_filename,
+                        gr.update(value=None, visible=False),
+                        next_batch_message,
+                        '',
+                        gr.update(interactive=False),
+                        gr.update(interactive=True),
                         gr.update()
                     )
                 break
-        
+
         # 最終的な出力ファイル名を更新
         output_filename = batch_output_filename
-        
+
         # バッチ処理が停止されている場合はループを抜ける
         if batch_stopped:
             print(translate("バッチ処理ループを中断します"))
@@ -1595,13 +1595,13 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 def end_process():
     global stream
     global batch_stopped
-    
+
     # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
     batch_stopped = True
     print(translate("\n停止ボタンが押されました。バッチ処理を停止します..."))
     # 現在実行中のバッチを停止
     stream.input_queue.push('end')
-    
+
     # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
     return gr.update(value=translate("停止処理中..."))
 
@@ -1644,19 +1644,19 @@ with block:
         with gr.Column(scale=1):
             # オールパディング設定 (F1モードでは無効化)
             use_all_padding = gr.Checkbox(
-                label=translate("オールパディング"), 
-                value=False, 
-                info=translate("F1モードでは使用できません。無印モードでのみ有効です。"), 
+                label=translate("オールパディング"),
+                value=False,
+                info=translate("F1モードでは使用できません。無印モードでのみ有効です。"),
                 elem_id="all_padding_checkbox",
                 interactive=False  # F1モードでは非活性化
             )
             all_padding_value = gr.Slider(
-                label=translate("パディング値"), 
-                minimum=0.2, 
-                maximum=3, 
-                value=1, 
-                step=0.1, 
-                info=translate("F1モードでは使用できません"), 
+                label=translate("パディング値"),
+                minimum=0.2,
+                maximum=3,
+                value=1,
+                step=0.1,
+                info=translate("F1モードでは使用できません"),
                 visible=False,
                 interactive=False  # F1モードでは非活性化
             )
@@ -1704,26 +1704,26 @@ with block:
                     inputs=[use_tensor_data],
                     outputs=[tensor_data_group]
                 )
-                
+
             # テンソルデータ設定の下に解像度スライダーとバッチ処理回数を追加
             with gr.Group():
                 with gr.Row():
                     with gr.Column(scale=2):
                         resolution = gr.Slider(
-                            label=translate("解像度"), 
-                            minimum=512, 
-                            maximum=768, 
-                            value=640, 
-                            step=128, 
+                            label=translate("解像度"),
+                            minimum=512,
+                            maximum=768,
+                            value=640,
+                            step=128,
                             info=translate("出力動画の基準解像度。現在は512か640か768のいずれかのみ対応（640推奨）")
                         )
                     with gr.Column(scale=1):
                         batch_count = gr.Slider(
-                            label=translate("バッチ処理回数"), 
-                            minimum=1, 
-                            maximum=100, 
-                            value=1, 
-                            step=1, 
+                            label=translate("バッチ処理回数"),
+                            minimum=1,
+                            maximum=100,
+                            value=1,
+                            step=1,
                             info=translate("同じ設定で連続生成する回数。SEEDは各回で+1されます")
                         )
 
@@ -1758,8 +1758,8 @@ with block:
             # グローバル変数として定義し、後で他の場所から参照できるようにする
             global copy_metadata
             copy_metadata = gr.Checkbox(
-                label=translate("埋め込みプロンプトおよびシードを複写する"), 
-                value=False, 
+                label=translate("埋め込みプロンプトおよびシードを複写する"),
+                value=False,
                 info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
             )
 
@@ -1776,61 +1776,61 @@ with block:
                 """Imageアップロード時にメタデータを抽出してUIに反映する
                 F1モードではキーフレームコピー機能を削除済みのため、単純化
                 """
-                print("\n[DEBUG] F1モード：update_from_image_metadata関数が実行されました")
-                print(f"[DEBUG] メタデータ複写機能: {copy_enabled}")
-                
+                print(translate("\n[DEBUG] F1モード：update_from_image_metadata関数が実行されました"))
+                print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
+
                 # 複写機能が無効の場合は何もしない
                 if not copy_enabled:
-                    print("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします")
+                    print(translate("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします"))
                     return [gr.update()] * 2
-                
+
                 if image_path is None:
-                    print("[DEBUG] image_pathはNoneです")
+                    print(translate("[DEBUG] image_pathはNoneです"))
                     return [gr.update()] * 2
-                
-                print(f"[DEBUG] 画像パス: {image_path}")
-                
+
+                print(translate("[DEBUG] 画像パス: {0}").format(image_path))
+
                 try:
                     # ファイルパスから直接メタデータを抽出
-                    print("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します")
+                    print(translate("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します"))
                     metadata = extract_metadata_from_png(image_path)
-                    
+
                     if not metadata:
-                        print("[DEBUG] メタデータが抽出されませんでした")
+                        print(translate("[DEBUG] メタデータが抽出されませんでした"))
                         print(translate("アップロードされた画像にメタデータが含まれていません"))
                         return [gr.update()] * 2
-                    
-                    print(f"[DEBUG] メタデータサイズ: {len(metadata)}, 内容: {metadata}")
+
+                    print(translate("[DEBUG] メタデータサイズ: {0}, 内容: {1}").format(len(metadata), metadata))
                     print(translate("画像からメタデータを抽出しました: {0}").format(metadata))
-                    
+
                     # プロンプトとSEEDをUIに反映
                     prompt_update = gr.update()
                     seed_update = gr.update()
-                    
+
                     if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
                         prompt_update = gr.update(value=metadata[PROMPT_KEY])
-                        print(f"[DEBUG] プロンプトを更新: {metadata[PROMPT_KEY]}")
+                        print(translate("[DEBUG] プロンプトを更新: {0}").format(metadata[PROMPT_KEY]))
                         print(translate("プロンプトを画像から取得: {0}").format(metadata[PROMPT_KEY]))
-                    
+
                     if SEED_KEY in metadata and metadata[SEED_KEY]:
                         # SEED値を整数に変換
                         try:
                             seed_value = int(metadata[SEED_KEY])
                             seed_update = gr.update(value=seed_value)
-                            print(f"[DEBUG] SEED値を更新: {seed_value}")
+                            print(translate("[DEBUG] SEED値を更新: {0}").format(seed_value))
                             print(translate("SEED値を画像から取得: {0}").format(seed_value))
                         except (ValueError, TypeError):
-                            print(f"[DEBUG] SEED値の変換エラー: {metadata[SEED_KEY]}")
+                            print(translate("[DEBUG] SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
                             print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
-                    
-                    print(f"[DEBUG] 更新結果: prompt_update={prompt_update}, seed_update={seed_update}")
+
+                    print(translate("[DEBUG] 更新結果: prompt_update={0}, seed_update={1}").format(prompt_update, seed_update))
                     return [prompt_update, seed_update]
                 except Exception as e:
-                    print(f"[ERROR] メタデータ抽出処理中のエラー: {e}")
+                    print(translate("[ERROR] メタデータ抽出処理中のエラー: {0}").format(e))
                     traceback.print_exc()
                     print(translate("メタデータ抽出エラー: {0}").format(e))
                     return [gr.update()] * 2
-            
+
             # 注意: イベント登録は変数定義後に行うため、後で実行する
             # メタデータ抽出処理の登録は、promptとseed変数の定義後に移動します
 
@@ -1940,7 +1940,7 @@ with block:
                 # シンプルな互換性のためのダミーステートを作成
                 section_settings = gr.State([[None, None, ""] for _ in range(max_keyframes)])
                 section_inputs = []
-                
+
                 # update_section_settings関数は未使用のため削除
 
                 # フレームサイズ変更時の処理を追加
@@ -1986,7 +1986,7 @@ with block:
                     # 秒数だけ計算して返す
                     seconds = get_video_seconds(length)
                     print(translate("F1モード：シンプル設定（不要な機能を削除済み）"))
-                    
+
                     # 最低限の返値（入力に対応するだけの空更新）
                     return [gr.update()] * 2 + [] + [gr.update(value=seconds)] + []
 
@@ -2022,10 +2022,10 @@ with block:
 
         with gr.Column():
             result_video = gr.Video(
-                label=translate("Finished Frames"), 
-                autoplay=True, 
-                show_share_button=False, 
-                height=512, 
+                label=translate("Finished Frames"),
+                autoplay=True,
+                show_share_button=False,
+                height=512,
                 loop=True,
                 format="mp4",
                 interactive=False,
@@ -2057,22 +2057,22 @@ with block:
                 inputs=[input_image, copy_metadata],
                 outputs=[prompt, seed]
             )
-            
+
             # チェックボックスの変更時に再読み込みを行う
             def check_metadata_on_checkbox_change(copy_enabled, image_path):
                 if not copy_enabled or image_path is None:
                     return [gr.update()] * 2
                 # チェックボックスオン時に、画像があれば再度メタデータを読み込む
                 return update_from_image_metadata(image_path, copy_enabled)
-            
+
             # update_section_metadata_on_checkbox_change関数は未使用のため削除
-                
+
             copy_metadata.change(
                 fn=check_metadata_on_checkbox_change,
                 inputs=[copy_metadata, input_image],
                 outputs=[prompt, seed]
             )
-            
+
 
             def set_random_seed(is_checked):
                 if is_checked:
@@ -2134,7 +2134,7 @@ with block:
 
             # Image影響度調整スライダー
             with gr.Group():
-                gr.Markdown(f"### " + translate("Image影響度調整"))
+                gr.Markdown("### " + translate("Image影響度調整"))
                 image_strength = gr.Slider(
                     label=translate("Image影響度"),
                     minimum=1.00,
@@ -2207,13 +2207,13 @@ with block:
         # 注意: ips変数では[28]はresolution、[29]がbatch_count
         batch_count = args[29] if len(args) > 29 else 1  # バッチ処理回数のインデックス
         resolution_value = args[28] if len(args) > 28 else 640  # 解像度値のインデックス
-        
+
         # 解像度値をデバッグ出力（verify）
-        print(f"[DEBUG] validate_and_process: 解像度値を確認({resolution_value})")
-        
+        print(translate("[DEBUG] validate_and_process: 解像度値を確認({0})").format(resolution_value))
+
         # バッチ回数を有効な範囲に制限
         batch_count = max(1, min(int(batch_count), 100))
-        
+
         # F1モードでは簡易化
         section_settings = [[None, None, ""] for _ in range(50)]
 
@@ -2228,7 +2228,7 @@ with block:
         # 画像がある場合は通常の処理を実行
         # 元のパラメータを使用
         new_args = list(args)
-        
+
         # batch_countとresolutionを確実に設定
         # batch_countはインデックス29
         if len(new_args) <= 29:
@@ -2241,14 +2241,14 @@ with block:
             # 既に存在する場合は更新
             new_args[29] = batch_count  # batch_count
             new_args[28] = resolution_value  # resolution
-        
+
         # process関数のジェネレータを返す
         yield from process(*new_args)
 
     # 実行ボタンのイベント
     # F1モードではシンプル化：section_settingsを含めない
     ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, image_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, use_all_padding, use_lora, save_tensor_data, section_settings, tensor_data_input, fp8_optimization, resolution, batch_count]
-    
+
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process, outputs=[end_button])
 

@@ -179,7 +179,7 @@ def unified_input_image_change_handler(img, mode, length, enable_copy=True):
     # 通常モードでは常にコピー機能を無効化
     if mode != MODE_TYPE_LOOP:
         enable_copy = False
-        print(f"[keyframe_handler] 入力画像変更時に通常モードでコピー機能を強制的に無効化")
+        print(translate("[keyframe_handler] 入力画像変更時に通常モードでコピー機能を強制的に無効化"))
 
     if img is None or not enable_copy:
         # 画像が指定されていない、またはコピー機能が無効の場合は何もしない
@@ -242,21 +242,21 @@ def print_keyframe_debug_info():
     # print("\n[INFO] 動画モード設定の確認:")
     # for mode_key in VIDEO_MODE_SETTINGS:
     #     mode_info = VIDEO_MODE_SETTINGS[mode_key]
-    #     print(f"  - {mode_key}: {mode_info['display_seconds']}秒, {mode_info['frames']}フレーム")
+    #     print(translate("  - {0}: {1}秒, {2}フレーム").format(mode_key, mode_info['display_seconds'], mode_info['frames']))
     #
     #     # 重要キーフレームの表示（UIインデックスに変換）
     #     important_kfs = mode_info['important_keyframes']
     #     important_kfs_ui = [code_to_ui_index(kf) for kf in important_kfs]
-    #     print(f"    重要キーフレーム: {important_kfs_ui}")
+    #     print(translate("    重要キーフレーム: {0}").format(important_kfs_ui))
     #
     #     # コピーパターンの表示
     #     for mode_type in ["通常", "ループ"]:
     #         if mode_type in mode_info["copy_patterns"]:
-    #             print(f"    {mode_type}モードのコピーパターン:")
+    #             print(translate("    {0}モードのコピーパターン:").format(mode_type))
     #             for src, targets in mode_info["copy_patterns"][mode_type].items():
     #                 src_ui = code_to_ui_index(int(src))
     #                 targets_ui = [code_to_ui_index(t) for t in targets]
-    #                 print(f"      キーフレーム{src_ui} → {targets_ui}")
+    #                 print(translate("      キーフレーム{0} → {1}").format(src_ui, targets_ui))
     #
     # print("[INFO] =================================================\n")
     pass
