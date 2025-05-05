@@ -1,8 +1,17 @@
 # FramePack-eichi | [日本語](../README.md) | [繁體中文](README_zh.md)
 
-FramePack-eichi is an enhanced version of lllyasviel's [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack), built upon nirvash's fork [nirvash/FramePack](https://github.com/nirvash/FramePack). Based on nirvash's pioneering improvements, it includes numerous detailed features.
+FramePack-eichi is an enhanced version of lllyasviel's [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack), built upon nirvash's fork [nirvash/FramePack](https://github.com/nirvash/FramePack). Based on nirvash's pioneering improvements, it includes numerous detailed features.Additionally, since v1.9, with permission from Kohya Tech, code from [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) has been integrated, significantly improving LoRA functionality and stability.
 
-Additionally, since v1.9, with permission from Kohya Tech, code from [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) has been integrated, significantly improving LoRA functionality and stability.
+## 📘 Name Origin
+
+**Endframe Image CHain Interface (EICHI)**
+- **E**ndframe: Enhancement and optimization of endframe functionality
+- **I**mage: Improvement of keyframe image processing and visual feedback
+- **CH**ain: Strengthening connectivity and relationships between multiple keyframes
+- **I**nterface: Intuitive user experience and improved UI/UX
+
+The name "eichi" also evokes the Japanese word "叡智" (deep wisdom, intelligence), symbolizing the philosophy of this project to combine AI technology advancement with human creativity.
+In other words, it's a ~~local~~ **worldwide** modification specialized in creating videos from intelligently differentiated images. **The eichi has crossed the ocean!**
 
 We're extremely grateful to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for multilingual support cooperation.
 
@@ -36,17 +45,6 @@ We're extremely grateful to [https://github.com/hinablue](https://github.com/hin
   - Available through traditional launch script (`run_endframe_ichi.bat`)
 
 **Note:** When launching the F1 model for the first time, approximately 24GB of additional model downloads will occur in addition to the standard model. The standard model will also be retained, allowing you to switch between them.
-
-## 📘 Name Origin
-
-**Endframe Image CHain Interface (EICHI)**
-- **E**ndframe: Enhancement and optimization of endframe functionality
-- **I**mage: Improvement of keyframe image processing and visual feedback
-- **CH**ain: Strengthening connectivity and relationships between multiple keyframes
-- **I**nterface: Intuitive user experience and improved UI/UX
-
-The name "eichi" also evokes the Japanese word "叡智" (deep wisdom, intelligence), symbolizing the philosophy of this project to combine AI technology advancement with human creativity.
-In other words, it's a ~~local~~ **worldwide** modification specialized in creating videos from intelligently differentiated images. **The eichi has crossed the ocean!**
 
 ## 🌟 Main Features
 
@@ -595,154 +593,6 @@ The latest update information is shown below. For the full update history, pleas
 - **PNG Metadata Function**: Automatic embedding of prompts, seeds, and section information in generated images
 - **Optimal Resolution Bucket System**: Automatically select optimal resolution based on aspect ratio
 - **Enhanced Clipboard Support**: Clipboard support for Image and Final in standard version and Image in F1 version
-
-### 2025-04-30: Version 1.9
-- **Introduction of kohya-ss/FramePack-LoRAReady**:
-  - Significantly improved LoRA functionality and stability with permission from Kohya Tech
-  - Unified LoRA application method for high VRAM and low VRAM modes to direct application
-  - Reduced code complexity by using the common load_and_apply_lora function
-- **Introduction of FP8 Optimization**:
-  - Memory usage and processing speed optimization through quantization using 8-bit floating-point format
-  - Recommended to use with OFF by default (may result in warnings and errors in some environments)
-  - Also supports acceleration options for RTX 40 series GPUs
-- **Directory Structure Changes**:
-  - diffusers_helper: Added utilities for improving model memory management
-  - Replaces source files from the original tool; backups recommended as needed
-- **Standardization to HunyuanVideo Format**:
-  - Unified LoRA formats to HunyuanVideo format for improved compatibility
-
-### 2025-04-29: Version 1.8.1
-- **Implementation of Multilingual Support (i18n)**:
-  - Support for three languages: Japanese, English, and Traditional Chinese
-  - Added language-specific executable files (`run_endframe_ichi_en.bat`, `run_endframe_ichi_zh-tw.bat`)
-  - Multilingual support for all elements including UI text, log messages, and error messages
-  - Improved extensibility with JSON file-based translation system
-  - Note: Translations focus on features up to v1.7.1. Translations for v1.8 features will be added later
-
-### 2025-04-28: Version 1.8
-- **Added Tensor Data Combination Feature**:
-  - Added feature to save video latent representations in .safetensors format
-  - Added feature to combine saved tensor data to the end of newly generated videos
-  - Implemented chunk processing method for efficient processing of large tensor data
-  - Improved memory efficiency and enhanced stability through explicit device/type compatibility adjustments
-  - Added automatic deletion of intermediate files and feedback display
-
-### 2025-04-28: Version 1.7.1
-- **Internal Calculation Optimization**:
-  - More accurate section number calculation in 0.5-second mode, improving video generation stability
-  - Frame calculation parameter (latent_window_size) changed from 5 to 4.5
-- **UI Improvements**:
-  - Simplified video mode names: Removed parenthesized notation (e.g., "10(5x2) seconds" → "10 seconds")
-  - Layout organization: Overall UI has been reorganized for better usability
-
-### 2025-04-28: Version 1.7.0
-- **Major Improvements to Keyframe Image Copy Function**:
-  - Introduced visual distinction with red/blue frames
-  - **Red Frame (Section 0)** ⇒ Automatically copied to all even-numbered sections (0,2,4,6...)
-  - **Blue Frame (Section 1)** ⇒ Automatically copied to all odd-numbered sections (1,3,5,7...)
-  - Improved dynamic section number calculation accuracy to precisely adjust copy range based on selected video length
-  - Users can toggle copy functionality on/off as needed
-- **Enhanced Copy Process Safety**:
-  - Strengthened section boundary checks to prevent copying to invalid positions
-  - Detailed logging output for easier tracking of copy operations
-
-### 2025-04-27: Version 1.6.2
-- **Added MP4 Compression Settings**: (Merged from original)
-  - Ability to adjust the balance between video file size and quality
-  - Configurable in the 0-100 range (0=uncompressed, 16=default, higher values=higher compression/lower quality)
-  - Provides optimal settings as a countermeasure for black screen issues
-- **Improved Code Quality**:
-  - Separated UI style definitions into `ui_styles.py`, improving maintainability and readability
-  - Enhanced UI consistency through centralized CSS style management
-- **Frame Size Calculation Fine-tuning**:
-  - Improved calculation precision for 0.5-second mode (using `latent_window_size=4.5`)
-  - Enhanced calculation accuracy for section numbers and video length, enabling more stable video generation
-
-### 2025-04-26: Version 1.6.1
-- **Enhanced Short Video Modes**:
-  - 2-second mode: 60 frames (2 seconds×30FPS), 2 sections, no copying needed
-  - 3-second mode: 90 frames (3 seconds×30FPS), 3 sections, copy keyframe 0→1
-  - 4-second mode: 120 frames (4 seconds×30FPS), 4 sections, copy keyframe 0→1,2
-- **Return to v1.5.1 Basic Structure**:
-  - Maintained original mode name notation (with parentheses)
-  - Restored keyframe guide HTML
-  - Maintained original function structure and processing methods
-
-### 2025-04-26: Version 1.6.0 (Rejected Version)
-- **UI/UX Improvements**:
-  - Separated section settings as accordions, expandable only when needed
-  - Simplified video mode names (e.g., "10(5x2) seconds" → "10 seconds")
-  - Removed keyframe emphasis display
-  - Changed unnecessary features (EndFrame influence adjustment, keyframe auto-copy) to internal settings
-- **Technical Improvements**:
-  - Changed VRAM management reference value (60GB→100GB)
-  - Improved section calculation logic (added functionality to calculate directly from seconds)
-  - Enhanced consistency of frame numbers and section numbers (ensuring consistency with displayed seconds)
-  - Optimized debug output
-
-### 2025-04-25: Version 1.5.1
-- **Added "1-second" Mode for Short Video Generation**:
-  - Support for 1 second (approximately 30 frames @ 30fps)
-- **Changed Default Video Length**:
-  - Changed default value from "6 seconds" to "1 second"
-- **Optimized Input Image Copy Behavior**:
-  - Stopped copy processing from input images in normal mode
-  - Enabled copy processing to Last only in loop mode
-- **Changed Default Value for Keyframe Auto-Copy Function**:
-  - Set to off by default, allowing for more fine-grained control
-  - Can be turned on when automatic copying is needed
-- **Improved Image Processing Stability**:
-  - Enhanced image retrieval when the Start button is pressed
-  - Added explicit clearing of preview images
-
-### 2025-04-24: Version 1.5.0
-- **Added Frame Size Settings**:
-  - Ability to switch between 0.5-second and 1-second modes
-  - Dynamic adjustment of latent_window_size based on frame size
-
-### 2025-04-24: Version 1.4.0
-- **Added All-Padding Feature**:
-  - Use the same padding value for all sections
-  - Smaller values result in more intense movement within a session
-
-### 2025-04-24: Version 1.3.3
-- **Re-reviewed LoRA Application Function**:
-  - Rejected direct LoRA load mode as it requires key matching in parameter settings. Unified to DynamicSwap and monitoring
-  - Implemented log display of the number of parameters obtained
-
-### 2025-04-24: Version 1.3.2
-- **Unified LoRA Application Function**:
-  - Unified low VRAM mode (DynamicSwap) to use the same direct LoRA application method as high VRAM mode
-  - Discontinued hook method in favor of a more stable direct application method only
-  - Maintained interfaces for compatibility while improving internal implementation
-- **Enhanced Debugging and Verification Functions**:
-  - Added dedicated utility for checking LoRA application status (lora_check_helper.py)
-  - Provided detailed log output and debugging information
-
-### 2025-04-24: Version 1.3.1
-- **Code Base Refactoring**: Organized code into multiple modules for improved maintainability and extensibility
-  - `eichi_utils`: Manages keyframe processing, settings management, preset management, and video mode settings
-  - `lora_utils`: Consolidates LoRA-related functionality
-
-### 2025-04-23: Version 1.3
-- **[Under Investigation] Added Hunyuan LoRA Support**: Customize models to add unique expressions
-- **[Experimental Implementation] Added EndFrame Influence Setting**: Adjust the influence of the final frame in the range of 0.01-1.00 (based on nirvash's insights)
-
-### 2025-04-23: Version 1.2
-- **Added "20(4x5) seconds" Mode**: Support for long-duration video generation with 5-part structure
-- **Added Section-Specific Prompt Feature**: Ability to set individual prompts for each section [Experimental Implementation]
-- **Enhanced Output Folder Management**: Support for specifying output folders and OS-independent folder opening
-- **Improved Settings File Management**: Persistent settings with JSON-based configuration files
-- **Strengthened Cross-Platform Support**: Improved operation in non-Windows environments
-
-### 2025-04-22: Version 1.1
-- **Added "16(4x4) seconds" Mode**: Support for long-duration video generation with 4-part structure
-- **Improved Progress Display During Generation**: Section information (e.g., "Section: 3/15") is now displayed, making it easier to track progress, especially during long video generation
-- **Structured Configuration Files**: Video mode settings separated into a separate file, improving extensibility
-
-### 2025-04-21: Initial Release
-- Optimized prompt management functionality
-- Added keyframe guide functionality
 
 ---
 **FramePack-eichi** - Endframe Image CHain Interface  
