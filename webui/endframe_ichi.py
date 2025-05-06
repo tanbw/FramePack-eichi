@@ -3041,13 +3041,9 @@ with block:
     def validate_and_process(*args):
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
         input_img = args[0]  # 入力の最初が入力画像
-        section_settings = args[23]  # section_settings引数のインデックス (lora_files2が追加されたため+1)
-        # 注意: ips変数では[28]はfp8_optimization、[29]はresolution、[30]がbatch_count (lora_files2が追加されたため+1)
-        batch_count = args[30] if len(args) > 30 else 1  # バッチ処理回数のインデックス
-        resolution_value = args[29] if len(args) > 29 else 640  # 解像度値のインデックス
-
-        # 解像度値をデバッグ出力（verify）
-        print(translate("[DEBUG] validate_and_process: 解像度値を確認({0})").format(resolution_value))
+        section_settings = args[24]  # section_settingsはprocess関数の24番目の引数
+        resolution_value = args[30] if len(args) > 30 else 640  # resolutionは30番目
+        batch_count = args[31] if len(args) > 31 else 1  # batch_countは31番目
 
         # バッチ回数を有効な範囲に制限
         batch_count = max(1, min(int(batch_count), 100))
@@ -3068,20 +3064,31 @@ with block:
         # 画像がある場合は通常の処理を実行
         # 修正したsection_settingsとbatch_countでargsを更新
         new_args = list(args)
-        new_args[23] = section_settings  # インデックスを修正 (lora_files2の追加により)
+        new_args[24] = section_settings  # section_settingsはprocess関数の24番目の引数
 
-        # batch_countとresolutionを確実に設定
-        # batch_countはインデックス30
+        # resolution_valueが整数であることを確認
+        try:
+            resolution_int = int(float(resolution_value))
+            resolution_value = resolution_int
+        except (ValueError, TypeError):
+            resolution_value = 640
+            
         if len(new_args) <= 30:
             # 不足している場合は追加
             if len(new_args) <= 29:
-                # resolutionもない場合
-                new_args.append(resolution_value)  # resolutionを追加
-            new_args.append(batch_count)  # batch_countを追加
+                # fp8_optimizationがない場合
+                new_args.append(False)
+            # resolutionを追加
+            new_args.append(resolution_value)
+            # batch_countを追加
+            new_args.append(batch_count)
         else:
             # 既に存在する場合は更新
-            new_args[30] = batch_count  # batch_count
-            new_args[29] = resolution_value  # resolution
+            new_args[30] = resolution_value  # resolution
+            if len(new_args) > 31:
+                new_args[31] = batch_count  # batch_count
+            else:
+                new_args.append(batch_count)  # batch_countを追加
 
         # process関数のジェネレータを返す
         yield from process(*new_args)
