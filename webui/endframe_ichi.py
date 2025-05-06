@@ -49,6 +49,7 @@ if 'HF_HOME' not in os.environ:
     print(translate("HF_HOMEを設定: {0}").format(os.environ['HF_HOME']))
 else:
     print(translate("既存のHF_HOMEを使用: {0}").format(os.environ['HF_HOME']))
+
 temp_dir = "./temp_for_zip_section_info"
 
 # LoRAサポートの確認
@@ -146,8 +147,7 @@ try:
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
 
     # transformerの初期化
-    # if not transformer_manager.ensure_transformer_state():
-    #     raise Exception(translate("transformerの初期化に失敗しました"))
+    transformer_manager.ensure_download_models()
     transformer = transformer_manager.get_transformer()  # 仮想デバイス上のtransformerを取得
 
     # 他のモデルの読み込み
