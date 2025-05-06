@@ -44,7 +44,11 @@ import json
 import traceback
 from datetime import datetime, timedelta
 
-os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
+if 'HF_HOME' not in os.environ:
+    os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
+    print(translate("HF_HOMEを設定: {0}").format(os.environ['HF_HOME']))
+else:
+    print(translate("既存のHF_HOMEを使用: {0}").format(os.environ['HF_HOME']))
 temp_dir = "./temp_for_zip_section_info"
 
 # LoRAサポートの確認
