@@ -215,7 +215,7 @@ os.makedirs(outputs_folder, exist_ok=True)
 # v1.9.1テスト実装
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
     print(translate("[DEBUG] worker内 input_imageの型: {0}").format(type(input_image)))
@@ -701,13 +701,56 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             print(translate("CUDA環境変数設定: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (元の値: {0})").format(old_env))
 
         # 次回のtransformer設定を更新
-        current_lora_path = lora_file.name if use_lora and has_lora_support and lora_file is not None else None
-        current_lora_scale = lora_scale if current_lora_path is not None else None
-
+        current_lora_paths = []
+        current_lora_scales = []
+        
+        if use_lora and has_lora_support:
+            # LoRAファイルを収集
+            if lora_files is not None:
+                if isinstance(lora_files, list):
+                    # 複数のLoRAファイル（将来のGradioバージョン用）
+                    current_lora_paths.extend([file.name for file in lora_files])
+                else:
+                    # 単一のLoRAファイル
+                    current_lora_paths.append(lora_files.name)
+            
+            # 2つ目のLoRAファイルがあれば追加
+            if lora_files2 is not None:
+                if isinstance(lora_files2, list):
+                    # 複数のLoRAファイル（将来のGradioバージョン用）
+                    current_lora_paths.extend([file.name for file in lora_files2])
+                else:
+                    # 単一のLoRAファイル
+                    current_lora_paths.append(lora_files2.name)
+            
+            # スケール値をテキストから解析
+            if current_lora_paths:  # LoRAパスがある場合のみ解析
+                try:
+                    scales_text = lora_scales_text.strip()
+                    if scales_text:
+                        # カンマ区切りのスケール値を解析
+                        scales = [float(scale.strip()) for scale in scales_text.split(',')]
+                        current_lora_scales = scales
+                    else:
+                        # スケール値が指定されていない場合は全て0.8を使用
+                        current_lora_scales = [0.8] * len(current_lora_paths)
+                except Exception as e:
+                    print(translate("LoRAスケール解析エラー: {0}").format(e))
+                    print(translate("デフォルトスケール 0.8 を使用します"))
+                    current_lora_scales = [0.8] * len(current_lora_paths)
+                
+                # スケール値の数がLoRAパスの数と一致しない場合は調整
+                if len(current_lora_scales) < len(current_lora_paths):
+                    # 足りない分は0.8で埋める
+                    current_lora_scales.extend([0.8] * (len(current_lora_paths) - len(current_lora_scales)))
+                elif len(current_lora_scales) > len(current_lora_paths):
+                    # 余分は切り捨て
+                    current_lora_scales = current_lora_scales[:len(current_lora_paths)]
+        
         # LoRA設定を更新（リロードは行わない）
         transformer_manager.set_next_settings(
-            lora_path=current_lora_path,
-            lora_scale=current_lora_scale,
+            lora_paths=current_lora_paths,
+            lora_scales=current_lora_scales,
             fp8_enabled=fp8_optimization,
             high_vram_mode=high_vram,
         )
@@ -1312,6 +1355,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     print(translate("[MEMORY] 処理完了後のメモリクリア: {memory:.2f}GB/{total_memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3, total_memory=torch.cuda.get_device_properties(0).total_memory/1024**3))
 
                 # テンソルデータの保存処理
+                print(translate("[DEBUG] テンソルデータ保存フラグの値: {0}").format(save_tensor_data))
                 if save_tensor_data:
                     try:
                         # 結果のテンソルを保存するファイルパス
@@ -1536,7 +1580,7 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_file=None, lora_scale=0.8, output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1):
     global stream
     global batch_stopped
 
@@ -1605,9 +1649,49 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         print(translate("\u25c6 オールパディング: 無効"))
 
     # LoRA情報のログ出力
-    if use_lora and lora_file is not None:
-        print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(lora_file.name)))
-        print(translate("\u25c6 LoRA適用強度: {0}").format(lora_scale))
+    if use_lora and has_lora_support:
+        all_lora_files = []
+        
+        # 1つ目のLoRAファイルを処理
+        if lora_files is not None:
+            if isinstance(lora_files, list):
+                all_lora_files.extend(lora_files)
+            else:
+                all_lora_files.append(lora_files)
+                
+        # 2つ目のLoRAファイルを処理
+        if lora_files2 is not None:
+            if isinstance(lora_files2, list):
+                all_lora_files.extend(lora_files2)
+            else:
+                all_lora_files.append(lora_files2)
+        
+        # スケール値を解析
+        try:
+            scales = [float(s.strip()) for s in lora_scales_text.split(',')]
+        except:
+            # 解析エラーの場合はデフォルト値を使用
+            scales = [0.8] * len(all_lora_files)
+            
+        # スケール値の数を調整
+        if len(scales) < len(all_lora_files):
+            scales.extend([0.8] * (len(all_lora_files) - len(scales)))
+        elif len(scales) > len(all_lora_files):
+            scales = scales[:len(all_lora_files)]
+            
+        # LoRAファイル情報を出力
+        if len(all_lora_files) == 1:
+            # 単一ファイル
+            print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(all_lora_files[0].name)))
+            print(translate("\u25c6 LoRA適用強度: {0}").format(scales[0]))
+        elif len(all_lora_files) > 1:
+            # 複数ファイル
+            print(translate("\u25c6 LoRAファイル (複数):"))
+            for i, file in enumerate(all_lora_files):
+                print(f"   - {os.path.basename(file.name)} (スケール: {scales[i]})")
+        else:
+            # LoRAファイルなし
+            print(translate("\u25c6 LoRA: 使用しない"))
 
     # セクションごとのキーフレーム画像の使用状況をログに出力
     valid_sections = []
@@ -1723,7 +1807,41 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
 
         # バッチ処理の各回で実行
-        async_run(worker, input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_value, use_teacache, mp4_crf, all_padding_value, end_frame, end_frame_strength, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_index)
+        # worker関数の定義と引数の順序を完全に一致させる
+        print(translate("[DEBUG] async_run直前のsave_tensor_data: {0}").format(save_tensor_data))
+        async_run(
+            worker,
+            input_image,
+            prompt,
+            n_prompt,
+            seed,
+            total_second_length,
+            latent_window_size,
+            steps,
+            cfg,
+            gs,
+            rs,
+            gpu_memory_value,  # gpu_memory_preservation
+            use_teacache,
+            mp4_crf,
+            all_padding_value,
+            end_frame,
+            end_frame_strength,
+            keep_section_videos,
+            lora_files,
+            lora_files2,
+            lora_scales_text,
+            output_dir,
+            save_section_frames,
+            section_settings,
+            use_all_padding,
+            use_lora,
+            save_tensor_data,  # テンソルデータ保存フラグ - 確実に正しい位置に配置
+            tensor_data_input,
+            fp8_optimization,
+            resolution,
+            batch_index
+        )
 
         # 現在のバッチの出力ファイル名
         batch_output_filename = None
@@ -2260,11 +2378,25 @@ with block:
                 use_lora = gr.Checkbox(label=translate("LoRAを使用する"), value=False, info=translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
 
                 # LoRA設定コンポーネント（初期状態では非表示）
-                lora_file = gr.File(label=translate("LoRAファイル (.safetensors, .pt, .bin)"),
-                            file_types=[".safetensors", ".pt", ".bin"],
-                            visible=False)
-                lora_scale = gr.Slider(label=translate("LoRA適用強度"), minimum=0.0, maximum=1.0,
-                           value=0.8, step=0.01, visible=False)
+                # メインのLoRAファイル
+                lora_files = gr.File(
+                    label=translate("LoRAファイル (.safetensors, .pt, .bin)"),
+                    file_types=[".safetensors", ".pt", ".bin"],
+                    visible=False
+                )
+                # 追加のLoRAファイル
+                lora_files2 = gr.File(
+                    label=translate("LoRAファイル2 (.safetensors, .pt, .bin)"),
+                    file_types=[".safetensors", ".pt", ".bin"],
+                    visible=False
+                )
+                # スケール値の入力フィールド
+                lora_scales_text = gr.Textbox(
+                    label=translate("LoRA適用強度 (カンマ区切り)"),
+                    value="0.8,0.8",
+                    info=translate("各LoRAのスケール値をカンマ区切りで入力 (例: 0.8,0.5)"),
+                    visible=False
+                )
                 fp8_optimization = gr.Checkbox(
                     label=translate("FP8最適化"),
                     value=False,
@@ -2282,15 +2414,16 @@ with block:
                 # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
                 def toggle_lora_settings(use_lora):
                     return [
-                        gr.update(visible=use_lora),  # lora_file
-                        gr.update(visible=use_lora),  # lora_scale
+                        gr.update(visible=use_lora),  # lora_files
+                        gr.update(visible=use_lora),  # lora_files2
+                        gr.update(visible=use_lora),  # lora_scales_text
                         gr.update(visible=use_lora),  # fp8_optimization
                     ]
 
                 # チェックボックスの変更イベントに関数を紋づけ
                 use_lora.change(fn=toggle_lora_settings,
                            inputs=[use_lora],
-                           outputs=[lora_file, lora_scale, fp8_optimization])
+                           outputs=[lora_files, lora_files2, lora_scales_text, fp8_optimization])
 
                 # LoRAサポートが無効の場合のメッセージ
                 if not has_lora_support:
@@ -2908,8 +3041,8 @@ with block:
     def validate_and_process(*args):
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
         input_img = args[0]  # 入力の最初が入力画像
-        section_settings = args[24]  # section_settings引数のインデックス
-        # 注意: ips変数では[29]はresolution、[30]がbatch_count
+        section_settings = args[23]  # section_settings引数のインデックス (lora_files2が追加されたため+1)
+        # 注意: ips変数では[28]はfp8_optimization、[29]はresolution、[30]がbatch_count (lora_files2が追加されたため+1)
         batch_count = args[30] if len(args) > 30 else 1  # バッチ処理回数のインデックス
         resolution_value = args[29] if len(args) > 29 else 640  # 解像度値のインデックス
 
@@ -2935,7 +3068,7 @@ with block:
         # 画像がある場合は通常の処理を実行
         # 修正したsection_settingsとbatch_countでargsを更新
         new_args = list(args)
-        new_args[24] = section_settings
+        new_args[23] = section_settings  # インデックスを修正 (lora_files2の追加により)
 
         # batch_countとresolutionを確実に設定
         # batch_countはインデックス30
@@ -2954,7 +3087,7 @@ with block:
         yield from process(*new_args)
 
     # 実行ボタンのイベント
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_file, lora_scale, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count]
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count]
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process, outputs=[end_button])
 

@@ -29,8 +29,8 @@ class TransformerManager:
 
         # 現在適用されている設定
         self.current_state = {
-            'lora_path': None,
-            'lora_scale': None,
+            'lora_paths': [],  # 複数LoRAパスに対応
+            'lora_scales': [],  # 複数LoRAスケールに対応
             'fp8_enabled': False,
             'is_loaded': False,
             'high_vram': high_vram_mode,
@@ -44,36 +44,63 @@ class TransformerManager:
         self._load_virtual_transformer()
         print(translate("transformerを仮想デバイスにロードしました"))
         
-    def set_next_settings(self, lora_path=None, lora_scale=None, fp8_enabled=False, high_vram_mode=False, use_f1_model=None):
+    def set_next_settings(self, lora_paths=None, lora_scales=None, fp8_enabled=False, high_vram_mode=False, use_f1_model=None, lora_path=None, lora_scale=None):
         """次回のロード時に使用する設定をセット（即時のリロードは行わない）
         
         Args:
-            lora_path: LoRAファイルのパス（Noneの場合はLoRA無効）
-            lora_scale: LoRAのスケール値（lora_pathがNoneの場合は無視）
+            lora_paths: LoRAファイルのパスのリスト（Noneの場合はLoRA無効）
+            lora_scales: LoRAのスケール値のリスト（lora_pathsがNoneの場合は無視）
             fp8_enabled: FP8最適化の有効/無効（LoRAが設定されている場合のみ有効）
             high_vram_mode: High-VRAMモードの有効/無効
             use_f1_model: F1モデル使用フラグ（Noneの場合は現在の設定を維持）
+            lora_path: 後方互換性のための単一LoRAパス
+            lora_scale: 後方互換性のための単一LoRAスケール
         """
+        # 後方互換性のための処理
+        if lora_paths is None and lora_path is not None:
+            lora_paths = [lora_path]
+            lora_scales = [lora_scale]
+            
+        # 単一のLoRAパスを配列に変換（後方互換性）
+        if lora_paths is not None and not isinstance(lora_paths, list):
+            lora_paths = [lora_paths]
+            
+        # 単一のLoRAスケールを配列に変換（後方互換性）
+        if lora_scales is not None and not isinstance(lora_scales, list):
+            lora_scales = [lora_scales]
+            
+        # LoRAパスが指定されている場合、スケール値が指定されていなければデフォルト値を設定
+        if lora_paths is not None and lora_paths and lora_scales is None:
+            lora_scales = [0.8] * len(lora_paths)
+            
+        # スケール値の数がLoRAパスの数と一致しない場合は調整
+        if lora_paths is not None and lora_scales is not None:
+            if len(lora_scales) < len(lora_paths):
+                lora_scales.extend([0.8] * (len(lora_paths) - len(lora_scales)))
+            elif len(lora_scales) > len(lora_paths):
+                lora_scales = lora_scales[:len(lora_paths)]
+        
         # LoRAが設定されていない場合はFP8最適化を強制的に無効化
-        actual_fp8_enabled = fp8_enabled if lora_path is not None else False
+        actual_fp8_enabled = fp8_enabled if lora_paths and len(lora_paths) > 0 else False
         
         # F1モデルフラグが指定されていない場合は現在の設定を維持
         actual_use_f1_model = use_f1_model if use_f1_model is not None else self.current_state.get('use_f1_model', False)
         
         self.next_state = {
-            'lora_path': lora_path,
-            'lora_scale': lora_scale,
+            'lora_paths': lora_paths if lora_paths else [],
+            'lora_scales': lora_scales if lora_scales else [],
             'fp8_enabled': actual_fp8_enabled,
             'high_vram': high_vram_mode,
             'is_loaded': self.current_state['is_loaded'],
             'use_f1_model': actual_use_f1_model
         }
         print(translate("次回のtransformer設定を設定しました:"))
-        print(f"  - LoRA: {lora_path if lora_path else 'None'}")
-        if lora_path:
-            print(f"  - LoRA scale: {lora_scale}")
+        if lora_paths and len(lora_paths) > 0:
+            for i, (path, scale) in enumerate(zip(lora_paths, lora_scales)):
+                print(f"  - LoRA {i+1}: {os.path.basename(path)} (スケール: {scale})")
             print(f"  - FP8 optimization: {actual_fp8_enabled}")
         else:
+            print(translate("  - LoRA: None"))
             print(translate("  - FP8 optimization: 無効 (LoRAが設定されていないため)"))
         print(f"  - High-VRAM mode: {high_vram_mode}")
         print(f"  - F1 Model: {actual_use_f1_model}")
@@ -83,21 +110,34 @@ class TransformerManager:
         if not self._is_loaded():
             return True
 
-        # LoRAパスの比較（Noneの場合は特別処理）
-        if self.current_state['lora_path'] is None:
-            if self.next_state['lora_path'] is not None:
-                return True
-        elif self.next_state['lora_path'] is None:
+        # LoRAパスリストの比較
+        current_paths = self.current_state.get('lora_paths', []) or []
+        next_paths = self.next_state.get('lora_paths', []) or []
+        
+        # パスの数が異なる場合はリロードが必要
+        if len(current_paths) != len(next_paths):
             return True
-        elif self.current_state['lora_path'] != self.next_state['lora_path']:
+            
+        # パスの内容が異なる場合はリロードが必要
+        if set(current_paths) != set(next_paths):
             return True
-
-        # LoRAスケールとFP8最適化の比較（LoRAが有効な場合のみ）
-        if self.next_state['lora_path'] is not None:
-            if self.current_state['lora_scale'] != self.next_state['lora_scale']:
-                return True
-            if self.current_state['fp8_enabled'] != self.next_state['fp8_enabled']:
-                return True
+            
+        # 同じLoRAパスでもスケールが異なる場合はリロードが必要
+        if next_paths:
+            current_scales = self.current_state.get('lora_scales', [])
+            next_scales = self.next_state.get('lora_scales', [])
+            
+            # パスとスケールを対応付けて比較
+            current_path_to_scale = {path: scale for path, scale in zip(current_paths, current_scales)}
+            next_path_to_scale = {path: scale for path, scale in zip(next_paths, next_scales)}
+            
+            for path in next_paths:
+                if current_path_to_scale.get(path) != next_path_to_scale.get(path):
+                    return True
+        
+        # LoRAが有効で、FP8最適化設定が異なる場合はリロードが必要
+        if next_paths and self.current_state.get('fp8_enabled') != self.next_state.get('fp8_enabled'):
+            return True
 
         # High-VRAMモードの比較
         if self.current_state['high_vram'] != self.next_state['high_vram']:
@@ -161,16 +201,21 @@ class TransformerManager:
 
             print(translate("\ntransformerをリロードします..."))
             print(translate("適用するtransformer設定:"))
-            print(f"  - LoRA: {self.next_state['lora_path'] if self.next_state['lora_path'] else 'None'}")
-            if self.next_state['lora_path']:
-                print(f"  - LoRA scale: {self.next_state['lora_scale']}")
+            lora_paths = self.next_state.get('lora_paths', []) or []
+            lora_scales = self.next_state.get('lora_scales', []) or []
+            if lora_paths:
+                for i, (path, scale) in enumerate(zip(lora_paths, lora_scales)):
+                    print(f"  - LoRA {i+1}: {os.path.basename(path)} (スケール: {scale})")
+            else:
+                print(translate("  - LoRA: None"))
             print(f"  - FP8 optimization: {self.next_state['fp8_enabled']}")
             print(f"  - High-VRAM mode: {self.next_state['high_vram']}")
 
             # モードに応じたモデルパスを選択
             model_path = self.MODEL_PATH_F1 if self.next_state.get('use_f1_model', False) else self.MODEL_PATH_NORMAL
             
-            if self.next_state['lora_path'] is None and self.next_state['fp8_enabled']:
+            lora_paths = self.next_state.get('lora_paths', []) or []
+            if (not lora_paths) and self.next_state['fp8_enabled']:
                 # LoRAとFP8最適化が無効な場合は、from_pretrained で新しいtransformerインスタンスを作成
                 self.transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained(
                     model_path,
@@ -199,8 +244,8 @@ class TransformerManager:
                     raise FileNotFoundError(translate("モデルファイルが見つかりませんでした。"))
 
                 # LoRAの適用および重みのFP8最適化
-                lora_paths = [self.next_state['lora_path']] if self.next_state['lora_path'] is not None else []
-                lora_scales = [self.next_state['lora_scale']] if self.next_state['lora_path'] is not None else []
+                lora_paths = self.next_state.get('lora_paths', []) or []
+                lora_scales = self.next_state.get('lora_scales', []) or []
 
                 try:
                     from lora_utils.lora_loader import load_and_apply_lora
@@ -211,7 +256,13 @@ class TransformerManager:
                         self.next_state['fp8_enabled'],
                         device=self.device
                     )
-                    print(translate("LoRAを直接適用しました (スケール: {0})").format(self.next_state['lora_scale']))
+                    if lora_paths:
+                        if len(lora_paths) == 1:
+                            print(translate("LoRAを直接適用しました (スケール: {0})").format(lora_scales[0]))
+                        else:
+                            print(translate("複数のLoRAを直接適用しました:"))
+                            for i, (path, scale) in enumerate(zip(lora_paths, lora_scales)):
+                                print(f"  - LoRA {i+1}: {os.path.basename(path)} (スケール: {scale})")
                     
                     # # LoRA診断 適切な診断方法が思いつかないのでいったんコメントアウト
                     # try:
