@@ -165,6 +165,10 @@ class TransformerManager:
         print(translate("ロード済みのtransformerを再度利用します"))
         return True
     
+    def ensure_download_models(self):
+        from huggingface_hub import snapshot_download
+        snapshot_download(repo_id=self._get_model_path(), allow_patterns="*.json")
+
     def _load_virtual_transformer(self):
         """仮想デバイスへのtransformerのロードを行う"""
         # モードに応じたモデルパスを選択
@@ -183,6 +187,9 @@ class TransformerManager:
         model_files = glob.glob(os.path.join(subdir, '**', '*.safetensors'), recursive=True)
         model_files.sort()
         return model_files
+
+    def _get_model_path(self):
+        return self.MODEL_PATH_F1 if self.next_state.get('use_f1_model', False) else self.MODEL_PATH_NORMAL
 
     def _reload_transformer(self):
         """next_stateの設定でtransformerをリロード"""
@@ -212,7 +219,7 @@ class TransformerManager:
             print(f"  - High-VRAM mode: {self.next_state['high_vram']}")
 
             # モードに応じたモデルパスを選択
-            model_path = self.MODEL_PATH_F1 if self.next_state.get('use_f1_model', False) else self.MODEL_PATH_NORMAL
+            model_path = self._get_model_path()
             
             lora_paths = self.next_state.get('lora_paths', []) or []
             if (not lora_paths) and self.next_state['fp8_enabled']:
@@ -240,7 +247,7 @@ class TransformerManager:
                 # 状態辞書のファイルを取得
                 model_files = self._find_model_files(model_path)
                 if len(model_files) == 0:
-                    # モデルファイルが見つからない場合はエラーをスロー TODO from_pretrained で取得するようにする
+                    # モデルファイルが見つからない場合はエラーをスロー （アプリ起動時にdownload&preloadしているはず）
                     raise FileNotFoundError(translate("モデルファイルが見つかりませんでした。"))
 
                 # LoRAの適用および重みのFP8最適化

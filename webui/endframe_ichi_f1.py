@@ -147,8 +147,7 @@ try:
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
 
     # transformerの初期化
-    # if not transformer_manager.ensure_transformer_state():
-    #     raise Exception(translate("transformerの初期化に失敗しました"))
+    transformer_manager.ensure_download_models()
     transformer = transformer_manager.get_transformer()  # 仮想デバイス上のtransformerを取得
 
     # 他のモデルの読み込み
