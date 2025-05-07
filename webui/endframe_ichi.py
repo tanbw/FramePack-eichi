@@ -2568,6 +2568,21 @@ with block:
 
                     print(translate("セクション視認性更新: モード={mode}, 長さ={length}, 必要セクション数={total_sections}").format(mode=mode, length=length, total_sections=total_sections))
 
+                    # 現在のキーフレームコピー機能の状態を取得
+                    # ループモードでのみキーフレームコピー機能が利用可能
+                    # 常にチェックボックスの状態(Value)を尊重し、毎回自動的に有効化しない
+                    # 以前の値をそのまま維持するために、現在のチェックボックス値を使用
+                    is_copy_enabled = False
+                    if not is_normal_mode:  # ループモードの場合のみ
+                        try:
+                            # チェックボックスの現在の値を取得（内部的な参照であり、イベント間で持続しない）
+                            is_copy_enabled = keyframe_copy_checkbox.value
+                            print(translate("[DEBUG] キーフレームコピー機能の状態: {state}").format(state=is_copy_enabled))
+                        except Exception as e:
+                            # エラーが発生した場合はデフォルト値を使用
+                            print(translate("[ERROR] チェックボックス状態取得エラー: {error}").format(error=e))
+                            is_copy_enabled = False
+
                     for i in range(len(section_image_inputs)):
                         if is_normal_mode:
                             # 通常モードではすべてのセクション画像の赤枠青枠を強制的にクリア
@@ -2575,9 +2590,11 @@ with block:
                             # print(translate("  セクション{i}: 通常モードなので赤枠/青枠を強制的にクリア").format(i=i))
                             section_image_updates.append(gr.update(elem_classes=""))  # 必ずelem_classesを空に設定
                         else:
-                            # ループモードではセクション0と1に赤枠青枠を設定
-                            # ループモードではチェックボックスが常にオンになることを利用
-                            if i == 0:
+                            # ループモードではセクション0と1に赤枠青枠を設定（ただしチェックボックスがオンのときのみ）
+                            if not is_copy_enabled:
+                                # チェックボックスがオフの場合は赤枠青枠を表示しない
+                                section_image_updates.append(gr.update(elem_classes=""))
+                            elif i == 0:
                                 # print(translate("  セクション{i}: ループモードのセクション0に赤枠を設定").format(i=i))
                                 section_image_updates.append(gr.update(elem_classes="highlighted-keyframe-red"))
                             elif i == 1:
@@ -2591,6 +2608,10 @@ with block:
                     section_row_updates = []
                     for i in range(len(section_row_groups)):
                         section_row_updates.append(gr.update(visible=(i < total_sections)))
+
+                    # チェックボックス状態も維持する
+                    # 出力リストには含まれていないため、ここではloggingのみ
+                    print(translate("[DEBUG] 維持されるキーフレームコピー機能の状態: {state}").format(state=is_copy_enabled))
 
                     # 返値の設定 - input_imageとend_frameは更新せず
                     return [gr.update()] * 2 + section_image_updates + [gr.update(value=seconds)] + section_row_updates
@@ -2952,25 +2973,86 @@ with block:
                 outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
             )
 
-            # frame_size_radio.changeの登録 - セクションの表示/非表示のみを更新
+            # 設定変更時にキーフレームコピー機能の状態を取得して保持する関数
+            def update_section_preserve_checkbox(mode, length, frame_size, copy_state):
+                """セクションの表示/非表示を更新し、キーフレームコピー機能の状態を維持する"""
+                # 通常のセクション表示/非表示の更新を行う
+                updates = update_section_visibility(mode, length, frame_size)
+                
+                # ループモードの場合のみキーフレームコピー機能が利用可能
+                is_loop_mode = (mode == MODE_TYPE_LOOP)
+                
+                # 現在の状態を維持（ループモードでない場合は常にFalse）
+                preserved_state = copy_state if is_loop_mode else False
+                
+                # 赤枠/青枠の表示状態を更新（キーフレームコピー機能の状態に応じて）
+                section_updates = []
+                for i in range(len(section_image_inputs)):
+                    if is_loop_mode and preserved_state:
+                        if i == 0:
+                            # セクション0は赤枠
+                            section_updates.append(gr.update(elem_classes="highlighted-keyframe-red"))
+                        elif i == 1:
+                            # セクション1は青枠
+                            section_updates.append(gr.update(elem_classes="highlighted-keyframe-blue"))
+                        else:
+                            section_updates.append(gr.update(elem_classes=""))
+                    else:
+                        # 通常モードまたはキーフレームコピー機能オフの場合は枠を非表示
+                        section_updates.append(gr.update(elem_classes=""))
+                
+                # キーフレームコピー機能のチェックボックス状態を更新
+                copy_checkbox_update = gr.update(value=preserved_state)
+                
+                # total_second_lengthの更新
+                seconds = get_video_seconds(length)
+                total_second_update = gr.update(value=seconds)
+                
+                # セクション行の表示/非表示を計算
+                latent_window_size_value = 4.5 if frame_size == translate("0.5秒 (17フレーム)") else 9
+                frame_count = latent_window_size_value * 4 - 3
+                total_frames = int(seconds * 30)
+                total_sections = int(max(round(total_frames / frame_count), 1))
+                
+                section_row_updates = []
+                for i in range(len(section_row_groups)):
+                    section_row_updates.append(gr.update(visible=(i < total_sections)))
+                
+                # 返値を構築
+                return [gr.update(), gr.update()] + section_updates + [total_second_update] + [copy_checkbox_update] + section_row_updates
+            
+            # frame_size_radio.changeの登録 - セクションの表示/非表示とキーフレームコピーの状態を維持
             frame_size_radio.change(
-                fn=update_section_visibility,
-                inputs=[mode_radio, length_radio, frame_size_radio],
-                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
+                fn=update_section_preserve_checkbox,
+                inputs=[mode_radio, length_radio, frame_size_radio, enable_keyframe_copy],
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + [keyframe_copy_checkbox] + section_row_groups
             )
 
-            # length_radio.changeの登録 - セクションの表示/非表示のみを更新
+            # length_radio.changeの登録 - セクションの表示/非表示とキーフレームコピーの状態を維持
             length_radio.change(
-                fn=update_section_visibility,
-                inputs=[mode_radio, length_radio, frame_size_radio],
-                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
+                fn=update_section_preserve_checkbox,
+                inputs=[mode_radio, length_radio, frame_size_radio, enable_keyframe_copy],
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + [keyframe_copy_checkbox] + section_row_groups
             )
 
             # mode_radio.changeの登録 - 拡張モード変更ハンドラを使用
+            # モード変更時は個別にキーフレームコピー機能のチェックボックスを更新する
+            def update_mode_and_checkbox_state(mode, length):
+                # 拡張モード変更ハンドラを呼び出してセクション表示を更新
+                section_updates = extended_mode_length_change_handler(
+                    mode, length, section_number_inputs, section_row_groups, frame_size_radio.value
+                )
+                
+                # ループモードならチェックボックスをオン、通常モードならオフにする
+                is_loop_mode = (mode == MODE_TYPE_LOOP)
+                checkbox_update = gr.update(value=is_loop_mode, visible=is_loop_mode)
+                
+                return section_updates + [checkbox_update]
+                
             mode_radio.change(
-                fn=lambda mode, length: extended_mode_length_change_handler(mode, length, section_number_inputs, section_row_groups),
+                fn=update_mode_and_checkbox_state,
                 inputs=[mode_radio, length_radio],
-                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups
+                outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups + [keyframe_copy_checkbox]
             )
 
 
