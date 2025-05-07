@@ -127,7 +127,7 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    git clone https://github.com/git-ai-code/FramePack-eichi.git
    # 必要なファイルをコピー
    cp FramePack-eichi/webui/endframe_ichi.py FramePack/
-      cp FramePack-eichi/webui/endframe_ichi_ichi.py FramePack/
+   cp FramePack-eichi/webui/endframe_ichi_ichi.py FramePack/
    cp -r FramePack-eichi/webui/eichi_utils FramePack/
    cp -r FramePack-eichi/webui/lora_utils FramePack/
    cp -r FramePack-eichi/webui/diffusers_helper FramePack/
