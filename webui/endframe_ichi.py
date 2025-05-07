@@ -2307,13 +2307,11 @@ with block:
             with gr.Group():
                 with gr.Row():
                     with gr.Column(scale=2):
-                        resolution = gr.Slider(
+                        resolution = gr.Dropdown(
                             label=translate("解像度"),
-                            minimum=512,
-                            maximum=768,
+                            choices=[512, 640, 768, 960, 1080],
                             value=640,
-                            step=128,
-                            info=translate("出力動画の基準解像度。現在は512か640か768のいずれかのみ対応（640推奨）")
+                            info=translate("出力動画の基準解像度。640推奨。960/1080は高負荷・高メモリ消費")
                         )
                     with gr.Column(scale=1):
                         batch_count = gr.Slider(
