@@ -126,11 +126,12 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    ```bash
    git clone https://github.com/git-ai-code/FramePack-eichi.git
    # 必要なファイルをコピー
-   cp FramePack-eichi/webui/endframe_ichi.py FramePack/webui/
-   cp -r FramePack-eichi/webui/eichi_utils FramePack/webui/
-   cp -r FramePack-eichi/webui/lora_utils FramePack/webui/
-   cp -r FramePack-eichi/webui/diffusers_helper FramePack/webui/
-   cp -r FramePack-eichi/webui/locales FramePack/webui/
+   cp FramePack-eichi/webui/endframe_ichi.py FramePack/
+      cp FramePack-eichi/webui/endframe_ichi_ichi.py FramePack/
+   cp -r FramePack-eichi/webui/eichi_utils FramePack/
+   cp -r FramePack-eichi/webui/lora_utils FramePack/
+   cp -r FramePack-eichi/webui/diffusers_helper FramePack/
+   cp -r FramePack-eichi/webui/locales FramePack/
    ```
 
 5. **高速化ライブラリのインストール（オプション）**:
@@ -145,11 +146,14 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
 6. **FramePack-eichiの起動**:
    ```bash
    cd FramePack
-   python webui/endframe_ichi.py  # デフォルトは日本語UI
+   python endframe_ichi.py  # デフォルトは日本語UI
+   python endframe_ichi_ichi.py  # デフォルトは日本語UI
    # 英語UIの場合:
-   python webui/endframe_ichi.py --lang en
+   python endframe_ichi.py --lang en
+   python endframe_ichi_ichi.py --lang en
    # 繁体字中国語UIの場合:
-   python webui/endframe_ichi.py --lang zh-tw
+   python endframe_ichi.py --lang zh-tw
+   python endframe_ichi_ichi.py --lang zh-tw
    ```
 
 ## Dockerセットアップ手順
@@ -221,12 +225,13 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    RUN git clone https://github.com/lllyasviel/FramePack.git . && \
        git clone https://github.com/git-ai-code/FramePack-eichi.git /tmp/FramePack-eichi
    
-   # FramePack-eichiファイルのコピー
-   RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/eichi_utils webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/lora_utils webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/diffusers_helper webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/locales webui/ && \
+   # FramePack-eichiファイルのコピー（Linuxセットアップ手順と同様にルートディレクトリに配置）
+   RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py . && \
+       cp /tmp/FramePack-eichi/webui/endframe_ichi_ichi.py . && \
+       cp -r /tmp/FramePack-eichi/webui/eichi_utils . && \
+       cp -r /tmp/FramePack-eichi/webui/lora_utils . && \
+       cp -r /tmp/FramePack-eichi/webui/diffusers_helper . && \
+       cp -r /tmp/FramePack-eichi/webui/locales . && \
        rm -rf /tmp/FramePack-eichi
    
    # PyTorchと依存関係のインストール
@@ -243,8 +248,8 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    # WebUI用のポートを公開
    EXPOSE 7860
    
-   # FramePack-eichiの起動
-   ENTRYPOINT ["python", "webui/endframe_ichi.py", "--listen"]
+   # FramePack-eichiの起動（Linuxセットアップ手順と同様にルートディレクトリから実行）
+   ENTRYPOINT ["python", "endframe_ichi.py", "--listen"]
    ```
    
    - Docker Composeでビルドして実行:
@@ -409,12 +414,12 @@ WSLでFramePack-eichiをセットアップすると、NVIDIAのWSLドライバ�
 
 7. **FramePack-eichiの起動**:
    ```bash
-   python webui/endframe_ichi.py
+   python endframe_ichi.py
    ```
 
    言語を指定することもできます:
    ```bash
-   python webui/endframe_ichi.py --lang en  # 英語の場合
+   python endframe_ichi.py --lang en  # 英語の場合
    ```
 
 8. **Webインターフェースにアクセス**するには、Windowsでブラウザを開き、ターミナルに表示されるURL（通常はhttp://127.0.0.1:7860）に移動します。
@@ -442,8 +447,13 @@ cd FramePack
 # FramePack-eichiリポジトリを一時的な場所にクローン
 git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
 
-# 拡張webファイルをコピー
-cp -r temp_eichi/webui/* webui/
+# 拡張webファイルをコピー（Linuxセットアップ手順と同様にルートディレクトリに配置）
+cp temp_eichi/webui/endframe_ichi.py .
+cp temp_eichi/webui/endframe_ichi_ichi.py .
+cp -r temp_eichi/webui/eichi_utils .
+cp -r temp_eichi/webui/lora_utils .
+cp -r temp_eichi/webui/diffusers_helper .
+cp -r temp_eichi/webui/locales .
 
 # 言語固有のバッチファイルをルートディレクトリにコピー（適切なファイルを選択）
 cp temp_eichi/run_endframe_ichi.bat .  # 日本語（デフォルト）
@@ -530,7 +540,7 @@ rm -rf temp_eichi
 %env PYTHONPATH=/content/FramePack:$PYTHONPATH
 
 # 公開URLでWebUIを起動
-%cd /content/FramePack/webui
+%cd /content/FramePack
 !python endframe_ichi.py --share
 ```
 
@@ -621,7 +631,13 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
    git clone https://github.com/lllyasviel/FramePack.git
    cd FramePack
    git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
-   cp -r temp_eichi/webui/* webui/
+   # Linuxセットアップ手順と同様にルートディレクトリに配置
+   cp temp_eichi/webui/endframe_ichi.py .
+   cp temp_eichi/webui/endframe_ichi_ichi.py .
+   cp -r temp_eichi/webui/eichi_utils .
+   cp -r temp_eichi/webui/lora_utils .
+   cp -r temp_eichi/webui/diffusers_helper .
+   cp -r temp_eichi/webui/locales .
    cp temp_eichi/run_endframe_ichi_en.bat .  # 英語バージョン
    rm -rf temp_eichi
    ```
@@ -633,7 +649,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 6. **セキュリティグループの設定** - ポート7860への着信トラフィックを許可
 7. **公開表示で実行**:
    ```bash
-   cd webui
    python endframe_ichi.py --server --listen --port 7860
    ```
 8. **UIへのアクセス** - http://your-instance-ip:7860

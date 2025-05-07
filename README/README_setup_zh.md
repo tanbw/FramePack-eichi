@@ -126,11 +126,12 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    ```bash
    git clone https://github.com/git-ai-code/FramePack-eichi.git
    # 複製必要文件
-   cp FramePack-eichi/webui/endframe_ichi.py FramePack/webui/
-   cp -r FramePack-eichi/webui/eichi_utils FramePack/webui/
-   cp -r FramePack-eichi/webui/lora_utils FramePack/webui/
-   cp -r FramePack-eichi/webui/diffusers_helper FramePack/webui/
-   cp -r FramePack-eichi/webui/locales FramePack/webui/
+   cp FramePack-eichi/webui/endframe_ichi.py FramePack/
+   cp FramePack-eichi/webui/endframe_ichi_ichi.py FramePack/
+   cp -r FramePack-eichi/webui/eichi_utils FramePack/
+   cp -r FramePack-eichi/webui/lora_utils FramePack/
+   cp -r FramePack-eichi/webui/diffusers_helper FramePack/
+   cp -r FramePack-eichi/webui/locales FramePack/
    ```
 
 5. **安裝加速庫（可選）**:
@@ -145,11 +146,14 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
 6. **啟動 FramePack-eichi**:
    ```bash
    cd FramePack
-   python webui/endframe_ichi.py  # 默認為日語 UI
+   python endframe_ichi.py  # 默認為日語 UI
+   python endframe_ichi_ichi.py  # 默認為日語 UI
    # 英語 UI：
-   python webui/endframe_ichi.py --lang en
+   python endframe_ichi.py --lang en
+   python endframe_ichi_ichi.py --lang en
    # 繁體中文 UI：
-   python webui/endframe_ichi.py --lang zh-tw
+   python endframe_ichi.py --lang zh-tw
+   python endframe_ichi_ichi.py --lang zh-tw
    ```
 
 ## Docker 設置說明
@@ -221,12 +225,13 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    RUN git clone https://github.com/lllyasviel/FramePack.git . && \
        git clone https://github.com/git-ai-code/FramePack-eichi.git /tmp/FramePack-eichi
    
-   # 複製 FramePack-eichi 文件
-   RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/eichi_utils webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/lora_utils webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/diffusers_helper webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/locales webui/ && \
+   # 複製 FramePack-eichi 文件（复制到根目錄，與 Linux 設置相同）
+   RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py . && \
+       cp /tmp/FramePack-eichi/webui/endframe_ichi_ichi.py . && \
+       cp -r /tmp/FramePack-eichi/webui/eichi_utils . && \
+       cp -r /tmp/FramePack-eichi/webui/lora_utils . && \
+       cp -r /tmp/FramePack-eichi/webui/diffusers_helper . && \
+       cp -r /tmp/FramePack-eichi/webui/locales . && \
        rm -rf /tmp/FramePack-eichi
    
    # 安裝 PyTorch 和依賴項
@@ -243,8 +248,8 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    # 暴露 WebUI 端口
    EXPOSE 7860
    
-   # 啟動 FramePack-eichi
-   ENTRYPOINT ["python", "webui/endframe_ichi.py", "--listen"]
+   # 啟動 FramePack-eichi（從根目錄，與 Linux 設置相同）
+   ENTRYPOINT ["python", "endframe_ichi.py", "--listen"]
    ```
    
    - 使用 Docker Compose 構建和運行：
@@ -409,12 +414,12 @@ FramePack-eichi 可通過 brandon929/FramePack 分支在 Apple Silicon Mac 上�
 
 7. **啟動 FramePack-eichi**:
    ```bash
-   python webui/endframe_ichi.py
+   python endframe_ichi.py
    ```
 
    您還可以指定語言：
    ```bash
-   python webui/endframe_ichi.py --lang zh-tw  # 使用繁體中文
+   python endframe_ichi.py --lang zh-tw  # 使用繁體中文
    ```
 
 8. **訪問 Web 界面**，在 Windows 中打開瀏覽器並導航到終端中顯示的 URL（通常是 http://127.0.0.1:7860）。
@@ -442,8 +447,13 @@ cd FramePack
 # 將 FramePack-eichi 倉庫克隆到臨時位置
 git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
 
-# 複製擴展的 webui 文件
-cp -r temp_eichi/webui/* webui/
+# 複製擴展的 webui 文件（到根目錄，與 Linux 設置相同）
+cp temp_eichi/webui/endframe_ichi.py .
+cp temp_eichi/webui/endframe_ichi_ichi.py .
+cp -r temp_eichi/webui/eichi_utils .
+cp -r temp_eichi/webui/lora_utils .
+cp -r temp_eichi/webui/diffusers_helper .
+cp -r temp_eichi/webui/locales .
 
 # 將特定語言的批處理文件複製到根目錄（選擇適當的文件）
 cp temp_eichi/run_endframe_ichi_zh-tw.bat .  # 繁體中文
@@ -521,16 +531,20 @@ rm -rf temp_eichi
 !pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 !pip install -r requirements.txt
 
-# 設置 eichi 擴展
-!mkdir -p webui 
-!cp -r /content/tmp/webui/* webui/
+# 設置 eichi 擴展（到根目錄，與 Linux 設置相同）
+!cp /content/tmp/webui/endframe_ichi.py .
+!cp /content/tmp/webui/endframe_ichi_ichi.py .
+!cp -r /content/tmp/webui/eichi_utils .
+!cp -r /content/tmp/webui/lora_utils .
+!cp -r /content/tmp/webui/diffusers_helper .
+!cp -r /content/tmp/webui/locales .
 !cp /content/tmp/run_endframe_ichi.bat .
 
 # 設置 PYTHONPATH 環境變量
 %env PYTHONPATH=/content/FramePack:$PYTHONPATH
 
 # 使用公共 URL 啟動 WebUI
-%cd /content/FramePack/webui
+%cd /content/FramePack
 !python endframe_ichi.py --share --lang zh-tw
 ```
 
@@ -621,7 +635,13 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
    git clone https://github.com/lllyasviel/FramePack.git
    cd FramePack
    git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
-   cp -r temp_eichi/webui/* webui/
+   # 複製文件到根目錄，與 Linux 設置相同
+   cp temp_eichi/webui/endframe_ichi.py .
+   cp temp_eichi/webui/endframe_ichi_ichi.py .
+   cp -r temp_eichi/webui/eichi_utils .
+   cp -r temp_eichi/webui/lora_utils .
+   cp -r temp_eichi/webui/diffusers_helper .
+   cp -r temp_eichi/webui/locales .
    cp temp_eichi/run_endframe_ichi_zh-tw.bat .  # 繁體中文版
    rm -rf temp_eichi
    ```
@@ -633,7 +653,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 6. **配置安全組** - 允許端口 7860 上的入站流量
 7. **以公共可見性運行**:
    ```bash
-   cd webui
    python endframe_ichi.py --server --listen --port 7860 --lang zh-tw
    ```
 8. **訪問 UI** - http://your-instance-ip:7860

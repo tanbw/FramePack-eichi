@@ -126,11 +126,12 @@ FramePack-eichi is an AI video generation system that creates short videos from 
    ```bash
    git clone https://github.com/git-ai-code/FramePack-eichi.git
    # Copy necessary files
-   cp FramePack-eichi/webui/endframe_ichi.py FramePack/webui/
-   cp -r FramePack-eichi/webui/eichi_utils FramePack/webui/
-   cp -r FramePack-eichi/webui/lora_utils FramePack/webui/
-   cp -r FramePack-eichi/webui/diffusers_helper FramePack/webui/
-   cp -r FramePack-eichi/webui/locales FramePack/webui/
+   cp FramePack-eichi/webui/endframe_ichi.py FramePack/
+   cp FramePack-eichi/webui/endframe_ichi_f1.py FramePack/
+   cp -r FramePack-eichi/webui/eichi_utils FramePack/
+   cp -r FramePack-eichi/webui/lora_utils FramePack/
+   cp -r FramePack-eichi/webui/diffusers_helper FramePack/
+   cp -r FramePack-eichi/webui/locales FramePack/
    ```
 
 5. **Installing Acceleration Libraries (Optional)**:
@@ -145,11 +146,14 @@ FramePack-eichi is an AI video generation system that creates short videos from 
 6. **Launching FramePack-eichi**:
    ```bash
    cd FramePack
-   python webui/endframe_ichi.py  # Default is Japanese UI
+   python endframe_ichi.py  # Default is Japanese UI
+   python endframe_ichi_f1.py  # Default is Japanese UI
    # For English UI:
-   python webui/endframe_ichi.py --lang en
+   python endframe_ichi.py --lang en
+   python endframe_ichi_f1.py --lang en
    # For Traditional Chinese UI:
-   python webui/endframe_ichi.py --lang zh-tw
+   python endframe_ichi.py --lang zh-tw
+   python endframe_ichi_f1.py --lang zh-tw
    ```
 
 ## Docker Setup Instructions
@@ -221,12 +225,13 @@ FramePack-eichi is an AI video generation system that creates short videos from 
    RUN git clone https://github.com/lllyasviel/FramePack.git . && \
        git clone https://github.com/git-ai-code/FramePack-eichi.git /tmp/FramePack-eichi
    
-   # Copy FramePack-eichi files
-   RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/eichi_utils webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/lora_utils webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/diffusers_helper webui/ && \
-       cp -r /tmp/FramePack-eichi/webui/locales webui/ && \
+   # Copy FramePack-eichi files (to root directory, same as Linux setup)
+   RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py . && \
+       cp /tmp/FramePack-eichi/webui/endframe_ichi_ichi.py . && \
+       cp -r /tmp/FramePack-eichi/webui/eichi_utils . && \
+       cp -r /tmp/FramePack-eichi/webui/lora_utils . && \
+       cp -r /tmp/FramePack-eichi/webui/diffusers_helper . && \
+       cp -r /tmp/FramePack-eichi/webui/locales . && \
        rm -rf /tmp/FramePack-eichi
    
    # Install PyTorch and dependencies
@@ -243,8 +248,8 @@ FramePack-eichi is an AI video generation system that creates short videos from 
    # Expose port for WebUI
    EXPOSE 7860
    
-   # Launch FramePack-eichi
-   ENTRYPOINT ["python", "webui/endframe_ichi.py", "--listen"]
+   # Launch FramePack-eichi (from root directory, same as Linux setup)
+   ENTRYPOINT ["python", "endframe_ichi.py", "--listen"]
    ```
    
    - Build and run with Docker Compose:
@@ -409,12 +414,12 @@ Setting up FramePack-eichi in WSL provides a Linux environment on Windows with G
 
 7. **Launch FramePack-eichi**:
    ```bash
-   python webui/endframe_ichi.py
+   python endframe_ichi.py
    ```
 
    You can also specify a language:
    ```bash
-   python webui/endframe_ichi.py --lang en  # For English
+   python endframe_ichi.py --lang en  # For English
    ```
 
 8. **Access the Web Interface** by opening a browser in Windows and navigating to the URL displayed in the terminal (typically http://127.0.0.1:7860).
@@ -442,8 +447,13 @@ cd FramePack
 # Clone the FramePack-eichi repository to a temporary location
 git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
 
-# Copy extended webui files
-cp -r temp_eichi/webui/* webui/
+# Copy extended webui files (to root directory, same as Linux setup)
+cp temp_eichi/webui/endframe_ichi.py .
+cp temp_eichi/webui/endframe_ichi_ichi.py .
+cp -r temp_eichi/webui/eichi_utils .
+cp -r temp_eichi/webui/lora_utils .
+cp -r temp_eichi/webui/diffusers_helper .
+cp -r temp_eichi/webui/locales .
 
 # Copy language-specific batch files to the root directory (choose appropriate file)
 cp temp_eichi/run_endframe_ichi.bat .  # Japanese (default)
@@ -521,16 +531,20 @@ Below is an alternative setup method. Prefer the above method for newer environm
 !pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 !pip install -r requirements.txt
 
-# Set up eichi extensions
-!mkdir -p webui 
-!cp -r /content/tmp/webui/* webui/
+# Set up eichi extensions (to root directory, same as Linux setup)
+!cp /content/tmp/webui/endframe_ichi.py .
+!cp /content/tmp/webui/endframe_ichi_ichi.py .
+!cp -r /content/tmp/webui/eichi_utils .
+!cp -r /content/tmp/webui/lora_utils .
+!cp -r /content/tmp/webui/diffusers_helper .
+!cp -r /content/tmp/webui/locales .
 !cp /content/tmp/run_endframe_ichi.bat .
 
 # Set PYTHONPATH environment variable
 %env PYTHONPATH=/content/FramePack:$PYTHONPATH
 
 # Launch WebUI with public URL
-%cd /content/FramePack/webui
+%cd /content/FramePack
 !python endframe_ichi.py --share
 ```
 
@@ -621,7 +635,13 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
    git clone https://github.com/lllyasviel/FramePack.git
    cd FramePack
    git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
-   cp -r temp_eichi/webui/* webui/
+   # Copy files to root directory, same as Linux setup
+   cp temp_eichi/webui/endframe_ichi.py .
+   cp temp_eichi/webui/endframe_ichi_ichi.py .
+   cp -r temp_eichi/webui/eichi_utils .
+   cp -r temp_eichi/webui/lora_utils .
+   cp -r temp_eichi/webui/diffusers_helper .
+   cp -r temp_eichi/webui/locales .
    cp temp_eichi/run_endframe_ichi_en.bat .  # English version
    rm -rf temp_eichi
    ```
@@ -633,7 +653,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 6. **Configure Security Group** - Allow incoming traffic on port 7860
 7. **Run with Public Visibility**:
    ```bash
-   cd webui
    python endframe_ichi.py --server --listen --port 7860
    ```
 8. **Access the UI** - http://your-instance-ip:7860
