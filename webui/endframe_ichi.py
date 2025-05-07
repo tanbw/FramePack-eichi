@@ -219,7 +219,35 @@ os.makedirs(outputs_folder, exist_ok=True)
 # v1.9.1テスト実装
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False):
+
+    # フレーム保存フラグのタイプと値を確認（必ずブール値であるべき）
+    print(translate("[DEBUG] worker関数に渡されたフラグ - save_latent_frames型: {0}, 値: {1}").format(type(save_latent_frames).__name__, save_latent_frames))
+    print(translate("[DEBUG] worker関数に渡されたフラグ - save_last_section_frames型: {0}, 値: {1}").format(type(save_last_section_frames).__name__, save_last_section_frames))
+    
+    # 万が一文字列が渡された場合の防御コード
+    if isinstance(save_latent_frames, str):
+        # 文字列の場合は、条件判定して適切なブール値に変換
+        if save_latent_frames == translate("全フレーム画像保存"):
+            save_latent_frames = True
+        else:
+            save_latent_frames = False
+        print(translate("[WARN] save_latent_framesが文字列でした。ブール値に変換: {0}").format(save_latent_frames))
+    
+    if isinstance(save_last_section_frames, str):
+        # 文字列の場合は、条件判定して適切なブール値に変換
+        # 注意: UIでは「最終セクションのみ全フレーム画像保存」という表記を使っている
+        if save_last_section_frames == translate("最終セクションのみフレーム画像保存") or save_last_section_frames == translate("最終セクションのみ全フレーム画像保存"):
+            save_last_section_frames = True
+        else:
+            save_last_section_frames = False
+        print(translate("[WARN] save_last_section_framesが文字列でした。ブール値に変換: {0}").format(save_last_section_frames))
+    
+    # 最終的に必ずブール型に変換しておく
+    save_latent_frames = bool(save_latent_frames)
+    save_last_section_frames = bool(save_last_section_frames)
+    
+    print(translate("[DEBUG] 最終変換後のフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(save_latent_frames, save_last_section_frames))
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
     print(translate("[DEBUG] worker内 input_imageの型: {0}").format(type(input_image)))
@@ -958,6 +986,108 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
+                
+                # 最初のセクションで全フレーム画像を保存
+                # 「全フレーム画像保存」または「最終セクションのみ全フレーム画像保存かつ最終セクション」が有効な場合
+                # 最終セクションかどうかを判断
+                is_last_section = i_section == total_sections - 1
+                print(translate("\n[DEBUG] 現在のセクション: {0}, 総セクション数: {1}, 最終セクションと判定: {2}").format(i_section, total_sections, is_last_section))
+                
+                # save_latent_frames と save_last_section_frames の値をcopy
+                # ループ内の変数を変更してもグローバルな値は変わらないため
+                # 注意：既にここに来る前に万が一の文字列→ブール変換処理が済んでいるはず
+                
+                # デバッグ情報を追加：実際に使用されるフラグの値を確認
+                print(translate("[DEBUG] セクション{0}の処理開始時 - 現在のsave_latent_frames型: {1}, 値: {2}").format(
+                    i_section, type(save_latent_frames).__name__, save_latent_frames
+                ))
+                print(translate("[DEBUG] セクション{0}の処理開始時 - 現在のsave_last_section_frames型: {1}, 値: {2}").format(
+                    i_section, type(save_last_section_frames).__name__, save_last_section_frames
+                ))
+                
+                # 値のコピーではなく、明示的に新しい変数に適切な値を設定
+                # BooleanかStringかの型変換ミスを防ぐ
+                is_save_all_frames = bool(save_latent_frames)
+                is_save_last_frame_only = bool(save_last_section_frames)
+                
+                # デバッグ情報を追加：変換後の値を確認
+                print(translate("[DEBUG] セクション{0}の処理 - 変換後のis_save_all_frames型: {1}, 値: {2}").format(
+                    i_section, type(is_save_all_frames).__name__, is_save_all_frames
+                ))
+                print(translate("[DEBUG] セクション{0}の処理 - 変換後のis_save_last_frame_only型: {1}, 値: {2}").format(
+                    i_section, type(is_save_last_frame_only).__name__, is_save_last_frame_only
+                ))
+                
+                # フレーム保存の判定ロジック
+                if is_save_all_frames:
+                    should_save_frames = True
+                    print(translate("[DEBUG] 全フレーム画像保存が有効: 全セクションでフレーム保存します"))
+                elif is_save_last_frame_only and is_last_section:
+                    should_save_frames = True
+                    print(translate("[DEBUG] 最終セクションのみ全フレーム画像保存が有効: 現在のセクション{0}が最終セクションと判定されたため保存します").format(i_section))
+                else:
+                    should_save_frames = False
+                    if is_save_last_frame_only:
+                        print(translate("[DEBUG] 最終セクションのみ全フレーム画像保存が有効: 現在のセクション{0}は最終セクションではないためスキップします").format(i_section))
+                    else:
+                        print(translate("[DEBUG] フレーム画像保存は無効です"))
+                if should_save_frames and history_pixels is not None:
+                    try:
+                        # フレーム数
+                        latent_frame_count = history_pixels.shape[2]
+                        
+                        # 保存モードに応じたメッセージを表示
+                        # グローバル変数ではなく、ローカルのcopyを使用
+                        if is_save_all_frames:
+                            print(translate("\n[INFO] 全フレーム画像保存: 最初のセクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
+                        elif is_save_last_frame_only and is_last_section:
+                            print(translate("\n[INFO] 最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}フレームを保存します (最終セクション)").format(i_section, total_sections-1, latent_frame_count))
+                        else:
+                            print(translate("\n[INFO] フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
+                        
+                        # セクションごとのフォルダを作成
+                        frames_folder = os.path.join(outputs_folder, f'{job_id}_frames_section{i_section}')
+                        os.makedirs(frames_folder, exist_ok=True)
+                        
+                        # 各フレームの保存
+                        for frame_idx in range(latent_frame_count):
+                            # フレームを取得
+                            frame = history_pixels[0, :, frame_idx, :, :]
+                            frame = einops.rearrange(frame, 'c h w -> h w c')
+                            frame = frame.cpu().numpy()
+                            frame = np.clip((frame * 127.5 + 127.5), 0, 255).astype(np.uint8)
+                            frame = resize_and_center_crop(frame, target_width=width, target_height=height)
+                            
+                            # メタデータの準備
+                            frame_metadata = {
+                                PROMPT_KEY: prompt,  # メインプロンプト
+                                SEED_KEY: seed,
+                                SECTION_NUMBER_KEY: i_section,
+                                "FRAME_NUMBER": frame_idx  # フレーム番号も追加
+                            }
+                            
+                            # セクション固有のプロンプトがあれば追加
+                            if section_map and i_section in section_map:
+                                _, section_prompt = section_map[i_section]
+                                if section_prompt and section_prompt.strip():
+                                    frame_metadata[SECTION_PROMPT_KEY] = section_prompt
+                            
+                            # 画像の保存とメタデータの埋め込み
+                            frame_path = os.path.join(frames_folder, f'frame_{frame_idx:03d}.png')
+                            Image.fromarray(frame).save(frame_path)
+                            embed_metadata_to_png(frame_path, frame_metadata)
+                        
+                        # 保存モードに応じたメッセージを表示
+                        # グローバル変数ではなく、ローカルのcopyを使用
+                        if is_save_all_frames:
+                            print(translate("[INFO] 全フレーム画像保存: セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(i_section, latent_frame_count, frames_folder))
+                        elif is_save_last_frame_only and is_last_section:
+                            print(translate("[INFO] 最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}個のフレーム画像を保存しました (最終セクション): {3}").format(i_section, total_sections-1, latent_frame_count, frames_folder))
+                        else:
+                            print(translate("[INFO] セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(i_section, latent_frame_count, frames_folder))
+                    except Exception as e:
+                        print(translate("[WARN] セクション{0}のフレーム画像保存中にエラー: {1}").format(i_section, e))
+                        traceback.print_exc()
             else:
                 # latent_window_sizeが4.5の場合は特別に5を使用
                 if latent_window_size == 4.5:
@@ -969,6 +1099,124 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
                 history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
+                
+                # 各セクションで生成された個々のフレームを静止画として保存
+                # 「全フレーム画像保存」または「最終セクションのみ全フレーム画像保存かつ最終セクション」が有効な場合
+                # 最終セクションかどうかを再判断
+                is_last_section = i_section == total_sections - 1
+                print(translate("\n[DEBUG] 現在のセクション: {0}, 総セクション数: {1}, 最終セクションと判定: {2}").format(i_section, total_sections, is_last_section))
+                
+                # save_latent_frames と save_last_section_frames の値をcopy
+                # ループ内の変数を変更してもグローバルな値は変わらないため
+                # 注意：既にここに来る前に万が一の文字列→ブール変換処理が済んでいるはず
+                
+                # デバッグ情報を追加：実際に使用されるフラグの値を確認
+                print(translate("[DEBUG] セクション{0}の処理開始時 - 現在のsave_latent_frames型: {1}, 値: {2}").format(
+                    i_section, type(save_latent_frames).__name__, save_latent_frames
+                ))
+                print(translate("[DEBUG] セクション{0}の処理開始時 - 現在のsave_last_section_frames型: {1}, 値: {2}").format(
+                    i_section, type(save_last_section_frames).__name__, save_last_section_frames
+                ))
+                
+                # 値のコピーではなく、明示的に新しい変数に適切な値を設定
+                # BooleanかStringかの型変換ミスを防ぐ
+                is_save_all_frames = bool(save_latent_frames)
+                is_save_last_frame_only = bool(save_last_section_frames)
+                
+                # デバッグ情報を追加：変換後の値を確認
+                print(translate("[DEBUG] セクション{0}の処理 - 変換後のis_save_all_frames型: {1}, 値: {2}").format(
+                    i_section, type(is_save_all_frames).__name__, is_save_all_frames
+                ))
+                print(translate("[DEBUG] セクション{0}の処理 - 変換後のis_save_last_frame_only型: {1}, 値: {2}").format(
+                    i_section, type(is_save_last_frame_only).__name__, is_save_last_frame_only
+                ))
+                
+                # フレーム保存の判定ロジック
+                if is_save_all_frames:
+                    should_save_frames = True
+                    print(translate("[DEBUG] 全フレーム画像保存が有効: 全セクションでフレーム保存します"))
+                elif is_save_last_frame_only and is_last_section:
+                    should_save_frames = True
+                    print(translate("[DEBUG] 最終セクションのみ全フレーム画像保存が有効: 現在のセクション{0}が最終セクションと判定されたため保存します").format(i_section))
+                else:
+                    should_save_frames = False
+                    if is_save_last_frame_only:
+                        print(translate("[DEBUG] 最終セクションのみ全フレーム画像保存が有効: 現在のセクション{0}は最終セクションではないためスキップします").format(i_section))
+                    else:
+                        print(translate("[DEBUG] フレーム画像保存は無効です"))
+                if should_save_frames:
+                    try:
+                        # source_pixelsは、このセクションで使用するピクセルデータ
+                        source_pixels = None
+                        
+                        # どのソースを使用するかを決定
+                        # i_section=0の場合、current_pixelsが定義される前に参照されるためエラーとなる可能性がある
+                        # history_pixelsを優先して使用するよう処理順序を変更
+                        if history_pixels is not None:
+                            source_pixels = history_pixels
+                            print(translate("\n[INFO] 全フレーム画像保存: history_pixelsを使用します"))
+                        elif 'current_pixels' in locals() and current_pixels is not None:
+                            source_pixels = current_pixels
+                            print(translate("\n[INFO] 全フレーム画像保存: current_pixelsを使用します"))
+                        else:
+                            print(translate("\n[WARN] 全フレーム画像保存: 有効なピクセルデータがありません"))
+                            return
+                            
+                        # フレーム数（1秒モードでは9フレーム、0.5秒モードでは5フレーム）
+                        latent_frame_count = source_pixels.shape[2]
+                        
+                        # 保存モードに応じたメッセージを表示
+                        # グローバル変数ではなく、ローカルのcopyを使用
+                        if is_save_all_frames:
+                            print(translate("[INFO] 全フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
+                        elif is_save_last_frame_only and is_last_section:
+                            print(translate("[INFO] 最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}フレームを保存します (最終セクション)").format(i_section, total_sections-1, latent_frame_count))
+                        else:
+                            print(translate("[INFO] フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
+                        
+                        # セクションごとのフォルダを作成
+                        frames_folder = os.path.join(outputs_folder, f'{job_id}_frames_section{i_section}')
+                        os.makedirs(frames_folder, exist_ok=True)
+                        
+                        # 各フレームの保存
+                        for frame_idx in range(latent_frame_count):
+                            # フレームを取得
+                            frame = source_pixels[0, :, frame_idx, :, :]
+                            frame = einops.rearrange(frame, 'c h w -> h w c')
+                            frame = frame.cpu().numpy()
+                            frame = np.clip((frame * 127.5 + 127.5), 0, 255).astype(np.uint8)
+                            frame = resize_and_center_crop(frame, target_width=width, target_height=height)
+                            
+                            # メタデータの準備
+                            frame_metadata = {
+                                PROMPT_KEY: prompt,  # メインプロンプト
+                                SEED_KEY: seed,
+                                SECTION_NUMBER_KEY: i_section,
+                                "FRAME_NUMBER": frame_idx  # フレーム番号も追加
+                            }
+                            
+                            # セクション固有のプロンプトがあれば追加
+                            if section_map and i_section in section_map:
+                                _, section_prompt = section_map[i_section]
+                                if section_prompt and section_prompt.strip():
+                                    frame_metadata[SECTION_PROMPT_KEY] = section_prompt
+                            
+                            # 画像の保存とメタデータの埋め込み
+                            frame_path = os.path.join(frames_folder, f'frame_{frame_idx:03d}.png')
+                            Image.fromarray(frame).save(frame_path)
+                            embed_metadata_to_png(frame_path, frame_metadata)
+                        
+                        # 保存モードに応じたメッセージを表示
+                        # グローバル変数ではなく、ローカルのcopyを使用
+                        if is_save_all_frames:
+                            print(translate("[INFO] 全フレーム画像保存: セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(i_section, latent_frame_count, frames_folder))
+                        elif is_save_last_frame_only and is_last_section:
+                            print(translate("[INFO] 最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}個のフレーム画像を保存しました (最終セクション): {3}").format(i_section, total_sections-1, latent_frame_count, frames_folder))
+                        else:
+                            print(translate("[INFO] セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(i_section, latent_frame_count, frames_folder))
+                    except Exception as e:
+                        print(translate("[WARN] セクション{0}のフレーム画像保存中にエラー: {1}").format(i_section, e))
+                        traceback.print_exc()
 
             # COMMENTED OUT: 明示的なCPU転送と不要テンソルの削除（処理速度向上のため）
             # if torch.cuda.is_available():
@@ -1584,7 +1832,7 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False):
     global stream
     global batch_stopped
 
@@ -1844,7 +2092,9 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             tensor_data_input,
             fp8_optimization,
             resolution,
-            batch_index
+            batch_index,
+            save_latent_frames,  # 全フレーム画像保存フラグ（ラジオボタンから設定）
+            save_last_section_frames  # 最終セクションのみ全フレーム画像保存フラグ（ラジオボタンから設定）
         )
 
         # 現在のバッチの出力ファイル名
@@ -2964,6 +3214,19 @@ with block:
 
             # セクションごとの静止画保存チェックボックスを追加（デフォルトOFF）
             save_section_frames = gr.Checkbox(label=translate("Save Section Frames"), value=False, info=translate("各セクションの最終フレームを静止画として保存します（デフォルトOFF）"))
+            
+            # フレーム画像保存のラジオボタンを追加（デフォルトは「保存しない」）
+            gr.Markdown(translate("### フレーム画像保存設定"))
+            frame_save_mode = gr.Radio(
+                label=translate("フレーム画像保存モード"),
+                choices=[
+                    translate("保存しない"),
+                    translate("全フレーム画像保存"),
+                    translate("最終セクションのみ全フレーム画像保存")
+                ],
+                value=translate("保存しない"),
+                info=translate("フレーム画像の保存方法を選択します。過去セクション分も含めて保存します。全セクションか最終セクションのみか選択できます。")
+            )
 
             # UIコンポーネント定義後のイベント登録
             # mode_radio.changeの登録 - セクションの表示/非表示と赤枠青枠の表示を同時に更新
@@ -3130,6 +3393,52 @@ with block:
         section_settings = args[24]  # section_settingsはprocess関数の24番目の引数
         resolution_value = args[30] if len(args) > 30 else 640  # resolutionは30番目
         batch_count = args[31] if len(args) > 31 else 1  # batch_countは31番目
+        # 旧パラメータの代わりにフレーム保存モードを取得
+        frame_save_mode = args[32] if len(args) > 32 else translate("保存しない")
+        
+        # デバッグ：フレーム保存モードの型と値を確認
+        print(translate("[DEBUG] frame_save_modeの型: {0}, 値: {1}").format(type(frame_save_mode).__name__, frame_save_mode))
+        
+        # Gradioのラジオボタンオブジェクトが直接渡されているか、文字列値が渡されているかを確認
+        if hasattr(frame_save_mode, 'value'):
+            # Gradioオブジェクトの場合は値を取得
+            frame_save_mode_value = frame_save_mode.value
+            print(translate("[DEBUG] Gradioオブジェクトから値を取得: {0}").format(frame_save_mode_value))
+        else:
+            # 文字列などの通常の値の場合はそのまま使用
+            frame_save_mode_value = frame_save_mode
+            print(translate("[DEBUG] 通常の値として使用: {0}").format(frame_save_mode_value))
+        
+        # モード選択に基づいてフラグを設定（必ずブール値を設定する）
+        # 選択肢は3つ: "保存しない", "全フレーム画像保存", "最終セクションのみ全フレーム画像保存"
+        
+        # UIのデバッグ出力用に変数を作成（これらは実際には使用しない）
+        save_latent_frames_display = False
+        save_last_section_frames_display = False
+        
+        # 実際に使用するフラグ（必ずブール値を設定）
+        save_latent_frames = False  # 最初にFalseに設定
+        save_last_section_frames = False  # 最初にFalseに設定
+        
+        # 選択された値に基づいてフラグを設定
+        if frame_save_mode_value == translate("全フレーム画像保存"):
+            save_latent_frames = True
+            save_latent_frames_display = translate("全フレーム画像保存")
+        elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
+            save_last_section_frames = True
+            save_last_section_frames_display = translate("最終セクションのみ全フレーム画像保存")
+        
+        # UIデバッグ用の出力
+        print(translate("[DEBUG] フレーム保存モード (オリジナル): {0}").format(frame_save_mode))
+        print(translate("[DEBUG] フレーム保存モード (実際の値): {0}").format(frame_save_mode_value))
+        print(translate("[DEBUG] save_latent_frames: {0}").format(save_latent_frames_display))
+        print(translate("[DEBUG] save_last_section_frames: {0}").format(save_last_section_frames_display))
+        
+        # 実際のプログラム内部で使用する値の出力
+        print(translate("[DEBUG] 設定済みフラグ (内部値) - save_latent_frames型: {0}, 値: {1}, save_last_section_frames型: {2}, 値: {3}").format(
+            type(save_latent_frames).__name__, save_latent_frames, 
+            type(save_last_section_frames).__name__, save_last_section_frames
+        ))
 
         # バッチ回数を有効な範囲に制限
         batch_count = max(1, min(int(batch_count), 100))
@@ -3168,19 +3477,78 @@ with block:
             new_args.append(resolution_value)
             # batch_countを追加
             new_args.append(batch_count)
+            # save_latent_framesを追加
+            new_args.append(save_latent_frames)
         else:
             # 既に存在する場合は更新
             new_args[30] = resolution_value  # resolution
             if len(new_args) > 31:
                 new_args[31] = batch_count  # batch_count
+                if len(new_args) > 32:
+                    # 常に新しいブール値を設定し、文字列などの値が渡されないようにする
+                    if frame_save_mode_value == translate("全フレーム画像保存"):
+                        new_args[32] = True  # save_latent_frames = True
+                        if len(new_args) > 33:
+                            new_args[33] = False  # save_last_section_frames = False
+                        else:
+                            new_args.append(False)  # save_last_section_framesを追加
+                    elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
+                        new_args[32] = False  # save_latent_frames = False
+                        if len(new_args) > 33:
+                            new_args[33] = True  # save_last_section_frames = True
+                        else:
+                            new_args.append(True)  # save_last_section_framesを追加
+                    else:
+                        new_args[32] = False  # save_latent_frames = False
+                        if len(new_args) > 33:
+                            new_args[33] = False  # save_last_section_frames = False
+                        else:
+                            new_args.append(False)  # save_last_section_framesを追加
+                    
+                    # 直接設定した値を確認
+                    print(translate("[DEBUG] new_argsに直接設定したフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(
+                        new_args[32], new_args[33] if len(new_args) > 33 else new_args[-1]
+                    ))
+                else:
+                    # 常に新しいブール値を設定し、文字列などの値が渡されないようにする
+                    if frame_save_mode_value == translate("全フレーム画像保存"):
+                        new_args.append(True)  # save_latent_frames = True
+                        new_args.append(False)  # save_last_section_frames = False
+                    elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
+                        new_args.append(False)  # save_latent_frames = False
+                        new_args.append(True)  # save_last_section_frames = True
+                    else:
+                        new_args.append(False)  # save_latent_frames = False
+                        new_args.append(False)  # save_last_section_frames = False
+                    
+                    # 直接設定した値を確認
+                    print(translate("[DEBUG] new_argsに直接設定したフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(
+                        new_args[-2], new_args[-1]
+                    ))
             else:
                 new_args.append(batch_count)  # batch_countを追加
+                
+                # 常に新しいブール値を設定し、文字列などの値が渡されないようにする
+                if frame_save_mode_value == translate("全フレーム画像保存"):
+                    new_args.append(True)  # save_latent_frames = True
+                    new_args.append(False)  # save_last_section_frames = False
+                elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
+                    new_args.append(False)  # save_latent_frames = False
+                    new_args.append(True)  # save_last_section_frames = True
+                else:
+                    new_args.append(False)  # save_latent_frames = False
+                    new_args.append(False)  # save_last_section_frames = False
+                
+                # 直接設定した値を確認
+                print(translate("[DEBUG] new_argsに直接設定したフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(
+                    new_args[-2], new_args[-1]
+                ))
 
         # process関数のジェネレータを返す
         yield from process(*new_args)
 
     # 実行ボタンのイベント
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count]
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode]
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process, outputs=[end_button])
 
