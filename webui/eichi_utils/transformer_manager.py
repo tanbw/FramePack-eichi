@@ -167,7 +167,7 @@ class TransformerManager:
     
     def ensure_download_models(self):
         from huggingface_hub import snapshot_download
-        snapshot_download(repo_id=self._get_model_path(), allow_patterns="*.json")
+        snapshot_download(repo_id=self._get_model_path())
 
     def _load_virtual_transformer(self):
         """仮想デバイスへのtransformerのロードを行う"""
