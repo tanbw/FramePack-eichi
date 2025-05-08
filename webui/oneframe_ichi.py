@@ -5,7 +5,7 @@ sys.path.append(os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__
 from diffusers_helper.hf_login import login
 
 import os
-import random
+import random  # ランダムシード生成用
 import time
 import traceback  # デバッグログ出力用
 import yaml
@@ -910,7 +910,13 @@ with block:
                 end_button = gr.Button(value=translate("生成中止"), interactive=False)
             
             with gr.Group():
-                seed = gr.Number(label=translate("シード値"), value=31337, precision=0)
+                # Use Random Seedの初期値
+                use_random_seed_default = True
+                seed_default = random.randint(0, 2**32 - 1) if use_random_seed_default else 31337
+                
+                # ランダムシードチェックボックスとシード値入力欄
+                use_random_seed = gr.Checkbox(label=translate("ランダムシードを使用"), value=use_random_seed_default)
+                seed = gr.Number(label=translate("シード値"), value=seed_default, precision=0)
                 steps = gr.Slider(label=translate("ステップ数"), minimum=1, maximum=100, value=25, step=1, info=translate('この値の変更は推奨されません'))
                 
                 cfg = gr.Slider(label="CFG Scale", minimum=1.0, maximum=32.0, value=1.0, step=0.01, visible=False)
@@ -971,6 +977,15 @@ with block:
             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
             
             gr.Markdown(translate("**「1フレーム」モードでは、最初の画像から1フレーム分進んだ中間フレームを生成します。**"))
+    
+    # シードのランダム化機能
+    def set_random_seed(is_checked):
+        if is_checked:
+            return random.randint(0, 2**32 - 1)
+        return gr.update()
+    
+    # チェックボックス変更時にランダムシードを生成
+    use_random_seed.change(fn=set_random_seed, inputs=use_random_seed, outputs=seed)
     
     ips = [input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, lora_files, lora_scales, use_lora, fp8_optimization, resolution]
     start_button.click(fn=process, inputs=ips, outputs=[result_image, preview_image, progress_desc, progress_bar, start_button, end_button])
