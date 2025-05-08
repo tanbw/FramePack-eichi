@@ -227,7 +227,7 @@ FramePack-eichi is an AI video generation system that creates short videos from 
    
    # Copy FramePack-eichi files (to root directory, same as Linux setup)
    RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py . && \
-       cp /tmp/FramePack-eichi/webui/endframe_ichi_ichi.py . && \
+       cp /tmp/FramePack-eichi/webui/endframe_ichi_f1.py . && \
        cp -r /tmp/FramePack-eichi/webui/eichi_utils . && \
        cp -r /tmp/FramePack-eichi/webui/lora_utils . && \
        cp -r /tmp/FramePack-eichi/webui/diffusers_helper . && \
@@ -449,7 +449,7 @@ git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
 
 # Copy extended webui files (to root directory, same as Linux setup)
 cp temp_eichi/webui/endframe_ichi.py .
-cp temp_eichi/webui/endframe_ichi_ichi.py .
+cp temp_eichi/webui/endframe_ichi_f1.py .
 cp -r temp_eichi/webui/eichi_utils .
 cp -r temp_eichi/webui/lora_utils .
 cp -r temp_eichi/webui/diffusers_helper .
@@ -533,7 +533,7 @@ Below is an alternative setup method. Prefer the above method for newer environm
 
 # Set up eichi extensions (to root directory, same as Linux setup)
 !cp /content/tmp/webui/endframe_ichi.py .
-!cp /content/tmp/webui/endframe_ichi_ichi.py .
+!cp /content/tmp/webui/endframe_ichi_f1.py .
 !cp -r /content/tmp/webui/eichi_utils .
 !cp -r /content/tmp/webui/lora_utils .
 !cp -r /content/tmp/webui/diffusers_helper .
@@ -637,7 +637,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
    git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
    # Copy files to root directory, same as Linux setup
    cp temp_eichi/webui/endframe_ichi.py .
-   cp temp_eichi/webui/endframe_ichi_ichi.py .
+   cp temp_eichi/webui/endframe_ichi_f1.py .
    cp -r temp_eichi/webui/eichi_utils .
    cp -r temp_eichi/webui/lora_utils .
    cp -r temp_eichi/webui/diffusers_helper .

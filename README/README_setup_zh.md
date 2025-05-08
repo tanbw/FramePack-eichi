@@ -127,7 +127,7 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    git clone https://github.com/git-ai-code/FramePack-eichi.git
    # 複製必要文件
    cp FramePack-eichi/webui/endframe_ichi.py FramePack/
-   cp FramePack-eichi/webui/endframe_ichi_ichi.py FramePack/
+   cp FramePack-eichi/webui/endframe_ichi_f1.py FramePack/
    cp -r FramePack-eichi/webui/eichi_utils FramePack/
    cp -r FramePack-eichi/webui/lora_utils FramePack/
    cp -r FramePack-eichi/webui/diffusers_helper FramePack/
@@ -147,13 +147,13 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    ```bash
    cd FramePack
    python endframe_ichi.py  # 默認為日語 UI
-   python endframe_ichi_ichi.py  # 默認為日語 UI
+   python endframe_ichi_f1.py  # 默認為日語 UI
    # 英語 UI：
    python endframe_ichi.py --lang en
-   python endframe_ichi_ichi.py --lang en
+   python endframe_ichi_f1.py --lang en
    # 繁體中文 UI：
    python endframe_ichi.py --lang zh-tw
-   python endframe_ichi_ichi.py --lang zh-tw
+   python endframe_ichi_f1.py --lang zh-tw
    ```
 
 ## Docker 設置說明
@@ -227,7 +227,7 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    
    # 複製 FramePack-eichi 文件（复制到根目錄，與 Linux 設置相同）
    RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py . && \
-       cp /tmp/FramePack-eichi/webui/endframe_ichi_ichi.py . && \
+       cp /tmp/FramePack-eichi/webui/endframe_ichi_f1.py . && \
        cp -r /tmp/FramePack-eichi/webui/eichi_utils . && \
        cp -r /tmp/FramePack-eichi/webui/lora_utils . && \
        cp -r /tmp/FramePack-eichi/webui/diffusers_helper . && \
@@ -449,7 +449,7 @@ git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
 
 # 複製擴展的 webui 文件（到根目錄，與 Linux 設置相同）
 cp temp_eichi/webui/endframe_ichi.py .
-cp temp_eichi/webui/endframe_ichi_ichi.py .
+cp temp_eichi/webui/endframe_ichi_f1.py .
 cp -r temp_eichi/webui/eichi_utils .
 cp -r temp_eichi/webui/lora_utils .
 cp -r temp_eichi/webui/diffusers_helper .
@@ -533,7 +533,7 @@ rm -rf temp_eichi
 
 # 設置 eichi 擴展（到根目錄，與 Linux 設置相同）
 !cp /content/tmp/webui/endframe_ichi.py .
-!cp /content/tmp/webui/endframe_ichi_ichi.py .
+!cp /content/tmp/webui/endframe_ichi_f1.py .
 !cp -r /content/tmp/webui/eichi_utils .
 !cp -r /content/tmp/webui/lora_utils .
 !cp -r /content/tmp/webui/diffusers_helper .
@@ -637,7 +637,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
    git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
    # 複製文件到根目錄，與 Linux 設置相同
    cp temp_eichi/webui/endframe_ichi.py .
-   cp temp_eichi/webui/endframe_ichi_ichi.py .
+   cp temp_eichi/webui/endframe_ichi_f1.py .
    cp -r temp_eichi/webui/eichi_utils .
    cp -r temp_eichi/webui/lora_utils .
    cp -r temp_eichi/webui/diffusers_helper .

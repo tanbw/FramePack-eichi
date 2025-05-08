@@ -127,7 +127,7 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    git clone https://github.com/git-ai-code/FramePack-eichi.git
    # 必要なファイルをコピー
    cp FramePack-eichi/webui/endframe_ichi.py FramePack/
-   cp FramePack-eichi/webui/endframe_ichi_ichi.py FramePack/
+   cp FramePack-eichi/webui/endframe_ichi_f1.py FramePack/
    cp -r FramePack-eichi/webui/eichi_utils FramePack/
    cp -r FramePack-eichi/webui/lora_utils FramePack/
    cp -r FramePack-eichi/webui/diffusers_helper FramePack/
@@ -147,13 +147,13 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    ```bash
    cd FramePack
    python endframe_ichi.py  # デフォルトは日本語UI
-   python endframe_ichi_ichi.py  # デフォルトは日本語UI
+   python endframe_ichi_f1.py  # デフォルトは日本語UI
    # 英語UIの場合:
    python endframe_ichi.py --lang en
-   python endframe_ichi_ichi.py --lang en
+   python endframe_ichi_f1.py --lang en
    # 繁体字中国語UIの場合:
    python endframe_ichi.py --lang zh-tw
-   python endframe_ichi_ichi.py --lang zh-tw
+   python endframe_ichi_f1.py --lang zh-tw
    ```
 
 ## Dockerセットアップ手順
@@ -227,7 +227,7 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    
    # FramePack-eichiファイルのコピー（Linuxセットアップ手順と同様にルートディレクトリに配置）
    RUN cp /tmp/FramePack-eichi/webui/endframe_ichi.py . && \
-       cp /tmp/FramePack-eichi/webui/endframe_ichi_ichi.py . && \
+       cp /tmp/FramePack-eichi/webui/endframe_ichi_f1.py . && \
        cp -r /tmp/FramePack-eichi/webui/eichi_utils . && \
        cp -r /tmp/FramePack-eichi/webui/lora_utils . && \
        cp -r /tmp/FramePack-eichi/webui/diffusers_helper . && \
@@ -449,7 +449,7 @@ git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
 
 # 拡張webファイルをコピー（Linuxセットアップ手順と同様にルートディレクトリに配置）
 cp temp_eichi/webui/endframe_ichi.py .
-cp temp_eichi/webui/endframe_ichi_ichi.py .
+cp temp_eichi/webui/endframe_ichi_f1.py .
 cp -r temp_eichi/webui/eichi_utils .
 cp -r temp_eichi/webui/lora_utils .
 cp -r temp_eichi/webui/diffusers_helper .
@@ -633,7 +633,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
    git clone https://github.com/git-ai-code/FramePack-eichi.git temp_eichi
    # Linuxセットアップ手順と同様にルートディレクトリに配置
    cp temp_eichi/webui/endframe_ichi.py .
-   cp temp_eichi/webui/endframe_ichi_ichi.py .
+   cp temp_eichi/webui/endframe_ichi_f1.py .
    cp -r temp_eichi/webui/eichi_utils .
    cp -r temp_eichi/webui/lora_utils .
    cp -r temp_eichi/webui/diffusers_helper .
