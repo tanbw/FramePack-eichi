@@ -442,13 +442,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # セクション固有のプロンプトがあるか確認
             section_info = None
             section_num = None
-            if section_map:
-                valid_section_nums = [k for k in section_map.keys() if k >= i_section]
-                if valid_section_nums:
-                    section_num = min(valid_section_nums)
-                    section_info = section_map[section_num]
+            
+            # セクション固有のプロンプトをチェック - 各セクションのプロンプトはそのセクションでのみ有効
+            if section_map and i_section in section_map:
+                section_num = i_section
+                section_info = section_map[section_num]
 
-            # セクション固有のプロンプトがあれば使用
+            # セクション固有のプロンプトがあれば使用（キーフレーム画像の有無に関わらず）
             if section_info:
                 img, section_prompt = section_info
                 if section_prompt and section_prompt.strip():
