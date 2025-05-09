@@ -720,13 +720,13 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     
                     if stream.input_queue.top() == 'end':
                         print(translate("\n[INFO] ユーザーがタスクを中断しました"))
-                        print(f"[DEBUG] コールバック内で中断を検出: streamID={id(stream)}")
+                        # コールバック内での中断検出（デバッグログ削除）
                         stream.output_queue.push(('end', None))
                         
                         # グローバル変数を直接設定
                         global batch_stopped
                         batch_stopped = True
-                        print(f"[DEBUG] batch_stopped をセット: {batch_stopped}")
+                        # batch_stoppedフラグをセット
                         
                         # KeyboardInterrupt例外を発生させる
                         raise KeyboardInterrupt('User ends the task.')
@@ -1239,7 +1239,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         try:
             # 新しいストリームを作成
             stream = AsyncStream()
-            print(f"[DEBUG] バッチ {batch_index+1}/{batch_count} 用の新ストリーム作成: ID={id(stream)}")
+            # 新しいストリームを作成（デバッグログ削除）
             
             # バッチインデックスをジョブIDに含める
             batch_suffix = f"{batch_index}" if batch_index > 0 else ""
@@ -1263,11 +1263,10 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         
         # ジョブ完了まで監視
         try:
-            print(f"[DEBUG] バッチ{batch_index+1}のストリーム待機開始: streamID={id(stream)}")
+            # ストリーム待機開始（デバッグログは削除）
             while True:
                 try:
                     flag, data = stream.output_queue.next()
-                    print(f"[DEBUG] ストリームからの応答: flag={flag}, streamID={id(stream)}")
                     
                     if flag == 'file':
                         output_filename = data
@@ -1278,7 +1277,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                         yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True)
                     
                     if flag == 'end':
-                        print(f"[DEBUG] 'end'フラグを受信: batch_index={batch_index}, batch_count={batch_count}, batch_stopped={batch_stopped}")
+                        # endフラグを受信（デバッグログ削除）
                         # バッチ処理中は最後の画像のみを表示
                         if batch_index == batch_count - 1 or batch_stopped:  # 最後のバッチまたは中断された場合
                             completion_message = ""
@@ -1287,14 +1286,14 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                             else:
                                 completion_message = translate("バッチ処理が完了しました（{0}/{1}）").format(batch_count, batch_count)
                             
-                            print(f"[DEBUG] UI更新（完了メッセージ）: {completion_message}")
+                            # 完了メッセージでUIを更新
                             yield output_filename, gr.update(visible=False), completion_message, '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
                         break
                         
                     # ユーザーが中断した場合
                     if stream.input_queue.top() == 'end' or batch_stopped:
                         batch_stopped = True
-                        print(f"[DEBUG] 中断を検出: batch_index={batch_index}, batch_count={batch_count}")
+                        # 処理ループ内での中断検出（デバッグログ削除）
                         print(translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count))
                         # endframe_ichiと同様のシンプルな実装に戻す
                         yield output_filename, gr.update(visible=False), translate("バッチ処理が中断されました"), '', gr.update(interactive=True), gr.update(interactive=False, value=translate("End Generation"))
