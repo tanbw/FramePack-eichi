@@ -1062,23 +1062,11 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         except Exception as cleanup_error:
             print(translate("メモリクリーンアップ中にエラー: {0}").format(cleanup_error))
     
-    # 処理完了を通知
+    # 処理完了を通知（個別バッチの完了）
     print(translate("\n処理が完了しました"))
     
-    # 処理完了時の効果音（Windowsの場合）
-    if HAS_WINSOUND:
-        try:
-            # Windows環境では完了音を鳴らす
-            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
-            print(translate("[INFO] Windows完了通知音を再生しました"))
-        except Exception as e:
-            print(translate("[WARN] 完了通知音の再生に失敗しました: {0}").format(e))
-    else:
-        # Linux/Mac環境ではログにメッセージを出力
-        print("\n" + "*" * 50)
-        print(translate("【生成完了】プロセスが完了しました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
-        print("*" * 50 + "\n")
-        
+    # worker関数内では効果音を鳴らさない（バッチ処理全体の完了時のみ鳴らす）
+    
     stream.output_queue.push(('end', None))
     return
 
@@ -1267,7 +1255,25 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                 print(translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count))
                 yield output_filename, gr.update(visible=False), translate("バッチ処理が中断されました"), '', gr.update(interactive=True), gr.update(interactive=False)
                 return
-                
+    
+    # すべてのバッチ処理が正常に完了した場合のみ、効果音を鳴らす
+    if not batch_stopped:
+        print(translate("\n[INFO] 全てのバッチ処理が完了しました"))
+        
+        # 処理完了時の効果音（Windowsの場合）
+        if HAS_WINSOUND:
+            try:
+                # Windows環境では完了音を鳴らす
+                winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
+                print(translate("[INFO] Windows完了通知音を再生しました"))
+            except Exception as e:
+                print(translate("[WARN] 完了通知音の再生に失敗しました: {0}").format(e))
+        else:
+            # Linux/Mac環境ではログにメッセージを出力
+            print("\n" + "*" * 50)
+            print(translate("【全バッチ処理完了】プロセスが完了しました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
+            print("*" * 50 + "\n")
+            
     return
 
 def end_process():
