@@ -711,22 +711,38 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 transformer.initialize_teacache(enable_teacache=False)
             
             def callback(d):
-                preview = d['denoised']
-                preview = vae_decode_fake(preview)
-                
-                preview = (preview * 255.0).detach().cpu().numpy().clip(0, 255).astype(np.uint8)
-                preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
-                
-                if stream.input_queue.top() == 'end':
-                    print(translate("\n[INFO] ユーザーがタスクを中断しました"))
-                    stream.output_queue.push(('end', None))
-                    raise KeyboardInterrupt('User ends the task.')
-                
-                current_step = d['i'] + 1
-                percentage = int(100.0 * current_step / steps)
-                hint = f'Sampling {current_step}/{steps}'
-                desc = translate('1フレームモード: サンプリング中...')
-                stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
+                try:
+                    preview = d['denoised']
+                    preview = vae_decode_fake(preview)
+                    
+                    preview = (preview * 255.0).detach().cpu().numpy().clip(0, 255).astype(np.uint8)
+                    preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
+                    
+                    if stream.input_queue.top() == 'end':
+                        print(translate("\n[INFO] ユーザーがタスクを中断しました"))
+                        print(f"[DEBUG] コールバック内で中断を検出: streamID={id(stream)}")
+                        stream.output_queue.push(('end', None))
+                        
+                        # グローバル変数を直接設定
+                        global batch_stopped
+                        batch_stopped = True
+                        print(f"[DEBUG] batch_stopped をセット: {batch_stopped}")
+                        
+                        # KeyboardInterrupt例外を発生させる
+                        raise KeyboardInterrupt('User ends the task.')
+                    
+                    current_step = d['i'] + 1
+                    percentage = int(100.0 * current_step / steps)
+                    hint = f'Sampling {current_step}/{steps}'
+                    desc = translate('1フレームモード: サンプリング中...')
+                    stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
+                except KeyboardInterrupt:
+                    print(f"[DEBUG] コールバック中のKeyboardInterrupt: 例外を上位に伝播")
+                    raise  # 再スロー
+                except Exception as e:
+                    import traceback
+                    print(f"[DEBUG] コールバック内でエラー: {type(e).__name__} - {e}")
+                    print(f"[DEBUG] コールバックエラースタック: {traceback.format_exc()}")
             
             # 詳細設定に基づいてパラメータを準備
             # 形状チェックのデバッグ
@@ -1141,6 +1157,18 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             batch_count=1, use_random_seed=False, latent_window_size=9, latent_index=0, 
             use_clean_latents_2x=True, use_clean_latents_4x=True, use_clean_latents_post=True):
     global stream
+    global batch_stopped
+    
+    # この処置は誤りです - gr.updateは直接呼び出しても何も起こりません
+    # コメントアウトします
+    # gr.update(interactive=True, value=translate("Start Generation"))
+    # gr.update(interactive=False, value=translate("End Generation"))
+    
+    # プロセス開始時にバッチ中断フラグをリセット
+    batch_stopped = False
+    
+    # デバッグを減らして、シンプルな出力にする
+    print(f"処理を開始します: バッチ数={batch_count}")
     
     # 出力フォルダの設定
     global outputs_folder
@@ -1208,61 +1236,110 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         if batch_stopped:
             break
             
-        stream = AsyncStream()
-        
-        # バッチインデックスをジョブIDに含める
-        batch_suffix = f"{batch_index}" if batch_index > 0 else ""
-        
-        # ワーカー実行 - 詳細設定パラメータを含む
-        async_run(worker, input_image, prompt, n_prompt, current_seed, steps, cfg, gs, rs, 
-                 gpu_memory_preservation, use_teacache, lora_files, lora_files2, lora_scales_text, 
-                 output_dir, use_lora, fp8_optimization, resolution,
-                 latent_window_size, latent_index, use_clean_latents_2x, use_clean_latents_4x, use_clean_latents_post)
+        try:
+            # 新しいストリームを作成
+            stream = AsyncStream()
+            print(f"[DEBUG] バッチ {batch_index+1}/{batch_count} 用の新ストリーム作成: ID={id(stream)}")
+            
+            # バッチインデックスをジョブIDに含める
+            batch_suffix = f"{batch_index}" if batch_index > 0 else ""
+            
+            # 中断フラグの再確認
+            if batch_stopped:
+                print(f"[DEBUG] バッチ開始前に中断フラグが検出されました: batch_index={batch_index}")
+                break
+                
+            # ワーカー実行 - 詳細設定パラメータを含む
+            async_run(worker, input_image, prompt, n_prompt, current_seed, steps, cfg, gs, rs, 
+                     gpu_memory_preservation, use_teacache, lora_files, lora_files2, lora_scales_text, 
+                     output_dir, use_lora, fp8_optimization, resolution,
+                     latent_window_size, latent_index, use_clean_latents_2x, use_clean_latents_4x, use_clean_latents_post)
+        except Exception as e:
+            import traceback
+            print(f"[DEBUG] バッチ{batch_index+1}の実行中にエラー発生: {type(e).__name__} - {e}")
+            print(f"[DEBUG] エラースタック: {traceback.format_exc()}")
         
         output_filename = None
         
         # ジョブ完了まで監視
-        while True:
-            flag, data = stream.output_queue.next()
-            
-            if flag == 'file':
-                output_filename = data
-                yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True)
-            
-            if flag == 'progress':
-                preview, desc, html = data
-                yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True)
-            
-            if flag == 'end':
-                # バッチ処理中は最後の画像のみを表示
-                if batch_index == batch_count - 1:  # 最後のバッチ
-                    yield output_filename, gr.update(visible=False), gr.update(), '', gr.update(interactive=True), gr.update(interactive=False)
-                break
-                
-            # ユーザーが中断した場合
-            if stream.input_queue.top() == 'end' or batch_stopped:
-                batch_stopped = True
-                print(translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count))
-                yield output_filename, gr.update(visible=False), translate("バッチ処理が中断されました"), '', gr.update(interactive=True), gr.update(interactive=False)
-                return
+        try:
+            print(f"[DEBUG] バッチ{batch_index+1}のストリーム待機開始: streamID={id(stream)}")
+            while True:
+                try:
+                    flag, data = stream.output_queue.next()
+                    print(f"[DEBUG] ストリームからの応答: flag={flag}, streamID={id(stream)}")
+                    
+                    if flag == 'file':
+                        output_filename = data
+                        yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True)
+                    
+                    if flag == 'progress':
+                        preview, desc, html = data
+                        yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True)
+                    
+                    if flag == 'end':
+                        print(f"[DEBUG] 'end'フラグを受信: batch_index={batch_index}, batch_count={batch_count}, batch_stopped={batch_stopped}")
+                        # バッチ処理中は最後の画像のみを表示
+                        if batch_index == batch_count - 1 or batch_stopped:  # 最後のバッチまたは中断された場合
+                            completion_message = ""
+                            if batch_stopped:
+                                completion_message = translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count)
+                            else:
+                                completion_message = translate("バッチ処理が完了しました（{0}/{1}）").format(batch_count, batch_count)
+                            
+                            print(f"[DEBUG] UI更新（完了メッセージ）: {completion_message}")
+                            yield output_filename, gr.update(visible=False), completion_message, '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
+                        break
+                        
+                    # ユーザーが中断した場合
+                    if stream.input_queue.top() == 'end' or batch_stopped:
+                        batch_stopped = True
+                        print(f"[DEBUG] 中断を検出: batch_index={batch_index}, batch_count={batch_count}")
+                        print(translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count))
+                        # endframe_ichiと同様のシンプルな実装に戻す
+                        yield output_filename, gr.update(visible=False), translate("バッチ処理が中断されました"), '', gr.update(interactive=True), gr.update(interactive=False, value=translate("End Generation"))
+                        return
+                        
+                except Exception as e:
+                    import traceback
+                    print(f"[DEBUG] ストリーム処理中にエラー: {type(e).__name__} - {e}")
+                    print(f"[DEBUG] ストリームエラースタック: {traceback.format_exc()}")
+                    # エラー後はループを抜ける
+                    break
+                    
+        except KeyboardInterrupt:
+            print(f"[DEBUG] ストリーム待機中にKeyboardInterrupt: 中断します")
+            # UIをリセット
+            yield None, gr.update(visible=False), translate("キーボード割り込みにより処理が中断されました"), '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
+            return
+        except Exception as e:
+            import traceback
+            print(f"[DEBUG] バッチ処理外部ループでエラー: {type(e).__name__} - {e}")
+            print(f"[DEBUG] 外部エラースタック: {traceback.format_exc()}")
+            # UIをリセット
+            yield None, gr.update(visible=False), translate("エラーにより処理が中断されました"), '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
+            return
     
     # すべてのバッチ処理が正常に完了した場合のみ、効果音を鳴らす
     if not batch_stopped:
         print(translate("\n[INFO] 全てのバッチ処理が完了しました"))
-        
-        # 処理完了時の効果音（Windowsの場合）
-        if HAS_WINSOUND:
-            try:
-                # Windows環境では完了音を鳴らす
-                winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
-                print(translate("[INFO] Windows完了通知音を再生しました"))
-            except Exception as e:
-                print(translate("[WARN] 完了通知音の再生に失敗しました: {0}").format(e))
-        else:
-            # Linux/Mac環境ではログにメッセージを出力
-            print("\n" + "*" * 50)
-            print(translate("【全バッチ処理完了】プロセスが完了しました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
-            print("*" * 50 + "\n")
+    
+    # バッチ処理終了後は必ずbatch_stoppedフラグをリセット
+    batch_stopped = False
+    
+    # 処理完了時の効果音（Windowsの場合）
+    if HAS_WINSOUND:
+        try:
+            # Windows環境では完了音を鳴らす
+            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
+            print(translate("[INFO] Windows完了通知音を再生しました"))
+        except Exception as e:
+            print(translate("[WARN] 完了通知音の再生に失敗しました: {0}").format(e))
+    else:
+        # Linux/Mac環境ではログにメッセージを出力
+        print("\n" + "*" * 50)
+        print(translate("【全バッチ処理完了】プロセスが完了しました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
+        print("*" * 50 + "\n")
             
     return
 
@@ -1270,13 +1347,13 @@ def end_process():
     """生成終了ボタンが押された時の処理"""
     global stream
     global batch_stopped
-    
+
     # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
     batch_stopped = True
-    print(translate("\n[INFO] 停止ボタンが押されました。バッチ処理を停止します..."))
+    print(translate("\n停止ボタンが押されました。バッチ処理を停止します..."))
     # 現在実行中のバッチを停止
     stream.input_queue.push('end')
-    
+
     # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
     return gr.update(value=translate("停止処理中..."))
 
