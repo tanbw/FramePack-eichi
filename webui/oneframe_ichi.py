@@ -711,32 +711,22 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 transformer.initialize_teacache(enable_teacache=False)
             
             def callback(d):
-                try:
-                    preview = d['denoised']
-                    preview = vae_decode_fake(preview)
-                    
-                    preview = (preview * 255.0).detach().cpu().numpy().clip(0, 255).astype(np.uint8)
-                    preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
-                    
-                    if stream.input_queue.top() == 'end':
-                        print(translate("\n[INFO] ユーザーがタスクを中断しました"))
-                        stream.output_queue.push(('end', None))
-                        # KeyboardInterruptを直接発生させるのではなく、フラグで通知
-                        global batch_stopped
-                        batch_stopped = True
-                        # コールバックからは正常に戻る
-                        return False  # 処理を中断することを示す
-                    
-                    current_step = d['i'] + 1
-                    percentage = int(100.0 * current_step / steps)
-                    hint = f'Sampling {current_step}/{steps}'
-                    desc = translate('1フレームモード: サンプリング中...')
-                    stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
-                    return True  # 処理を続行
-                except Exception as e:
-                    print(translate("[ERROR] コールバック処理中のエラー: {0}").format(e))
-                    # エラーが発生しても処理を続行
-                    return True
+                preview = d['denoised']
+                preview = vae_decode_fake(preview)
+                
+                preview = (preview * 255.0).detach().cpu().numpy().clip(0, 255).astype(np.uint8)
+                preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
+                
+                if stream.input_queue.top() == 'end':
+                    print(translate("\n[INFO] ユーザーがタスクを中断しました"))
+                    stream.output_queue.push(('end', None))
+                    raise KeyboardInterrupt('User ends the task.')
+                
+                current_step = d['i'] + 1
+                percentage = int(100.0 * current_step / steps)
+                hint = f'Sampling {current_step}/{steps}'
+                desc = translate('1フレームモード: サンプリング中...')
+                stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
             
             # 詳細設定に基づいてパラメータを準備
             # 形状チェックのデバッグ
@@ -1278,13 +1268,17 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
 
 def end_process():
     """生成終了ボタンが押された時の処理"""
+    global stream
     global batch_stopped
+    
+    # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
     batch_stopped = True
+    print(translate("\n[INFO] 停止ボタンが押されました。バッチ処理を停止します..."))
+    # 現在実行中のバッチを停止
     stream.input_queue.push('end')
-    # 中断を通知
-    print(translate("\n[INFO] ユーザーがタスクを中断しました"))
-    # ボタンの状態が適切に更新されない場合があるため、明示的にボタン状態を更新
-    return None, gr.update(visible=False), translate("処理が中断されました"), "", gr.update(interactive=True), gr.update(interactive=False)
+    
+    # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
+    return gr.update(value=translate("停止処理中..."))
 
 css = get_app_css()  # eichi_utilsのスタイルを使用
 block = gr.Blocks(css=css).queue()
@@ -1714,7 +1708,7 @@ with block:
            batch_count, use_random_seed, latent_window_size, latent_index, 
            use_clean_latents_2x, use_clean_latents_4x, use_clean_latents_post]  # 詳細設定パラメータを追加
     start_button.click(fn=process, inputs=ips, outputs=[result_image, preview_image, progress_desc, progress_bar, start_button, end_button])
-    end_button.click(fn=end_process, outputs=[result_image, preview_image, progress_desc, progress_bar, start_button, end_button])
+    end_button.click(fn=end_process, outputs=[end_button])
     
     gr.HTML(f'<div style="text-align:center; margin-top:20px;">{translate("FramePack 単一フレーム生成版")}</div>')
 
