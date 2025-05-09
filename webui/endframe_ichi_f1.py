@@ -2416,17 +2416,19 @@ with block:
             save_section_frames = gr.Checkbox(label=translate("Save Section Frames"), value=False, info=translate("各セクションの最終フレームを静止画として保存します（デフォルトOFF）"))
             
             # フレーム画像保存のラジオボタンを追加（デフォルトは「保存しない」）
-            gr.Markdown(translate("### フレーム画像保存設定"))
-            frame_save_mode = gr.Radio(
-                label=translate("フレーム画像保存モード"),
-                choices=[
-                    translate("保存しない"),
-                    translate("全フレーム画像保存"),
-                    translate("最終セクションのみ全フレーム画像保存")
-                ],
-                value=translate("保存しない"),
-                info=translate("フレーム画像の保存方法を選択します。過去セクション分も含めて保存します。全セクションか最終セクションのみか選択できます。")
-            )
+            # gr.Groupで囲むことで灰色背景のスタイルに統一
+            with gr.Group():
+                gr.Markdown(f"### " + translate("フレーム画像保存設定"))
+                frame_save_mode = gr.Radio(
+                    label=translate("フレーム画像保存モード"),
+                    choices=[
+                        translate("保存しない"),
+                        translate("全フレーム画像保存"),
+                        translate("最終セクションのみ全フレーム画像保存")
+                    ],
+                    value=translate("保存しない"),
+                    info=translate("フレーム画像の保存方法を選択します。過去セクション分も含めて保存します。全セクションか最終セクションのみか選択できます。")
+                )
 
             # UIコンポーネント定義後のイベント登録
             # F1モードではセクション機能を削除済み - シンプル化したイベントハンドラ
