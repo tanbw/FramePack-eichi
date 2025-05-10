@@ -214,7 +214,7 @@ outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False):
 
     # フレーム保存フラグのタイプと値を確認（必ずブール値であるべき）
     print(translate("[DEBUG] worker関数に渡されたフラグ - save_latent_frames型: {0}, 値: {1}").format(type(save_latent_frames).__name__, save_latent_frames))
@@ -581,23 +581,68 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         current_lora_scales = []
         
         if use_lora and has_lora_support:
-            # LoRAファイルを収集
-            if lora_files is not None:
-                if isinstance(lora_files, list):
-                    # 複数のLoRAファイル（将来のGradioバージョン用）
-                    current_lora_paths.extend([file.name for file in lora_files])
-                else:
-                    # 単一のLoRAファイル
-                    current_lora_paths.append(lora_files.name)
-            
-            # 2つ目のLoRAファイルがあれば追加
-            if lora_files2 is not None:
-                if isinstance(lora_files2, list):
-                    # 複数のLoRAファイル（将来のGradioバージョン用）
-                    current_lora_paths.extend([file.name for file in lora_files2])
-                else:
-                    # 単一のLoRAファイル
-                    current_lora_paths.append(lora_files2.name)
+            # モードに応じてLoRAファイルを処理
+            if lora_mode == translate("ディレクトリから選択"):
+                print(translate("[INFO] ディレクトリから選択モードでLoRAを処理します"))
+                # ドロップダウンの値を取得
+                for dropdown in [lora_dropdown1, lora_dropdown2, lora_dropdown3]:
+                    if dropdown is not None and dropdown != translate("なし") and dropdown != 0:
+                        # なし以外が選択されている場合、パスを生成
+                        lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
+                        lora_path = os.path.join(lora_dir, dropdown)
+                        if os.path.exists(lora_path):
+                            current_lora_paths.append(lora_path)
+                            print(translate("[INFO] LoRAファイルを追加: {0}").format(lora_path))
+                        else:
+                            print(translate("[WARN] LoRAファイルが見つかりません: {0}").format(lora_path))
+                
+                # ドロップダウンの型と値を詳細ログ
+                print(translate("[DEBUG] LoRAドロップダウン値の型:"))
+                print(f"  lora_dropdown1 = {lora_dropdown1}, 型: {type(lora_dropdown1).__name__}")
+                print(f"  lora_dropdown2 = {lora_dropdown2}, 型: {type(lora_dropdown2).__name__}")
+                print(f"  lora_dropdown3 = {lora_dropdown3}, 型: {type(lora_dropdown3).__name__}")
+                
+                # 特に問題が出やすいlora_dropdown2の値を詳細にログ
+                print(translate("[DEBUG] 詳細ログ: LoRA2の値={0!r}, 型={1}").format(lora_dropdown2, type(lora_dropdown2).__name__))
+                
+                # 数値0の特別処理（インデックス0の要素として解釈）
+                if lora_dropdown2 == 0:
+                    print(translate("[DEBUG] dropdown2の特別処理: 数値0が検出されました。元の値: {0}").format(lora_dropdown2))
+                    try:
+                        # ディレクトリから選択が入ってるはずなので、選択肢からインデックス0の項目（なし）を取得
+                        choices = scan_lora_directory()
+                        if choices and len(choices) > 0:
+                            if choices[0] != translate("なし"):
+                                print(translate("[WARN] 予期しない選択肢リスト: 最初の要素が「なし」ではありません: {0}").format(choices[0]))
+                    except Exception as e:
+                        print(translate("[ERROR] ドロップダウン2の特別処理でエラー: {0}").format(e))
+            else:
+                # ファイルアップロードモード
+                print(translate("[INFO] ファイルアップロードモードでLoRAを処理します"))
+                # LoRAファイルを収集
+                if lora_files is not None:
+                    if isinstance(lora_files, list):
+                        # 複数のLoRAファイル（将来のGradioバージョン用）
+                        current_lora_paths.extend([file.name for file in lora_files])
+                    else:
+                        # 単一のLoRAファイル
+                        current_lora_paths.append(lora_files.name)
+                
+                # 2つ目のLoRAファイルがあれば追加
+                if lora_files2 is not None:
+                    if isinstance(lora_files2, list):
+                        # 複数のLoRAファイル（将来のGradioバージョン用）
+                        current_lora_paths.extend([file.name for file in lora_files2])
+                    else:
+                        # 単一のLoRAファイル
+                        current_lora_paths.append(lora_files2.name)
+                
+                # 3つ目のLoRAファイルがあれば追加（F1版でも対応）
+                if lora_files3 is not None:
+                    if isinstance(lora_files3, list):
+                        current_lora_paths.extend([file.name for file in lora_files3])
+                    else:
+                        current_lora_paths.append(lora_files3.name)
             
             # スケール値をテキストから解析
             if current_lora_paths:  # LoRAパスがある場合のみ解析
@@ -607,6 +652,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         # カンマ区切りのスケール値を解析
                         scales = [float(scale.strip()) for scale in scales_text.split(',')]
                         current_lora_scales = scales
+                        
+                        # 足りない場合は0.8で埋める
+                        if len(scales) < len(current_lora_paths):
+                            current_lora_scales.extend([0.8] * (len(current_lora_paths) - len(scales)))
                     else:
                         # スケール値が指定されていない場合は全て0.8を使用
                         current_lora_scales = [0.8] * len(current_lora_paths)
@@ -1484,7 +1533,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     stream.output_queue.push(('end', None))
     return
 
-
 # 画像のバリデーション関数
 def validate_images(input_image, section_settings, length_radio=None, frame_size_radio=None):
     """入力画像または画面に表示されている最後のキーフレーム画像のいずれかが有効かを確認する"""
@@ -1556,7 +1604,7 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, save_tensor_data=False, section_settings=None, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, section_settings=None, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False):
     # メイン生成処理
     global stream
     global batch_stopped
@@ -1625,44 +1673,96 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # LoRA情報のログ出力
     if use_lora and has_lora_support:
         all_lora_files = []
+        lora_paths = []
         
-        # 1つ目のLoRAファイルを処理
-        if lora_files is not None:
-            if isinstance(lora_files, list):
-                all_lora_files.extend(lora_files)
-            else:
-                all_lora_files.append(lora_files)
+        # LoRAの読み込み方式に応じて処理を分岐
+        if lora_mode == translate("ディレクトリから選択"):
+            # ディレクトリから選択モードの場合
+            print(translate("[INFO] process: ディレクトリから選択モードでLoRAを処理"))
+            lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
+            
+            # LoRAドロップダウンのデバッグ情報
+            print(translate("[DEBUG] process関数でのLoRAドロップダウン情報:"))
+            print(translate("  - lora_dropdown1: {0}, 型: {1}").format(lora_dropdown1, type(lora_dropdown1).__name__))
+            print(translate("  - lora_dropdown2: {0}, 型: {1}").format(lora_dropdown2, type(lora_dropdown2).__name__))
+            print(translate("  - lora_dropdown3: {0}, 型: {1}").format(lora_dropdown3, type(lora_dropdown3).__name__))
+            
+            # 特にlora_dropdown2の値が問題になることが多いので詳細ログ
+            if isinstance(lora_dropdown2, int) and lora_dropdown2 == 0:
+                print(translate("[DEBUG] lora_dropdown2が数値0になっています。特別処理を実行します"))
                 
-        # 2つ目のLoRAファイルを処理
-        if lora_files2 is not None:
-            if isinstance(lora_files2, list):
-                all_lora_files.extend(lora_files2)
-            else:
-                all_lora_files.append(lora_files2)
+                # 特別処理: 数値の0はインデックスとして解釈されている可能性がある
+                # 選択肢リストの0番目（なし）として扱う
+                dropdown_direct_value = translate("なし")
+                        
+                # もし既に処理済みの文字列値が別にあればそちらを優先
+                if isinstance(lora_dropdown2, str) and lora_dropdown2 != "0" and lora_dropdown2 != translate("なし"):
+                    print(translate("[DEBUG] dropdown2の特別処理: 直接文字列値が検出されました: {0}").format(lora_dropdown2))
+                    dropdown_direct_value = lora_dropdown2
+            
+            # 各ドロップダウンの値を処理
+            for dropdown, label in zip([lora_dropdown1, lora_dropdown2, lora_dropdown3], ["LoRA1", "LoRA2", "LoRA3"]):
+                if dropdown is not None and dropdown != translate("なし") and dropdown != 0:
+                    # 選択あり
+                    file_path = os.path.join(lora_dir, dropdown)
+                    if os.path.exists(file_path):
+                        lora_paths.append(file_path)
+                        print(translate("[INFO] {0}選択: {1}").format(label, dropdown))
+                    else:
+                        print(translate("[WARN] 選択された{0}ファイルが見つかりません: {1}").format(label, file_path))
+        else:
+            # ファイルアップロードモードの場合
+            print(translate("[INFO] process: ファイルアップロードモードでLoRAを処理"))
+            
+            # 1つ目のLoRAファイルを処理
+            if lora_files is not None:
+                if isinstance(lora_files, list):
+                    all_lora_files.extend(lora_files)
+                else:
+                    all_lora_files.append(lora_files)
+                    
+            # 2つ目のLoRAファイルを処理
+            if lora_files2 is not None:
+                if isinstance(lora_files2, list):
+                    all_lora_files.extend(lora_files2)
+                else:
+                    all_lora_files.append(lora_files2)
+            
+            # 3つ目のLoRAファイルを処理（F1版でも対応）
+            if lora_files3 is not None:
+                if isinstance(lora_files3, list):
+                    all_lora_files.extend(lora_files3)
+                else:
+                    all_lora_files.append(lora_files3)
+            
+            # アップロードファイルからパスリストを生成
+            for lora_file in all_lora_files:
+                if hasattr(lora_file, 'name'):
+                    lora_paths.append(lora_file.name)
         
         # スケール値を解析
         try:
             scales = [float(s.strip()) for s in lora_scales_text.split(',')]
         except:
             # 解析エラーの場合はデフォルト値を使用
-            scales = [0.8] * len(all_lora_files)
+            scales = [0.8] * len(lora_paths)
             
         # スケール値の数を調整
-        if len(scales) < len(all_lora_files):
-            scales.extend([0.8] * (len(all_lora_files) - len(scales)))
-        elif len(scales) > len(all_lora_files):
-            scales = scales[:len(all_lora_files)]
+        if len(scales) < len(lora_paths):
+            scales.extend([0.8] * (len(lora_paths) - len(scales)))
+        elif len(scales) > len(lora_paths):
+            scales = scales[:len(lora_paths)]
             
         # LoRAファイル情報を出力
-        if len(all_lora_files) == 1:
+        if len(lora_paths) == 1:
             # 単一ファイル
-            print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(all_lora_files[0].name)))
+            print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(lora_paths[0])))
             print(translate("\u25c6 LoRA適用強度: {0}").format(scales[0]))
-        elif len(all_lora_files) > 1:
+        elif len(lora_paths) > 1:
             # 複数ファイル
             print(translate("\u25c6 LoRAファイル (複数):"))
-            for i, file in enumerate(all_lora_files):
-                print(f"   - {os.path.basename(file.name)} (スケール: {scales[i]})")
+            for i, path in enumerate(lora_paths):
+                print(f"   - {os.path.basename(path)} (スケール: {scales[i] if i < len(scales) else 0.8})")
         else:
             # LoRAファイルなし
             print(translate("\u25c6 LoRA: 使用しない"))
@@ -1827,11 +1927,16 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             keep_section_videos,
             lora_files,
             lora_files2,
+            lora_files3,  # 追加: lora_files3
             lora_scales_text,
             output_dir,
             save_section_frames,
             use_all_padding,
             use_lora,
+            lora_mode,  # 追加: lora_mode
+            lora_dropdown1,  # 追加: lora_dropdown1
+            lora_dropdown2,  # 追加: lora_dropdown2
+            lora_dropdown3,  # 追加: lora_dropdown3
             save_tensor_data,
             tensor_data_input,
             fp8_optimization,
@@ -1916,10 +2021,6 @@ def end_process():
     # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
     return gr.update(value=translate("停止処理中..."))
 
-
-
-
-
 # 既存のQuick Prompts（初期化時にプリセットに変換されるので、互換性のために残す）
 quick_prompts = [
     'A character doing some simple body movements.',
@@ -1929,7 +2030,6 @@ quick_prompts = [
     'A character moves in unexpected ways, with surprising transitions poses.',
 ]
 quick_prompts = [[x] for x in quick_prompts]
-
 
 css = get_app_css()
 block = gr.Blocks(css=css).queue()
@@ -2148,26 +2248,109 @@ with block:
                 gr.Markdown(f"### " + translate("LoRA設定"))
 
                 # LoRA使用有無のチェックボックス
+
                 use_lora = gr.Checkbox(label=translate("LoRAを使用する"), value=False, info=translate("チェックをオンにするとLoRAを使用します（要16GB VRAM以上）"))
 
-                # LoRA設定コンポーネント（初期状態では非表示）
-                # メインのLoRAファイル
-                lora_files = gr.File(
-                    label=translate("LoRAファイル (.safetensors, .pt, .bin)"),
-                    file_types=[".safetensors", ".pt", ".bin"],
+                # ./loraディレクトリをスキャンする関数
+                def scan_lora_directory():
+                    """./loraディレクトリからLoRAモデルファイルを検索する関数"""
+                    lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
+                    choices = []
+                    
+                    # ディレクトリが存在しない場合は作成
+                    if not os.path.exists(lora_dir):
+                        os.makedirs(lora_dir, exist_ok=True)
+                        print(translate("[INFO] LoRAディレクトリが存在しなかったため作成しました: {0}").format(lora_dir))
+                    
+                    # ディレクトリ内のファイルをリストアップ
+                    for filename in os.listdir(lora_dir):
+                        if filename.endswith(('.safetensors', '.pt', '.bin')):
+                            choices.append(filename)
+                    
+                    # 空の選択肢がある場合は"なし"を追加
+                    choices = sorted(choices)
+                    
+                    # なしの選択肢を最初に追加
+                    none_choice = translate("なし")
+                    choices.insert(0, none_choice)
+                    
+                    # 重要: すべての選択肢が確実に文字列型であることを確認
+                    for i, choice in enumerate(choices):
+                        if not isinstance(choice, str):
+                            # 型変換のデバッグログ
+                            print(translate("[DEBUG] 選択肢の型変換が必要: インデックス {0}, 型 {1}, 値 {2}").format(
+                                i, type(choice).__name__, choice))
+                            # 明示的に文字列に変換
+                            choices[i] = str(choice)
+                    
+                    # ファイル内容のデバッグ出力を追加
+                    print(translate("[INFO] LoRAディレクトリから{0}個のモデルを検出しました").format(len(choices) - 1))
+                    print(translate("[DEBUG] 'なし'の値: {0!r}, 型: {1}").format(choices[0], type(choices[0]).__name__))
+                    
+                    # デバッグ用の出力
+                    print(translate("[DEBUG] scan_lora_directory戻り値: 型={0}, 最初の要素={1!r}").format(
+                        type(choices).__name__, choices[0] if choices else "なし"))
+                    
+                    return choices
+                
+                # LoRAの読み込み方式を選択するラジオボタン
+                lora_mode = gr.Radio(
+                    choices=[translate("ディレクトリから選択"), translate("ファイルアップロード")],
+                    value=translate("ディレクトリから選択"),
+                    label=translate("LoRA読み込み方式"),
                     visible=False
                 )
-                # 追加のLoRAファイル
-                lora_files2 = gr.File(
-                    label=translate("LoRAファイル2 (.safetensors, .pt, .bin)"),
-                    file_types=[".safetensors", ".pt", ".bin"],
-                    visible=False
-                )
-                # スケール値の入力フィールド
+
+                # ファイルアップロードグループ - 初期状態は非表示
+                with gr.Group(visible=False) as lora_upload_group:
+                    # メインのLoRAファイル
+                    lora_files = gr.File(
+                        label=translate("LoRAファイル (.safetensors, .pt, .bin)"),
+                        file_types=[".safetensors", ".pt", ".bin"],
+                        visible=True
+                    )
+                    # 追加のLoRAファイル1
+                    lora_files2 = gr.File(
+                        label=translate("LoRAファイル2 (.safetensors, .pt, .bin)"),
+                        file_types=[".safetensors", ".pt", ".bin"],
+                        visible=True
+                    )
+                    # 追加のLoRAファイル2（F1版でも3つ目を追加）
+                    lora_files3 = gr.File(
+                        label=translate("LoRAファイル3 (.safetensors, .pt, .bin)"),
+                        file_types=[".safetensors", ".pt", ".bin"],
+                        visible=True
+                    )
+                
+                # ディレクトリ選択グループ - 初期状態は非表示
+                with gr.Group(visible=False) as lora_dropdown_group:
+                    # ディレクトリからスキャンされたモデルのドロップダウン
+                    lora_dropdown1 = gr.Dropdown(
+                        label=translate("LoRAモデル選択 1"),
+                        choices=[],
+                        value=None,
+                        allow_custom_value=False
+                    )
+                    lora_dropdown2 = gr.Dropdown(
+                        label=translate("LoRAモデル選択 2"),
+                        choices=[],
+                        value=None,
+                        allow_custom_value=False
+                    )
+                    lora_dropdown3 = gr.Dropdown(
+                        label=translate("LoRAモデル選択 3"),
+                        choices=[],
+                        value=None,
+                        allow_custom_value=False
+                    )
+                    # スキャンボタン
+                    lora_scan_button = gr.Button(translate("LoRAディレクトリを再スキャン"), variant="secondary")
+                
+                # スケール値の入力フィールド（両方の方式で共通）
                 lora_scales_text = gr.Textbox(
                     label=translate("LoRA適用強度 (カンマ区切り)"),
-                    value="0.8,0.8",
-                    info=translate("各LoRAのスケール値をカンマ区切りで入力 (例: 0.8,0.5)"),
+                    value="0.8,0.8,0.8",
+                    info=translate("各LoRAのスケール値をカンマ区切りで入力 (例: 0.8,0.5,0.3)"),
                     visible=False
                 )
                 fp8_optimization = gr.Checkbox(
@@ -2176,32 +2359,255 @@ with block:
                     info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
                     visible=False
                 )
-                lora_blocks_type = gr.Dropdown(
-                    label=translate("LoRAブロック選択"),
-                    choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
-                    value="all",
-                    info=translate("選択するブロックタイプ（all=すべて、その他=メモリ節約）"),
-                    visible=False
-                )
 
                 # チェックボックスの状態によって他のLoRA設定の表示/非表示を切り替える関数
                 def toggle_lora_settings(use_lora):
+                    if use_lora:
+                        # LoRA使用時はデフォルトでディレクトリから選択モードを表示
+                        choices = scan_lora_directory()
+                        print(translate("[DEBUG] toggle_lora_settings - 選択肢リスト: {0}").format(choices))
+                        
+                        # 選択肢の型チェックを追加
+                        for i, choice in enumerate(choices):
+                            if not isinstance(choice, str):
+                                print(translate("[DEBUG] toggle_lora_settings - 選択肢を文字列に変換: インデックス {0}, 元の値 {1}, 型 {2}").format(
+                                    i, choice, type(choice).__name__))
+                                choices[i] = str(choice)
+                        
+                        # ドロップダウンが初期化時にも確実に更新されるようにする
+                        return [
+                            gr.update(visible=True),  # lora_mode
+                            gr.update(visible=False),  # lora_upload_group - デフォルトでは非表示
+                            gr.update(visible=True),  # lora_dropdown_group - デフォルトで表示
+                            gr.update(visible=True),  # lora_scales_text
+                            gr.update(visible=True),  # fp8_optimization
+                        ]
+                    else:
+                        # LoRA不使用時はすべて非表示
+                        return [
+                            gr.update(visible=False),  # lora_mode
+                            gr.update(visible=False),  # lora_upload_group
+                            gr.update(visible=False),  # lora_dropdown_group
+                            gr.update(visible=False),  # lora_scales_text
+                            gr.update(visible=False),  # fp8_optimization
+                        ]
+                
+                # LoRA読み込み方式に応じて表示を切り替える関数
+                def toggle_lora_mode(mode):
+                    if mode == translate("ディレクトリから選択"):
+                        # ディレクトリから選択モードの場合
+                        # 最初にディレクトリをスキャン
+                        choices = scan_lora_directory()
+                        print(translate("[DEBUG] toggle_lora_mode - 選択肢リスト: {0}").format(choices))
+                        
+                        # 選択肢の型を明示的に確認＆変換
+                        for i, choice in enumerate(choices):
+                            if not isinstance(choice, str):
+                                print(translate("[DEBUG] toggle_lora_mode - 選択肢を文字列に変換: インデックス {0}, 元の値 {1}, 型 {2}").format(
+                                    i, choice, type(choice).__name__))
+                                choices[i] = str(choice)
+                        
+                        # 最初の選択肢がちゃんと文字列になっているか再確認
+                        first_choice = choices[0]
+                        print(translate("[DEBUG] toggle_lora_mode - 変換後の最初の選択肢: {0}, 型: {1}").format(
+                            first_choice, type(first_choice).__name__
+                        ))
+                        
+                        # 選択肢が確実に更新されるようにする
+                        return [
+                            gr.update(visible=False),                                # lora_upload_group
+                            gr.update(visible=True),                                 # lora_dropdown_group
+                            gr.update(choices=choices, value=choices[0]),            # lora_dropdown1
+                            gr.update(choices=choices, value=choices[0]),            # lora_dropdown2
+                            gr.update(choices=choices, value=choices[0])             # lora_dropdown3
+                        ]
+                    else:  # ファイルアップロード
+                        # ファイルアップロード方式の場合、ドロップダウンの値は更新しない
+                        return [
+                            gr.update(visible=True),   # lora_upload_group
+                            gr.update(visible=False),  # lora_dropdown_group
+                            gr.update(),               # lora_dropdown1 - 変更なし
+                            gr.update(),               # lora_dropdown2 - 変更なし
+                            gr.update()                # lora_dropdown3 - 変更なし
+                        ]
+                
+                # スキャンボタンの処理関数
+                def update_lora_dropdowns():
+                    choices = scan_lora_directory()
+                    # LoRAドロップダウンの値を明示的に文字列として設定
+                    print(translate("[DEBUG] LoRAドロップダウン更新 - 選択肢: {0}").format(choices))
+                    print(translate("[DEBUG] 最初の選択肢: {0}, 型: {1}").format(choices[0], type(choices[0]).__name__))
+                    
+                    # すべての選択肢が確実に文字列型であることを確認
+                    for i, choice in enumerate(choices):
+                        if not isinstance(choice, str):
+                            print(translate("[DEBUG] update_lora_dropdowns - 選択肢を文字列に変換: インデックス {0}, 値 {1}, 型 {2}").format(
+                                i, choice, type(choice).__name__))
+                            choices[i] = str(choice)
+                    
+                    # 各ドロップダウンを更新
+                    print(translate("[DEBUG] update_lora_dropdowns - ドロップダウン更新完了。選択肢: {0}").format(choices))
+                    
                     return [
-                        gr.update(visible=use_lora),  # lora_files
-                        gr.update(visible=use_lora),  # lora_files2
-                        gr.update(visible=use_lora),  # lora_scales_text
-                        gr.update(visible=use_lora),  # fp8_optimization
+                        gr.update(choices=choices, value=choices[0]),  # lora_dropdown1
+                        gr.update(choices=choices, value=choices[0]),  # lora_dropdown2
+                        gr.update(choices=choices, value=choices[0]),  # lora_dropdown3
                     ]
+                
+                # 前回のLoRAモードを記憶するための変数
+                previous_lora_mode = translate("ディレクトリから選択")  # デフォルトはディレクトリから選択
+                
+                # LoRA設定の変更を2ステップで行う関数
+                def toggle_lora_full_update(use_lora_val):
+                    # グローバル変数でモードを記憶
+                    global previous_lora_mode
+                    
+                    # まずLoRA設定全体の表示/非表示を切り替え
+                    # use_loraがオフの場合、まずモード値を保存
+                    if not use_lora_val:
+                        # モードの現在値を取得
+                        current_mode = getattr(lora_mode, 'value', translate("ディレクトリから選択"))
+                        if current_mode:
+                            previous_lora_mode = current_mode
+                            print(translate("[DEBUG] 前回のLoRAモードを保存: {0}").format(previous_lora_mode))
+                    
+                    # 表示/非表示の設定を取得
+                    settings_updates = toggle_lora_settings(use_lora_val)
+                    
+                    # もしLoRAが有効になった場合
+                    if use_lora_val:
+                        print(translate("[DEBUG] LoRAが有効になりました。前回のモード: {0}").format(previous_lora_mode))
+                        
+                        # 前回のモードに基づいて表示を切り替え
+                        if previous_lora_mode == translate("ファイルアップロード"):
+                            # ファイルアップロードモードだった場合
+                            print(translate("[DEBUG] 前回のモードはファイルアップロードだったため、ファイルアップロードUIを表示します"))
+                            # モードの設定を上書き（ファイルアップロードに設定）
+                            settings_updates[0] = gr.update(visible=True, value=translate("ファイルアップロード"))  # lora_mode
+                            settings_updates[1] = gr.update(visible=True)   # lora_upload_group
+                            settings_updates[2] = gr.update(visible=False)  # lora_dropdown_group
+                            
+                            # ドロップダウンは更新しない
+                            return settings_updates + [gr.update(), gr.update(), gr.update()]
+                        else:
+                            # デフォルトまたはディレクトリから選択モードだった場合
+                            choices = scan_lora_directory()
+                            print(translate("[DEBUG] toggle_lora_full_update - LoRAドロップダウン選択肢: {0}").format(choices))
+                            
+                            # ドロップダウンの更新を行う
+                            dropdown_updates = [
+                                gr.update(choices=choices, value=choices[0]),  # lora_dropdown1
+                                gr.update(choices=choices, value=choices[0]),  # lora_dropdown2
+                                gr.update(choices=choices, value=choices[0])   # lora_dropdown3
+                            ]
+                            
+                            # モードの設定を明示的に上書き
+                            settings_updates[0] = gr.update(visible=True, value=translate("ディレクトリから選択"))  # lora_mode
+                            return settings_updates + dropdown_updates
+                    
+                    # LoRAが無効な場合は設定の更新のみ
+                    return settings_updates + [gr.update(), gr.update(), gr.update()]
+                
+                # LoRAモードの変更を処理する関数
+                def toggle_lora_mode_with_memory(mode_value):
+                    # グローバル変数に選択を保存
+                    global previous_lora_mode
+                    previous_lora_mode = mode_value
+                    print(translate("[DEBUG] LoRAモードを変更: {0}").format(mode_value))
+                    
+                    # 標準のtoggle_lora_mode関数を呼び出し
+                    return toggle_lora_mode(mode_value)
 
-                # チェックボックスの変更イベントに関数を紋づけ
-                use_lora.change(fn=toggle_lora_settings,
-                           inputs=[use_lora],
-                           outputs=[lora_files, lora_files2, lora_scales_text, fp8_optimization])
-
-                # LoRAサポートが無効の場合のメッセージ
-                if not has_lora_support:
-                    gr.Markdown(translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
-
+                # チェックボックスの変更イベントにLoRA設定全体の表示/非表示を切り替える関数を紐づけ
+                use_lora.change(
+                    fn=toggle_lora_full_update,
+                    inputs=[use_lora],
+                    outputs=[lora_mode, lora_upload_group, lora_dropdown_group, lora_scales_text, fp8_optimization, 
+                             lora_dropdown1, lora_dropdown2, lora_dropdown3]
+                )
+                
+                # LoRA読み込み方式の変更イベントに表示切替関数を紐づけ
+                lora_mode.change(
+                    fn=toggle_lora_mode_with_memory,
+                    inputs=[lora_mode],
+                    outputs=[lora_upload_group, lora_dropdown_group, lora_dropdown1, lora_dropdown2, lora_dropdown3]
+                )
+                
+                # スキャンボタンの処理を紐づけ
+                lora_scan_button.click(
+                    fn=update_lora_dropdowns,
+                    inputs=[],
+                    outputs=[lora_dropdown1, lora_dropdown2, lora_dropdown3]
+                )
+                
+                # UIロード時のLoRA初期化関数
+                def lora_ready_init():
+                    """LoRAドロップダウンの初期化を行う関数"""
+                    print(translate("[INFO] LoRAドロップダウンの初期化を開始します"))
+                    
+                    # 現在のuse_loraとlora_modeの値を取得
+                    use_lora_value = getattr(use_lora, 'value', False)
+                    lora_mode_value = getattr(lora_mode, 'value', translate("ディレクトリから選択"))
+                    
+                    print(translate("[DEBUG] 初期化時の状態 - use_lora: {0}, lora_mode: {1}").format(
+                        use_lora_value, lora_mode_value))
+                    
+                    # グローバル変数を更新
+                    global previous_lora_mode
+                    previous_lora_mode = lora_mode_value
+                    
+                    if use_lora_value:
+                        # LoRAが有効な場合
+                        if lora_mode_value == translate("ディレクトリから選択"):
+                            # ディレクトリから選択モードの場合はドロップダウンを初期化
+                            print(translate("[INFO] ディレクトリから選択モードでLoRAが有効なため、ドロップダウンを初期化します"))
+                            choices = scan_lora_directory()
+                            print(translate("[DEBUG] 初期化時のLoRA選択肢: {0}").format(choices))
+                            return [
+                                gr.update(choices=choices, value=choices[0]),  # lora_dropdown1
+                                gr.update(choices=choices, value=choices[0]),  # lora_dropdown2
+                                gr.update(choices=choices, value=choices[0])   # lora_dropdown3
+                            ]
+                        else:
+                            # ファイルアップロードモードの場合はドロップダウンを更新しない
+                            print(translate("[INFO] ファイルアップロードモードでLoRAが有効なため、ドロップダウンは更新しません"))
+                            return [gr.update(), gr.update(), gr.update()]
+                    
+                    # LoRAが無効な場合は何も更新しない
+                    return [gr.update(), gr.update(), gr.update()]
+                
+                # 初期化用の非表示ボタン
+                lora_init_btn = gr.Button(visible=False, elem_id="lora_init_btn_f1")
+                lora_init_btn.click(
+                    fn=lora_ready_init,
+                    inputs=[],
+                    outputs=[lora_dropdown1, lora_dropdown2, lora_dropdown3]
+                )
+                
+                # UIロード後に自動的に初期化するJavaScriptを追加
+                js_init_code = """
+                function initLoraDropdowns() {
+                    // UIロード後、少し待ってからボタンをクリック
+                    setTimeout(function() {
+                        // 非表示ボタンを探して自動クリック
+                        var initBtn = document.getElementById('lora_init_btn_f1');
+                        if (initBtn) {
+                            console.log('LoRAドロップダウン初期化ボタンを自動実行します');
+                            initBtn.click();
+                        } else {
+                            console.log('LoRAドロップダウン初期化ボタンが見つかりません');
+                        }
+                    }, 1000); // 1秒待ってから実行
+                }
+                
+                // ページロード時に初期化関数を呼び出し
+                window.addEventListener('load', initLoraDropdowns);
+                """
+                
+                # JavaScriptコードをUIに追加
+                gr.HTML(f"<script>{js_init_code}</script>")
+                
+            # プロンプト入力
             prompt = gr.Textbox(label=translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
             # プロンプト管理パネルの追加
@@ -2544,32 +2950,38 @@ with block:
         input_img = args[0]  # 入力の最初が入力画像
         # 注意: 引数のインデックスを正確に確認するためのデバッグ出力
         print(translate("[DEBUG] validate_and_process: 引数の総数: {0}").format(len(args)))
-        print(translate("[DEBUG] validate_and_process: 引数20-26の値:"))
-        for i in range(20, 27):
+        print(translate("[DEBUG] validate_and_process: LoRA関連引数の値:"))
+        for i in range(18, 30):
             if i < len(args):
                 print(translate("[DEBUG] args[{0}] = {1} (型: {2})").format(i, args[i], type(args[i]).__name__))
         
-        # UIのセットアップとips配列:
+        # UIのセットアップとips配列 (実際のips配列の順序):
         # [0]input_image, [1]prompt, [2]n_prompt, [3]seed, [4]total_second_length, [5]latent_window_size, 
         # [6]steps, [7]cfg, [8]gs, [9]rs, [10]gpu_memory_preservation, [11]use_teacache, [12]use_random_seed, 
         # [13]mp4_crf, [14]all_padding_value, [15]image_strength, [16]frame_size_radio, [17]keep_section_videos, 
-        # [18]lora_files, [19]lora_files2, [20]lora_scales_text, [21]output_dir, [22]save_section_frames, 
-        # [23]use_all_padding, [24]use_lora, [25]save_tensor_data, [26]section_settings, [27]tensor_data_input, 
-        # [28]fp8_optimization, [29]resolution, [30]batch_count
+        # [18]lora_files, [19]lora_files2, [20]lora_files3, [21]lora_scales_text, [22]output_dir, [23]save_section_frames, 
+        # [24]use_all_padding, [25]use_lora, [26]lora_mode, [27]lora_dropdown1, [28]lora_dropdown2, [29]lora_dropdown3, 
+        # [30]save_tensor_data, [31]section_settings, [32]tensor_data_input, [33]fp8_optimization, [34]resolution, 
+        # [35]batch_count, [36]frame_save_mode
         
-        # 各引数を明示的に取得
-        output_dir = args[21] if len(args) > 21 else None
-        save_section_frames = args[22] if len(args) > 22 else False
-        use_all_padding = args[23] if len(args) > 23 else False
-        use_lora = args[24] if len(args) > 24 else False
-        save_tensor_data = args[25] if len(args) > 25 else False  # 正しいインデックスに修正
-        section_settings = args[26] if len(args) > 26 else None   # 正しいインデックスに修正
-        tensor_data_input = args[27] if len(args) > 27 else None  # 正しいインデックスに修正
-        fp8_optimization = args[28] if len(args) > 28 else False
-        resolution_value = args[29] if len(args) > 29 else 640
-        batch_count = args[30] if len(args) > 30 else 1
-        # 旧パラメータの代わりにフレーム保存モードを取得
-        frame_save_mode = args[31] if len(args) > 31 else translate("保存しない")
+        # 各引数を明示的に取得 - コメントに基づいて正確なインデックスを使用
+        output_dir = args[22] if len(args) > 22 else None
+        save_section_frames = args[23] if len(args) > 23 else False
+        use_all_padding = args[24] if len(args) > 24 else False
+        use_lora = args[25] if len(args) > 25 else False
+        lora_mode = args[26] if len(args) > 26 else translate("ディレクトリから選択")
+        lora_dropdown1 = args[27] if len(args) > 27 else None
+        lora_dropdown2 = args[28] if len(args) > 28 else None
+        lora_dropdown3 = args[29] if len(args) > 29 else None
+        save_tensor_data = args[30] if len(args) > 30 else False
+        # F1版ではsection_settingsは常に固定値を使用（無印版の部分は不要）
+        section_settings = args[31] if len(args) > 31 else None
+        tensor_data_input = args[32] if len(args) > 32 else None
+        fp8_optimization = args[33] if len(args) > 33 else False
+        resolution_value = args[34] if len(args) > 34 else 640
+        batch_count = args[35] if len(args) > 35 else 1
+        # フレーム保存モードを取得
+        frame_save_mode = args[36] if len(args) > 36 else translate("保存しない")
         
         # デバッグ：フレーム保存モードの型と値を確認
         print(translate("[DEBUG] frame_save_modeの型: {0}, 値: {1}").format(type(frame_save_mode).__name__, frame_save_mode))
@@ -2604,7 +3016,7 @@ with block:
         # バッチ回数を有効な範囲に制限
         batch_count = max(1, min(int(batch_count), 100))
 
-        # F1モードでは簡易化
+        # F1モードでは固定のダミーセクション設定を使用
         section_settings = [[None, None, ""] for _ in range(50)]
 
         # 現在の動画長設定とフレームサイズ設定を渡す
@@ -2619,15 +3031,28 @@ with block:
         # 元のパラメータを使用
         new_args = list(args)
         
-        # 引数を正しいインデックスで設定
+        # 引数を正しいインデックスで設定 (LoRA関連パラメータ追加に伴い調整)
         if len(new_args) > 25:
-            new_args[25] = save_tensor_data  # save_tensor_dataを確実に正しい値に
+            new_args[25] = use_lora  # use_loraを確実に正しい値に
         if len(new_args) > 26:
-            new_args[26] = section_settings  # section_settingsを更新
+            new_args[26] = lora_mode  # lora_modeを設定
+        if len(new_args) > 27:
+            new_args[27] = lora_dropdown1  # lora_dropdown1を設定
+        if len(new_args) > 28:
+            new_args[28] = lora_dropdown2  # lora_dropdown2を設定
+        if len(new_args) > 29:
+            new_args[29] = lora_dropdown3  # lora_dropdown3を設定
+        if len(new_args) > 30:
+            new_args[30] = save_tensor_data  # save_tensor_dataを確実に正しい値に
+        
+        # F1モードでは固定のセクション設定を使用
+        if len(new_args) > 31:
+            new_args[31] = section_settings
         
         # その他の引数も必要に応じて設定
-        if len(new_args) <= 32:
-            # 不足している場合は追加
+        if len(new_args) <= 37:  # 引数の最大インデックスに合わせて調整
+            # 不足している場合は拡張
+            new_args.extend([None] * (37 - len(new_args)))
             if len(new_args) <= 31:
                 if len(new_args) <= 30:
                     if len(new_args) <= 29:
@@ -2654,14 +3079,15 @@ with block:
 
     # 実行ボタンのイベント
     # ips配列の引数の順序と、validate_and_processで実際に処理する引数の順序を正確に一致させる
-    # コメントの最新版と引数の順序が一致していることを確認
+    # 注意: 以下が実際のips配列の順序です
     #  [0]input_image, [1]prompt, [2]n_prompt, [3]seed, [4]total_second_length, [5]latent_window_size, 
     #  [6]steps, [7]cfg, [8]gs, [9]rs, [10]gpu_memory_preservation, [11]use_teacache, [12]use_random_seed, 
     #  [13]mp4_crf, [14]all_padding_value, [15]image_strength, [16]frame_size_radio, [17]keep_section_videos, 
-    #  [18]lora_files, [19]lora_files2, [20]lora_scales_text, [21]output_dir, [22]save_section_frames, 
-    #  [23]use_all_padding, [24]use_lora, [25]save_tensor_data, [26]section_settings, [27]tensor_data_input, 
-    #  [28]fp8_optimization, [29]resolution, [30]batch_count
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, image_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_scales_text, output_dir, save_section_frames, use_all_padding, use_lora, save_tensor_data, section_settings, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode]
+    #  [18]lora_files, [19]lora_files2, [20]lora_files3, [21]lora_scales_text, [22]output_dir, [23]save_section_frames, 
+    #  [24]use_all_padding, [25]use_lora, [26]lora_mode, [27]lora_dropdown1, [28]lora_dropdown2, [29]lora_dropdown3, 
+    #  [30]save_tensor_data, [31]section_settings, [32]tensor_data_input, [33]fp8_optimization, [34]resolution, 
+    #  [35]batch_count, [36]frame_save_mode
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, image_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_files3, lora_scales_text, output_dir, save_section_frames, use_all_padding, use_lora, lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, save_tensor_data, section_settings, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode]
 
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process, outputs=[end_button])
