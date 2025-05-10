@@ -312,7 +312,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
     has_any_image = has_any_image or (last_visible_section_image is not None)
     if not has_any_image:
-        raise ValueError("入力画像または表示されている最後のキーフレーム画像のいずれかが必要です")
+        # UIに直接エラーメッセージを表示
+        stream.output_queue.push(('progress', (None, translate("❗️ 画像が選択されていません\n生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これはあまねく叡智の始発点となる重要な画像です。"), make_progress_bar_html(0, translate('エラー')))))
+        # 処理を終了
+        stream.output_queue.push(('end', None))
+        return
 
     # 入力画像がない場合はキーフレーム画像を使用
     if input_image is None and last_visible_section_image is not None:
@@ -879,10 +883,52 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # end_frame_strength=0.01のときは0.01倍（影響が非常に弱い）
                     modified_end_frame_latent = end_frame_latent * end_frame_strength
                     print(translate("EndFrame影響度を{0}に設定（最終フレームの影響が{1}倍）").format(f"{end_frame_strength:.2f}", f"{end_frame_strength:.2f}"))
-                    history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
+                    try:
+                        history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
+                    except RuntimeError as e:
+                        # テンソルサイズの不一致エラーを検出して、わかりやすいエラーメッセージを表示
+                        error_msg = str(e)
+                        if "The expanded size of the tensor" in error_msg and "must match the existing size" in error_msg:
+                            # エラーメッセージのデバッグ出力
+                            print(translate("解像度不一致エラー検出: {0}").format(error_msg))
+                            # 入力画像と最終フレーム画像のサイズを表示
+                            print(translate("入力画像サイズ: {0}x{1}").format(width, height))
+                            
+                            # コンソールにエラーを出力するだけのシンプルな方法
+                            print("\n" + "*" * 80)
+                            print(translate("❗️ 入力画像と最終フレーム画像の解像度が一致していません"))
+                            print(translate("同じ解像度の画像を使用してください"))
+                            print("*" * 80 + "\n")
+                            # 処理を終了
+                            stream.output_queue.push(('end', None))
+                            return
+                        else:
+                            # その他のエラーはそのまま再発生
+                            raise
                 else:
                     # 通常の処理（通常の影響）
-                    history_latents[:, :, 0:1, :, :] = end_frame_latent
+                    try:
+                        history_latents[:, :, 0:1, :, :] = end_frame_latent
+                    except RuntimeError as e:
+                        # テンソルサイズの不一致エラーを検出して、わかりやすいエラーメッセージを表示
+                        error_msg = str(e)
+                        if "The expanded size of the tensor" in error_msg and "must match the existing size" in error_msg:
+                            # エラーメッセージのデバッグ出力
+                            print(translate("解像度不一致エラー検出: {0}").format(error_msg))
+                            # 入力画像と最終フレーム画像のサイズを表示
+                            print(translate("入力画像サイズ: {0}x{1}").format(width, height))
+                            
+                            # コンソールにエラーを出力するだけのシンプルな方法
+                            print("\n" + "*" * 80)
+                            print(translate("❗️ 入力画像と最終フレーム画像の解像度が一致していません"))
+                            print(translate("同じ解像度の画像を使用してください"))
+                            print("*" * 80 + "\n")
+                            # 処理を終了
+                            stream.output_queue.push(('end', None))
+                            return
+                        else:
+                            # その他のエラーはそのまま再発生
+                            raise
 
             if stream.input_queue.top() == 'end':
                 stream.output_queue.push(('end', None))
