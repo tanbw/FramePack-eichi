@@ -222,10 +222,7 @@ print(translate("設定から出力フォルダを読み込み: {0}").format(out
 outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
 
-
 # キーフレーム処理関数は keyframe_handler.py に移動済み
-
-# v1.9.1テスト実装
 
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False):
@@ -345,11 +342,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     # フォルダが存在しない場合は作成
     os.makedirs(outputs_folder, exist_ok=True)
 
-
-
     # 処理時間計測の開始
     process_start_time = time.time()
-
 
     # グローバル変数で状態管理しているモデル変数を宣言する
     global transformer, text_encoder, text_encoder_2
@@ -358,7 +352,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     if not text_encoder_manager.ensure_text_encoder_state():
         raise Exception(translate("text_encoderとtext_encoder_2の初期化に失敗しました"))
     text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
-
 
     # 既存の計算方法を保持しつつ、設定からセクション数も取得する
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
@@ -520,7 +513,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 image_encoder, vae
             )
 
-
         # Text encoding
 
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, translate("Text encoding ...")))))
@@ -563,12 +555,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         print(translate("[ERROR] セクション{0}のプロンプトエンコードに失敗: {1}").format(sec_num, e))
                         traceback.print_exc()
 
-
         # これ以降の処理は text_encoder, text_encoder_2 は不要なので、メモリ解放してしまって構わない
         if not high_vram:
             text_encoder, text_encoder_2 = None, None
             text_encoder_manager.dispose_text_encoders()
-
 
         # テンソルデータのアップロードがあれば読み込み
         uploaded_tensor = None
@@ -742,7 +732,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         total_generated_latent_frames = 0
 
         # ここでlatent_paddingsを再定義していたのが原因だったため、再定義を削除します
-
 
         # -------- LoRA 設定 START ---------
 
@@ -1798,7 +1787,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     stream.output_queue.push(('end', None))
     return
 
-
 # 画像のバリデーション関数
 def validate_images(input_image, section_settings, length_radio=None, frame_size_radio=None):
     """入力画像または画面に表示されている最後のキーフレーム画像のいずれかが有効かを確認する"""
@@ -2203,7 +2191,6 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             print(translate("バッチ処理ループを中断します"))
             break
 
-
 def end_process():
     global stream
     global batch_stopped
@@ -2217,10 +2204,6 @@ def end_process():
     # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
     return gr.update(value=translate("停止処理中..."))
 
-
-
-
-
 # 既存のQuick Prompts（初期化時にプリセットに変換されるので、互換性のために残す）
 quick_prompts = [
     'A character doing some simple body movements.',
@@ -2230,7 +2213,6 @@ quick_prompts = [
     'A character moves in unexpected ways, with surprising transitions poses.',
 ]
 quick_prompts = [[x] for x in quick_prompts]
-
 
 css = get_app_css()
 block = gr.Blocks(css=css).queue()
@@ -2257,35 +2239,15 @@ with block:
             use_all_padding = gr.Checkbox(label=translate("オールパディング"), value=False, info=translate("数値が小さいほど直前の絵への影響度が下がり動きが増える"), elem_id="all_padding_checkbox")
             all_padding_value = gr.Slider(label=translate("パディング値"), minimum=0.2, maximum=3, value=1, step=0.1, info=translate("すべてのセクションに適用するパディング値（0.2〜3の整数）"), visible=False)
             
-            # VAEキャッシュ設定
-            use_vae_cache = gr.Checkbox(
-                label=translate("VAEキャッシュを使用"),
-                value=False,
-                info=translate("VAEデコードを1フレームずつ処理し速度向上（高メモリ使用）"),
-                elem_id="vae_cache_checkbox"
-            )
-
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
             def toggle_all_padding_visibility(use_all_padding):
                 return gr.update(visible=use_all_padding)
                 
-            # VAEキャッシュのチェックボックス状態変更ハンドラ
-            def update_vae_cache_state(value):
-                global vae_cache_enabled
-                vae_cache_enabled = value
-                print(f"VAEキャッシュの状態を変更しました: {vae_cache_enabled}")
-                return None
-
+            # オールパディングのチェックボックス状態変更のみ
             use_all_padding.change(
                 fn=toggle_all_padding_visibility,
                 inputs=[use_all_padding],
                 outputs=[all_padding_value]
-            )
-            
-            use_vae_cache.change(
-                fn=update_vae_cache_state,
-                inputs=[use_vae_cache],
-                outputs=[]
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
@@ -3850,7 +3812,6 @@ with block:
                 inputs=[mode_radio, length_radio],
                 outputs=[input_image, end_frame] + section_image_inputs + [total_second_length] + section_row_groups + [keyframe_copy_checkbox]
             )
-
 
             # EndFrame影響度調整スライダー
             with gr.Group():
