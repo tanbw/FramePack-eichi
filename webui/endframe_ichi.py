@@ -97,6 +97,9 @@ from eichi_utils.keyframe_handler import (
     print_keyframe_debug_info
 )
 
+# セクション情報の一括管理モジュールをインポート
+from eichi_utils.section_manager import upload_zipfile_handler, download_zipfile_handler
+
 # 拡張キーフレーム処理モジュールをインポート
 from eichi_utils.keyframe_handler_extended import extended_mode_length_change_handler
 import gradio as gr
@@ -2333,9 +2336,23 @@ with block:
             section_image_inputs = []
             section_prompt_inputs = []  # プロンプト入力欄用のリスト
             section_row_groups = []  # 各セクションのUI行を管理するリスト
-
+            section_image_states = []   # 画像のパスを保持するState配列
+            section_prompt_states = []  # プロンプトの値を保持するState配列
+            
+            # エンドフレームと初期フレーム用のState変数
+            end_frame_state = gr.State(None)  # エンドフレーム画像のパスを保持
+            input_image_state = gr.State(None)  # 開始フレーム画像のパスを保持
+            
             # 設定から最大キーフレーム数を取得
             max_keyframes = get_max_keyframes_count()
+            
+            # 各セクションの画像パスとプロンプトを保持するためのStateを初期化
+            for i in range(max_keyframes):
+                section_image_states.append(gr.State(None))
+                section_prompt_states.append(gr.State(""))
+            
+            # セクションUIデバッグ用フラグ
+            debug_section_inputs = True  # デバッグ有効
 
             # 現在の動画モードで必要なセクション数を取得する関数
             def get_current_sections_count():
@@ -2378,7 +2395,14 @@ with block:
             )
 
             with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
-                # セクション情報zipファイルアップロード処理を追加
+                # セクション情報zipファイル処理（一括ダウンロード&アップロード）を追加
+                with gr.Group():
+                    gr.Markdown(f"### " + translate("セクション情報一括ダウンロード"))
+                    # 一括ダウンロードボタンを追加（primary=オレンジ色）
+                    download_sections_button = gr.Button(translate("セクション情報をZIPでダウンロード"), variant="primary")
+                    # ダウンロードコンポーネント（非表示）
+                    download_file = gr.File(label=translate("ダウンロードファイル"), visible=False, interactive=False)
+                
                 with gr.Group():
                     gr.Markdown(f"### " + translate("セクション情報一括アップロード"))
                     # チェックボックスで表示/非表示を切り替え
@@ -2410,67 +2434,171 @@ with block:
                             # 左側にセクション番号とプロンプトを配置
                             with gr.Column(scale=1):
                                 section_number = gr.Number(label=translate("セクション番号 {0}").format(i), value=i, precision=0)
-                                section_prompt = gr.Textbox(label=translate("セクションプロンプト {0}").format(i), placeholder=translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), lines=2)
+                                # デフォルト値は空文字列
+                                section_prompt = gr.Textbox(
+                                    label=translate("セクションプロンプト {0}").format(i), 
+                                    placeholder=translate("セクション固有のプロンプト（空白の場合は共通プロンプトを使用）"), 
+                                    lines=2,
+                                    # 値が変更されるたびに即時に保存するためのイベントを追加
+                                    every=1  # 入力のたびに値を更新
+                                )
 
                             # 右側にキーフレーム画像のみ配置
                             with gr.Column(scale=2):
                                 section_image = gr.Image(label=translate("キーフレーム画像 {0}").format(i), sources="upload", type="filepath", height=200)
 
+                                # プロンプト変更時にStateを更新するハンドラー
+                                def update_prompt_state(prompt_value, section_idx=i):
+                                    """プロンプト入力欄が変更されたときにStateに値を保存するハンドラー"""
+                                    # print(f"[DEBUG] セクション{section_idx}のプロンプト変更を検知: '{prompt_value}'")
+                                    # Stateに直接値を設定して確実に保存
+                                    if prompt_value is not None:
+                                        section_prompt_states[section_idx].value = prompt_value
+                                        # print(f"[IMPORTANT] セクション{section_idx}のプロンプトをStateに保存: '{prompt_value}'")
+                                    return prompt_value
+                                
+                                # プロンプト入力欄の変更を監視してStateに保存する - change イベント
+                                section_prompt.change(
+                                    fn=update_prompt_state,
+                                    inputs=[section_prompt],
+                                    outputs=[section_prompt_states[i]]
+                                )
+                                
+                                # プロンプトに対するすべての入力も監視（テキスト入力中も検知）
+                                if hasattr(section_prompt, 'input'):
+                                    section_prompt.input(
+                                        fn=update_prompt_state,
+                                        inputs=[section_prompt],
+                                        outputs=[section_prompt_states[i]]
+                                    )
+                                # submit イベントも監視
+                                if hasattr(section_prompt, 'submit'):
+                                    section_prompt.submit(
+                                        fn=update_prompt_state,
+                                        inputs=[section_prompt],
+                                        outputs=[section_prompt_states[i]]
+                                    )
+                                
                                 # 各キーフレーム画像のアップロード時のメタデータ抽出処理
                                 # クロージャーで現在のセクション番号を捕捉
                                 def create_section_metadata_handler(section_idx, section_prompt_input):
                                     def update_from_section_image_metadata(image_path, copy_enabled=False):
-                                        print(translate("\n[DEBUG] セクション{0}の画像メタデータ抽出処理が開始されました").format(section_idx))
-                                        print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
+                                        # print(translate("\n[DEBUG] セクション{0}の画像メタデータ抽出処理が開始されました").format(section_idx))
+                                        # print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
 
-                                        # 複写機能が無効の場合は何もしない
+                                        # 画像パスをState変数に保存する - 必ず保存する（メタデータ複写機能の影響を受けない）
+                                        if image_path is not None:
+                                            # print(translate("[DEBUG] セクション{0}の画像パスをStateに保存: {1}").format(section_idx, image_path))
+                                            # いずれの場合も画像パスを確実に保存
+                                            # この時点で画像パスのみを保存するため、グローバル変数に直接アクセス
+                                            section_image_states[section_idx].value = image_path
+                                            # print(translate("[IMPORTANT] セクション{0}のState値を直接更新: {1}").format(section_idx, image_path))
+                                        else:
+                                            # print(translate("[DEBUG] セクション{0}の画像パスがNoneです").format(section_idx))
+                                            pass
+
+                                        # 複写機能が無効の場合は無視
                                         if not copy_enabled:
-                                            print(translate("[DEBUG] セクション{0}: メタデータ複写機能が無効化されているため、処理をスキップします").format(section_idx))
-                                            return gr.update()
+                                            # print(translate("[DEBUG] セクション{0}: メタデータ複写機能が無効化されているため、処理をスキップします").format(section_idx))
+                                            pass
+                                            # 画像パスは保存するがプロンプト更新はしない
+                                            # gr.updateを返す（valueを指定しないとUI値が維持される）
+                                            return gr.update(), image_path
 
                                         if image_path is None:
-                                            print(translate("[DEBUG] セクション{0}の画像パスがNoneです").format(section_idx))
-                                            return gr.update()
+                                            # print(translate("[DEBUG] セクション{0}の画像パスがNoneです").format(section_idx))
+                                            # 画像がなければ空の文字列を返す
+                                            return "", None
 
-                                        print(translate("[DEBUG] セクション{0}の画像パス: {1}").format(section_idx, image_path))
+                                        # print(translate("[DEBUG] セクション{0}の画像パス: {1}").format(section_idx, image_path))
 
                                         try:
                                             # ファイルパスから直接メタデータを抽出
-                                            print(translate("[DEBUG] セクション{0}からextract_metadata_from_pngを直接呼び出し").format(section_idx))
+                                            # print(translate("[DEBUG] セクション{0}からextract_metadata_from_pngを直接呼び出し").format(section_idx))
                                             metadata = extract_metadata_from_png(image_path)
 
                                             if not metadata:
-                                                print(translate("[DEBUG] セクション{0}の画像からメタデータが抽出されませんでした").format(section_idx))
-                                                return gr.update()
+                                                # print(translate("[DEBUG] セクション{0}の画像からメタデータが抽出されませんでした").format(section_idx))
+                                                # メタデータが存在しない場合も空文字列を返す
+                                                current_value = ""
+                                                if section_prompt_input is not None:
+                                                    if hasattr(section_prompt_input, 'value'):
+                                                        current_value = section_prompt_input.value
+                                                    else:
+                                                        current_value = str(section_prompt_input)
+                                                return current_value, image_path
 
-                                            print(translate("[DEBUG] セクション{0}の抽出されたメタデータ: {1}").format(section_idx, metadata))
+                                            # print(translate("[DEBUG] セクション{0}の抽出されたメタデータ: {1}").format(section_idx, metadata))
 
                                             # セクションプロンプトを取得
                                             if SECTION_PROMPT_KEY in metadata and metadata[SECTION_PROMPT_KEY]:
                                                 section_prompt_value = metadata[SECTION_PROMPT_KEY]
-                                                print(translate("[DEBUG] セクション{0}のプロンプトを画像から取得: {1}").format(section_idx, section_prompt_value))
+                                                # print(translate("[DEBUG] セクション{0}のプロンプトを画像から取得: {1}").format(section_idx, section_prompt_value))
                                                 print(translate("セクション{0}のプロンプトを画像から取得: {1}").format(section_idx, section_prompt_value))
-                                                return gr.update(value=section_prompt_value)
+                                                
+                                                # Stateに直接値を設定して確実に保存
+                                                if section_prompt_states[section_idx] is not None:
+                                                    # 複写機能がオンの時だけプロンプトを上書き - 冗長チェックだが安全のため
+                                                    if copy_enabled:
+                                                        section_prompt_states[section_idx].value = section_prompt_value
+                                                        # print(translate("[IMPORTANT] セクション{0}のプロンプトをStateに直接保存: {1}").format(section_idx, section_prompt_value))
+                                                    else:
+                                                        pass
+                                                        # print(translate("[INFO] 複写機能がオフのため、セクション{0}のプロンプト({1})は既存の値を維持します").format(section_idx, section_prompt_value))
+                                                
+                                                # copy_enabledがtrueの場合のみプロンプト値を返す
+                                                # falseの場合はgr.update()を返して現在の値を維持
+                                                if copy_enabled:
+                                                    return section_prompt_value, image_path
+                                                else:
+                                                    return gr.update(), image_path
 
                                             # 通常のプロンプトがあればそれをセクションプロンプトに設定
                                             elif PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
                                                 prompt_value = metadata[PROMPT_KEY]
-                                                print(translate("[DEBUG] セクション{0}のプロンプトを画像の一般プロンプトから取得: {1}").format(section_idx, prompt_value))
+                                                # print(translate("[DEBUG] セクション{0}のプロンプトを画像の一般プロンプトから取得: {1}").format(section_idx, prompt_value))
                                                 print(translate("セクション{0}のプロンプトを画像の一般プロンプトから取得: {1}").format(section_idx, prompt_value))
-                                                return gr.update(value=prompt_value)
+                                                
+                                                # Stateに直接値を設定して確実に保存
+                                                if section_prompt_states[section_idx] is not None:
+                                                    # 複写機能がオンの時だけプロンプトを上書き - 冗長チェックだが安全のため
+                                                    if copy_enabled:
+                                                        section_prompt_states[section_idx].value = prompt_value
+                                                        # print(translate("[IMPORTANT] セクション{0}のプロンプトをStateに直接保存: {1}").format(section_idx, prompt_value))
+                                                    else:
+                                                        pass
+                                                        # print(translate("[INFO] 複写機能がオフのため、セクション{0}のプロンプト({1})は既存の値を維持します").format(section_idx, prompt_value))
+                                                
+                                                # copy_enabledがtrueの場合のみプロンプト値を返す
+                                                # falseの場合はgr.update()を返して現在の値を維持
+                                                if copy_enabled:
+                                                    return prompt_value, image_path
+                                                else:
+                                                    return gr.update(), image_path
                                         except Exception as e:
-                                            print(translate("[ERROR] セクション{0}のメタデータ抽出エラー: {1}").format(section_idx, e))
-                                            traceback.print_exc()
+                                            # print(translate("[ERROR] セクション{0}のメタデータ抽出エラー: {1}").format(section_idx, e))
+                                            # traceback.print_exc()
                                             print(translate("セクション{0}のメタデータ抽出エラー: {1}").format(section_idx, e))
 
-                                        return gr.update()
+                                        # エラー時や他の条件に該当しない場合はgr.update()を返して現在の値を維持
+                                        return gr.update(), image_path
                                     return update_from_section_image_metadata
 
                                 # キーフレーム画像アップロード時のメタデータ取得処理を登録
+                                # 画像変更イベントを処理するハンドラ - State直接更新実装のため、outputs側にはStateを含めない
+                                # 問題: outputs内にsection_prompt_states[i]を含めると、埋め込みプロンプトの形式が変化する
+                                # 修正: section_prompt_states[i]をoutputsから除外し、関数内で直接更新
                                 section_image.change(
                                     fn=create_section_metadata_handler(i, section_prompt),
                                     inputs=[section_image, copy_metadata],
-                                    outputs=[section_prompt]
+                                    outputs=[section_prompt, section_image_states[i]]  # section_prompt_states[i]は除外
+                                )
+                                
+                                # 同じキーフレーム画像を再度アップロードしたときの安全策
+                                section_image.upload(
+                                    fn=lambda img, idx=i: (img, img),
+                                    inputs=[section_image],
+                                    outputs=[section_image, section_image_states[i]]
                                 )
                             section_number_inputs.append(section_number)
                             section_image_inputs.append(section_image)
@@ -2564,31 +2692,36 @@ with block:
                 """Imageアップロード時にメタデータを抽出してUIに反映する
                 copy_enabled: メタデータの複写が有効化されているかどうか
                 """
-                print("\n[DEBUG] update_from_image_metadata関数が実行されました")
-                print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
+                # print("\n[DEBUG] update_from_image_metadata関数が実行されました")
+                # print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
+                # print(f"[DEBUG] 受け取ったimage_path: {image_path}, 型: {type(image_path)}")
+                # if isinstance(image_path, dict):
+                #     print(f"[DEBUG] image_path keys: {image_path.keys()}")
+                #     if 'path' in image_path:
+                #         print(f"[DEBUG] image_path['path']: {image_path['path']}")
 
                 # 複写機能が無効の場合は何もしない
                 if not copy_enabled:
-                    print("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします")
+                    # print("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします")
                     return [gr.update()] * 2
 
                 if image_path is None:
-                    print("[DEBUG] image_pathはNoneです")
+                    # print("[DEBUG] image_pathはNoneです")
                     return [gr.update()] * 2
 
-                print(translate("[DEBUG] 画像パス: {0}").format(image_path))
+                # print(translate("[DEBUG] 画像パス: {0}").format(image_path))
 
                 try:
                     # ファイルパスから直接メタデータを抽出
-                    print("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します")
+                    # print("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します")
                     metadata = extract_metadata_from_png(image_path)
 
                     if not metadata:
-                        print("[DEBUG] メタデータが抽出されませんでした")
+                        # print("[DEBUG] メタデータが抽出されませんでした")
                         print(translate("アップロードされた画像にメタデータが含まれていません"))
                         return [gr.update()] * 2
 
-                    print(translate("[DEBUG] メタデータサイズ: {0}, 内容: {1}").format(len(metadata), metadata))
+                    # print(translate("[DEBUG] メタデータサイズ: {0}, 内容: {1}").format(len(metadata), metadata))
                     print(translate("画像からメタデータを抽出しました: {0}").format(metadata))
 
                     # プロンプトとSEEDをUIに反映
@@ -2597,7 +2730,7 @@ with block:
 
                     if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
                         prompt_update = gr.update(value=metadata[PROMPT_KEY])
-                        print(translate("[DEBUG] プロンプトを更新: {0}").format(metadata[PROMPT_KEY]))
+                        # print(translate("[DEBUG] プロンプトを更新: {0}").format(metadata[PROMPT_KEY]))
                         print(translate("プロンプトを画像から取得: {0}").format(metadata[PROMPT_KEY]))
 
                     if SEED_KEY in metadata and metadata[SEED_KEY]:
@@ -2605,17 +2738,17 @@ with block:
                         try:
                             seed_value = int(metadata[SEED_KEY])
                             seed_update = gr.update(value=seed_value)
-                            print(translate("[DEBUG] SEED値を更新: {0}").format(seed_value))
+                            # print(translate("[DEBUG] SEED値を更新: {0}").format(seed_value))
                             print(translate("SEED値を画像から取得: {0}").format(seed_value))
                         except (ValueError, TypeError):
-                            print(translate("[DEBUG] SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
+                            # print(translate("[DEBUG] SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
                             print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
 
-                    print(translate("[DEBUG] 更新結果: prompt_update={0}, seed_update={1}").format(prompt_update, seed_update))
+                    # print(translate("[DEBUG] 更新結果: prompt_update={0}, seed_update={1}").format(prompt_update, seed_update))
                     return [prompt_update, seed_update]
                 except Exception as e:
-                    print(translate("[ERROR] メタデータ抽出処理中のエラー: {0}").format(e))
-                    traceback.print_exc()
+                    # print(translate("[ERROR] メタデータ抽出処理中のエラー: {0}").format(e))
+                    # traceback.print_exc()
                     print(translate("メタデータ抽出エラー: {0}").format(e))
                     return [gr.update()] * 2
 
@@ -2924,6 +3057,19 @@ with block:
                     inputs=[end_frame, mode_radio, length_radio],
                     outputs=[input_image]
                 )
+                
+                # エンドフレーム画像の変更をState変数に保存するハンドラを追加
+                def update_end_frame_state(image_path):
+                    # 画像パスをState変数に保存
+                    print(f"[INFO] エンドフレーム画像パスをStateに保存: {image_path}")
+                    return image_path
+                
+                # エンドフレーム変更時にStateも更新
+                end_frame.change(
+                    fn=update_end_frame_state,
+                    inputs=[end_frame],
+                    outputs=[end_frame_state]
+                )
 
                 # 各キーフレーム画像の変更イベントを個別に設定
                 # 一度に複数のコンポーネントを更新する代わりに、個別の更新関数を使用
@@ -2968,122 +3114,389 @@ with block:
                     return handle_single_keyframe
 
                 # アップロードファイルの内容を各セクション、end_frame、start_frameに反映する関数
-                def upload_zipfile_handler(file):
-                    if file is None:
-                        # ×で削除した場合、全セクションをクリア
-                        gr_outputs = []
-                        for i in range(0, max_keyframes):
-                            # gradio入力フォームの登録順に追加すること
-                            gr_outputs.append(i)
-                            gr_outputs.append("")
-                            gr_outputs.append(None)
-                        # end_frame
-                        gr_outputs.append(None)
-                        # start_frame
-                        gr_outputs.append(None)
-                        return gr_outputs
+                # zipファイルアップロードハンドラを移動したモジュールを使用
+                def handle_upload_zipfile(file):
+                    # アップロードされたZIPファイルの内容を取得
+                    result = upload_zipfile_handler(file, max_keyframes)
+                    
+                    # デバッグログを追加
+                    # print(f"\n[DEBUG] ZIPファイルからの読み込み結果:")
+                    
+                    # グラフィカルコンポーネント用の値（最後の2つ）
+                    # print(f"  エンドフレーム: {result[-2]}")
+                    # print(f"  スタートフレーム: {result[-1]}")
+                    
+                    # セクションプロンプトの処理 - State変数に正しい値を設定
+                    # これにより表示が適切になる
+                    for i in range(max_keyframes):
+                        # 3つずつ繰り返し（番号、プロンプト、画像）
+                        section_idx = i * 3
+                        if section_idx + 1 < len(result):
+                            prompt_value = result[section_idx + 1]
+                            # 直接値を取得し、それが文字列であることを確認
+                            if isinstance(prompt_value, str):
+                                # print(f"[DEBUG] セクション{i}のプロンプト値（修正前）: '{prompt_value}'")
+                                # YAMLからのプロンプト値をセクションプロンプトのState変数に格納
+                                # これにより、チェックボックスのオン/オフに関わらず常にYAMLの値が優先される
+                                if i < len(section_prompt_states) and section_prompt_states[i] is not None:
+                                    # 重要: ZIPからの値をStateに直接設定
+                                    section_prompt_states[i].value = prompt_value
+                                    # print(f"[IMPORTANT] セクション{i}のプロンプト値をStateに格納: '{prompt_value}'")
+                            else:
+                                pass
+                                # print(f"[WARNING] セクション{i}のプロンプト値が文字列ではありません: {prompt_value} (型: {type(prompt_value)})")
+                    
+                    # 内部データに含まれる追加情報（section_manager.pyにのみ保存）
+                    # section_infoに含まれているデフォルトプロンプトとSEED値
+                    # これらの値はUIに反映されないが、データとしては存在する
+                    
+                    # Stateも更新（エンドフレームがある場合）
+                    if result[-2] is not None:
+                        # print(f"[IMPORTANT] エンドフレーム({result[-2]})をStateにも保存します")
+                        # デバッグ: エンドフレーム画像の存在確認
+                        try:
+                            if os.path.exists(result[-2]):
+                                # print(f"[VERIFIED] エンドフレーム画像のパスが有効です: {result[-2]}")
+                                pass
+                            else:
+                                # print(f"[WARNING] エンドフレーム画像のパスが存在しません: {result[-2]}")
+                                # 相対パスを絶対パスに変換して試行
+                                abs_path = os.path.abspath(result[-2])
+                                # print(f"[RETRY] 絶対パスでの確認: {abs_path}")
+                                if os.path.exists(abs_path):
+                                    # print(f"[FIXED] 絶対パスでエンドフレーム画像を見つけました: {abs_path}")
+                                    # 絶対パスに置き換え
+                                    result[-2] = abs_path
+                        except Exception as e:
+                            # print(f"[ERROR] エンドフレームパス検証エラー: {e}")
+                            pass
+                        
+                        # 直接エンドフレームコンポーネントを更新
+                        try:
+                            # 画像の読み込みを試行
+                            from PIL import Image
+                            img = Image.open(result[-2])
+                            # print(f"[SUCCESS] エンドフレーム画像を読み込み: サイズ={img.size}")
+                            # ファイルを読み込んで明示的に設定
+                            end_frame.value = result[-2]
+                            # print(f"[DIRECT] エンドフレームコンポーネントに直接設定: {result[-2]}")
+                        except Exception as e:
+                            # print(f"[ERROR] エンドフレーム画像読み込みエラー: {e}")
+                            pass
                     else:
-                        # 一時ディレクトリで処理
-                        # temp_dir配下のフォルダを削除（前回アップロードファイルをクリア）
-                        if os.path.exists(temp_dir):
-                            for root, dirs, files in os.walk(temp_dir, topdown=False):
-                                for name in files:
-                                    os.remove(os.path.join(root, name))
-                                for name in dirs:
-                                    os.rmdir(os.path.join(root, name))
-                            os.rmdir(temp_dir)
-                        # zip展開
-                        with zipfile.ZipFile(file.name, "r") as zip_ref:
-                            zip_ref.extractall(temp_dir)
-                        # 展開されたファイルをフルパスでリストアップ
-                        extracted_files = []
-                        for root, dirs, files in os.walk(temp_dir):
-                            if len(files) > 0:
-                                extracted_files.extend([os.path.join(root, f) for f in files])
-                                break
-                            elif len(dirs) > 0:
-                                zdir0 = os.path.join(root, dirs[0])
-                                extracted_files.extend([os.path.join(zdir0, f) for f in os.listdir(zdir0)])
-                                break
-
-                        # 展開されたファイルのリストを表示
-                        # print("展開されたファイル:")
-                        # print("  - " + "\n  - ".join(extracted_files))
-
-                        # プロンプトファイルを取得（1つのみ）
-                        prompt_file = [f for f in extracted_files if f.endswith("sections.yml") or f.endswith("sections.yaml")][0]
-
-                        # 画像ファイルを取得
-                        image_files = [f for f in extracted_files if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp"))]
-                        # セクション用画像のファイルを取得しソートする。ファイル名は3桁の0始まりの数字とする。
-                        section_image_files = sorted([f for f in image_files if os.path.basename(f)[:3].isdigit()])
-                        # end_frame、start_frame向けの画像ファイルを取得
-                        end_frame_image_from_zip = None
-                        start_frame_image_from_zip = None
-                        end_files = [f for f in image_files if os.path.basename(f).lower().startswith("end")]
-                        if len(end_files) > 0:
-                            end_frame_image_from_zip = end_files[0]
-                        start_files = [f for f in image_files if os.path.basename(f).lower().startswith("start")]
-                        if len(start_files) > 0:
-                            start_frame_image_from_zip = start_files[0]
-
-                        # プロンプトファイルを読み込んでセクションプロンプトに設定
-                        with open(prompt_file, "r", encoding="utf-8") as file:
-                            prompt_data = yaml.safe_load(file)
-
-                        # セクション入力情報（zipファイルから取得した情報）
-                        section_number_list_from_zip = []
-                        section_image_list_from_zip = []
-                        section_prompt_list_from_zip = []
-
-                        # yamlファイルのsection_infoからプロンプトを抽出してリスト化
-                        for section_num in range(0, max_keyframes):
-                            section_number_list_from_zip.append(section_num)
-                            section_prompt_list_from_zip.append(next((section["prompt"] for section in prompt_data.get("section_info", []) if section.get("section") == section_num), ""))
-                            # image_filesからファイル名の先頭番号を抽出して補間
-                            image_file_map = {
-                                int(os.path.basename(img_file)[:3]): img_file for img_file in section_image_files
-                            }
-                            for section_num in section_number_list_from_zip:
-                                if section_num not in image_file_map:
-                                    # セクション番号に対応する画像がない場合は補間
-                                    image_file_map[section_num] = None
-                            # セクション番号順にソートしてリスト化
-                            section_image_list_from_zip = [image_file_map[section_num] for section_num in section_number_list_from_zip]
-                        print("sections.yamlファイルに従ってセクションに設定します。")
-
-                        # セクションの入力順にする（セクション番号、セクションプロンプト、キーフレーム画像）
-                        # 注意：この方式で画像ファイルを更新すると、gradioのtempフォルダへのアップロードは行われず、指定したファイルパス（temp_dir配下）を直接参照する
-                        gr_outputs = []
-                        for i in range(0, max_keyframes):
-                            gr_outputs.append(section_number_list_from_zip[i])
-                            gr_outputs.append(section_prompt_list_from_zip[i])
-                            gr_outputs.append(section_image_list_from_zip[i])
-                        # end_frameを設定
-                        if end_frame_image_from_zip:
-                            gr_outputs.append(end_frame_image_from_zip)
-                        else:
-                            gr_outputs.append(None)
-                        # start_frameを設定
-                        if start_frame_image_from_zip:
-                            gr_outputs.append(start_frame_image_from_zip)
-                        else:
-                            gr_outputs.append(None)
-
-                        # セクションにzipの内容を設定
-                        return gr_outputs
+                        pass
+                        # print(f"[WARNING] エンドフレーム画像が見つかりませんでした")
+                        
+                    # スタートフレームがある場合
+                    if result[-1] is not None:
+                        # print(f"[IMPORTANT] スタートフレーム({result[-1]})をStateにも保存します")
+                        # デバッグ: スタートフレーム画像の存在確認
+                        try:
+                            if os.path.exists(result[-1]):
+                                # print(f"[VERIFIED] スタートフレーム画像のパスが有効です: {result[-1]}")
+                                pass
+                            else:
+                                # print(f"[WARNING] スタートフレーム画像のパスが存在しません: {result[-1]}")
+                                # 相対パスを絶対パスに変換して試行
+                                abs_path = os.path.abspath(result[-1])
+                                # print(f"[RETRY] 絶対パスでの確認: {abs_path}")
+                                if os.path.exists(abs_path):
+                                    # print(f"[FIXED] 絶対パスでスタートフレーム画像を見つけました: {abs_path}")
+                                    # 絶対パスに置き換え
+                                    result[-1] = abs_path
+                        except Exception as e:
+                            # print(f"[ERROR] スタートフレームパス検証エラー: {e}")
+                            pass
+                        
+                        # 直接スタートフレームコンポーネントを更新
+                        try:
+                            # 画像の読み込みを試行
+                            from PIL import Image
+                            img = Image.open(result[-1])
+                            # print(f"[SUCCESS] スタートフレーム画像を読み込み: サイズ={img.size}")
+                            # ファイルを直接設定
+                            input_image.value = result[-1]
+                            # print(f"[DIRECT] スタートフレームコンポーネントに直接設定: {result[-1]}")
+                        except Exception as e:
+                            # print(f"[ERROR] スタートフレーム画像読み込みエラー: {e}")
+                            pass
+                        
+                    # デフォルトプロンプトとSEED値が存在する場合、コンソールに表示するのみ
+                    # ただし、変数は保持しておく
+                    default_prompt_value = ""
+                    seed_value = -1  # デフォルト値
+                    
+                    # デフォルトプロンプトがある場合（-2の位置）
+                    if len(result) > 2 and result[-2] is not None and result[-2] != "":
+                        default_prompt_value = result[-2]
+                        # print(f"[IMPORTANT] デフォルトプロンプト '{default_prompt_value}' を検出しました")
+                        # print(f"[INFO] UIにプロンプトを直接設定するには、次のコマンドを使用: prompt.value = '{default_prompt_value}'")
+                        # メッセージのみ表示し、実際の設定はしない（スコープ外アクセスを避けるため）
+                    
+                    # SEED値がある場合（-1の位置）
+                    if len(result) > 1 and result[-1] is not None and isinstance(result[-1], (int, float, str)):
+                        try:
+                            # 数値に変換（文字列の場合）
+                            if isinstance(result[-1], str) and result[-1].strip() == "":
+                                seed_value = -1  # 空文字列の場合はデフォルト値に
+                            else:
+                                seed_value = int(result[-1])
+                            # print(f"[IMPORTANT] SEED値 {seed_value} を検出しました")
+                            # print(f"[INFO] UIにシード値を直接設定するには、次のコマンドを使用: seed.value = {seed_value}")
+                            # メッセージのみ表示し、実際の設定はしない（スコープ外アクセスを避けるため）
+                        except (ValueError, TypeError) as e:
+                            # print(f"[ERROR] SEED値の変換エラー: {e}, 値: {result[-1]}, 型: {type(result[-1])}")
+                            pass
+                    
+                    # これらの値はJavaScriptを使って設定することも可能
+                    # print(f"[INFO] 将来的な改良: ブラウザ側のJavaScriptを使用して値を設定することを検討")
+                    # これはクライアントサイドのJavaScriptで処理するべき内容
+                    
+                    return result
 
                 # ファイルアップロード時のセクション変更
                 gr_outputs = []
+                # セクション情報
                 for i in range(0, max_keyframes):
                     gr_outputs.append(section_number_inputs[i])
                     gr_outputs.append(section_prompt_inputs[i])
                     gr_outputs.append(section_image_inputs[i])
-                # end_frameを設定
+                
+                # 末尾に追加（順序が重要）
+                # end_frameを設定（重要：名前と順序を正確に）
                 gr_outputs.append(end_frame)
-                # start_frameを設定
+                # start_frameを設定（重要：名前と順序を正確に）
                 gr_outputs.append(input_image)
-                upload_zipfile.change(fn=upload_zipfile_handler, inputs=[upload_zipfile], outputs=gr_outputs)
+                
+                # デフォルトプロンプトと種値は別の方法で処理する
+                # gr_outputsには含めない
+                
+                # 詳細デバッグログ
+                # print(f"[DEBUG-GR] gr_outputs最後の2つ: {gr_outputs[-2:]}")
+                # print(f"[DEBUG-GR] end_frame型: {type(end_frame)}")
+                # print(f"[DEBUG-GR] end_frameコンポーネント: {end_frame}")
+                
+                # ZIPファイルアップロード時のイベント設定
+                upload_zipfile.change(
+                    fn=handle_upload_zipfile, 
+                    inputs=[upload_zipfile], 
+                    outputs=gr_outputs
+                )
+                
+                # ダウンロードボタン用のハンドラ関数を定義
+                def handle_download_sections(end_frame_state_value, input_image_state_value):
+                    # セクション設定情報を取得
+                    section_settings = []
+                    
+                    # 現在表示されているセクション数を取得
+                    current_sections_count = get_current_sections_count()
+                    # print(f"[INFO] 現在表示されているセクション数: {current_sections_count}")
+                    
+                    # State変数の値をデバッグ出力
+                    # print(f"[INFO] State変数: end_frame_state = {end_frame_state_value}")
+                    # print(f"[INFO] State変数: input_image_state = {input_image_state_value}")
+                    
+                    # デバッグ: セクション入力欄の状態を確認
+                    if debug_section_inputs:
+                        # print("\n[SECTION DEBUG] セクション入力欄の詳細情報：")
+                        for i in range(min(current_sections_count, 5)):  # 表示されている中から最初の5つだけチェック
+                            input_obj = section_prompt_inputs[i]
+                            # print(f"セクション{i} プロンプト入力: {input_obj}, ID={id(input_obj)}")
+                            # print(f"  値: {input_obj.value}, 型: {type(input_obj.value)}")
+                            # 値の状態を確認するだけ（強制設定はしない）
+                            # if input_obj.value is None:
+                            #     print(f"  値はNone")
+                            # elif input_obj.value == "":
+                            #     print(f"  値は空文字")
+                            
+                            # print(f"セクション{i} 画像入力: {section_image_inputs[i]}, 値: {section_image_inputs[i].value}")
+                            # print(f"セクション{i} 画像State値: {section_image_states[i].value}")
+                            pass
+                    
+                    # ユーザーが入力したプロンプト値をそのまま使用
+                    # 表示されているセクションのみを処理
+                    for i in range(current_sections_count):
+                        # 詳細なデバッグ出力
+                        # print(f"セクション {i}: 画像={section_image_inputs[i].value}, プロンプト={section_prompt_inputs[i].value}")
+                        # print(f"セクション {i} の画像State値: {section_image_states[i].value}")
+                        # print(f"セクション {i} のプロンプトState値: {section_prompt_states[i].value}")
+                        
+                        # 画像値の優先順位: 
+                        # 1. section_image_states[i].valueが存在する場合はそれを使用
+                        # 2. section_image_inputs[i].valueが存在する場合はそれを使用
+                        # 3. どちらもなければNone
+                        img_value = None
+                        stored_state = section_image_states[i].value
+                        ui_value = section_image_inputs[i].value
+                        
+                        # UIコンポーネントとStateの値の詳細ログ出力
+                        # print(f"[DEBUG-DETAIL] セクション{i}のUI値: {ui_value}, 型: {type(ui_value)}")
+                        # print(f"[DEBUG-DETAIL] セクション{i}のState値: {stored_state}, 型: {type(stored_state)}")
+                        
+                        if stored_state is not None:
+                            img_value = stored_state
+                            # print(f"[DETAIL] セクション{i}の画像はStateから取得: {img_value}")
+                        elif ui_value is not None:
+                            img_value = ui_value
+                            # print(f"[DETAIL] セクション{i}の画像はUIコンポーネントから取得: {img_value}")
+                            # UIから値を取得した場合、Stateにも保存する（安全策）
+                            section_image_states[i].value = ui_value
+                            # print(f"[DETAIL] セクション{i}の画像値をStateに保存しました: {ui_value}")
+                        
+                        # 画像の詳細情報を出力
+                        # print(f"[DETAIL] セクション{i}の画像情報: タイプ={type(img_value)}")
+                        # if img_value is None:
+                        #     print(f"[DETAIL] セクション{i}の画像はNoneです")
+                        # elif isinstance(img_value, dict):
+                        #     print(f"[DETAIL] セクション{i}の画像は辞書型です: キー={img_value.keys()}")
+                        #     if 'path' in img_value:
+                        #         print(f"[DETAIL] セクション{i}の画像パス: {img_value['path']}")
+                        #     if 'name' in img_value:
+                        #         print(f"[DETAIL] セクション{i}の画像名: {img_value['name']}")
+                        # elif isinstance(img_value, str):
+                        #     print(f"[DETAIL] セクション{i}の画像は文字列です: {img_value}")
+                        # else:
+                        #     print(f"[DETAIL] セクション{i}の画像はその他の型です: {img_value}")
+                        
+                        # プロンプト値を取得（最大限のエラー対策）
+                        # プロンプト値の優先順位（重要な更新）:
+                        # 1. カスタム関数で直接セクションプロンプトの値を取得（最優先）
+                        # 2. section_prompt_inputs[i].valueが存在する場合はそれを使用（次に優先）
+                        # 3. section_prompt_states[i].valueが存在する場合はそれを使用（UIに表示されていない場合）
+                        # 4. どれもなければ空文字列
+                        prompt_value = ""
+                        try:
+                            # 直接プロンプト入力欄の値を確認（最も信頼性が高い方法）
+                            direct_ui_value = None
+                            try:
+                                # 直接DOMから値を取得する試み
+                                if section_prompt_inputs[i] is not None:
+                                    # 直接テキストボックスの値を取得
+                                    if hasattr(section_prompt_inputs[i], 'value'):
+                                        direct_ui_value = section_prompt_inputs[i].value
+                                        # print(f"[DEBUG-DIRECT] セクション{i}の直接取得値: '{direct_ui_value}'")
+                            except Exception as e:
+                                # print(f"[ERROR-DIRECT] セクション{i}の直接値取得エラー: {e}")
+                                pass
+                            
+                            # UI入力値（標準的な方法）
+                            ui_value = None
+                            if section_prompt_inputs[i] is not None:
+                                # 直接値を取得して空文字列の場合もチェック
+                                try:
+                                    if hasattr(section_prompt_inputs[i], 'value'):
+                                        ui_value = section_prompt_inputs[i].value
+                                    # 念のため値が空でないか確認
+                                    if ui_value == "" or ui_value is None:
+                                        # 更に試行：最新の値を取得
+                                        ui_value = section_prompt_inputs[i].get_value() if hasattr(section_prompt_inputs[i], 'get_value') else None
+                                        # print(f"[DEBUG-EXTRA] セクション{i}のget_value()で取得した値: '{ui_value}'")
+                                except Exception as e:
+                                    # print(f"[DEBUG-ERROR] セクション{i}のUI値取得エラー: {e}")
+                                    pass
+                            
+                            # State値を取得
+                            state_value = section_prompt_states[i].value
+                            # print(f"[DEBUG-STATE] セクション{i}のState値: '{state_value}'") # デバッグ追加
+                            
+                            # print(f"[DEBUG-DETAIL] セクション{i}の取得結果: 直接UI='{direct_ui_value}', 標準UI='{ui_value}', State='{state_value}'")
+                            
+                            # 優先順位に従ってプロンプト値を決定
+                            # 1. State値を最優先（ユーザーの編集が直接反映される）
+                            if state_value and str(state_value).strip() and not str(state_value).startswith('{'):
+                                prompt_value = str(state_value)
+                                # print(f"[DETAIL] セクション{i}のプロンプトはStateから取得（最優先）: '{prompt_value}'")
+                            # 2. 直接取得した値
+                            elif direct_ui_value and str(direct_ui_value).strip() and not str(direct_ui_value).startswith('{'):
+                                prompt_value = str(direct_ui_value)
+                                # print(f"[DETAIL] セクション{i}のプロンプトは直接UIから取得: '{prompt_value}'")
+                                # この値をStateにも保存（反映には時間がかかる可能性）
+                                section_prompt_states[i].value = prompt_value
+                            # 3. 標準的なUI値
+                            elif ui_value and str(ui_value).strip() and not str(ui_value).startswith('{'):
+                                prompt_value = str(ui_value)
+                                # print(f"[DETAIL] セクション{i}のプロンプトは標準UIから取得: '{prompt_value}'")
+                                # UIからの値をStateにも保存
+                                section_prompt_states[i].value = prompt_value
+                            # else:
+                                # print(f"[WARNING] セクション{i}のプロンプト値はすべてのソースで無効または空です")
+                        except Exception as e:
+                            # print(f"[ERROR] セクション{i}のプロンプト取得エラー: {e}")
+                            pass
+                        
+                        # デバッグ情報追加
+                        # print(f"[DEBUG] セクション{i}のプロンプト値: '{prompt_value}'")
+                        
+                        # デバッグ用に詳細出力（セクション0と1）
+                        # if i <= 1:
+                        #     print(f"セクション{i}のプロンプト: '{prompt_value}', 型: {type(prompt_value)}")
+                            
+                        # セクション情報に追加
+                        section_data = [
+                            i,                 # セクション番号
+                            img_value,         # セクション画像（Stateから優先取得）
+                            prompt_value       # セクションプロンプト（Stateから優先取得）
+                        ]
+                        section_settings.append(section_data)
+                        # print(f"[DEBUG] セクション{i}をsection_settingsに追加: {section_data}")
+                    
+                    # セクション0と1が含まれていることを確認（特に重要）
+                    has_section0 = any(row[0] == 0 for row in section_settings)
+                    has_section1 = any(row[0] == 1 for row in section_settings)
+                    # print(f"[INFO] セクション0が処理対象に含まれているか: {has_section0}")
+                    # print(f"[INFO] セクション1が処理対象に含まれているか: {has_section1}")
+                    
+                    # endframeとstart_frameもデバッグ出力（State値を優先）
+                    # print(f"End Frame: {end_frame_state_value if end_frame_state_value is not None else end_frame.value}")
+                    # print(f"Start Frame: {input_image_state_value if input_image_state_value is not None else input_image.value}")
+                    
+                    # 開始フレームの詳細をデバッグ出力
+                    start_frame_value = input_image_state_value if input_image_state_value is not None else input_image.value
+                    # if start_frame_value is None:
+                    #     print("[DEBUG] 開始フレーム画像はNoneなので、詳細確認ができません")
+                    # elif isinstance(start_frame_value, dict):
+                    #     print(f"[DEBUG] 開始フレーム画像のキー: {start_frame_value.keys()}")
+                    # print(f"デフォルトプロンプト: {prompt.value}")
+                    
+                    # zipファイルを生成
+                    # Gradioデバッグ出力
+                    # print(f"end_frame コンポーネント: {end_frame}")
+                    # print(f"input_image コンポーネント: {input_image}")
+                    
+                    # デフォルトプロンプトとシードをセクション設定に含める
+                    additional_info = {
+                        "default_prompt": prompt.value,
+                        "seed": seed.value  # 現在のシード値を追加
+                    }
+                    
+                    # zipファイルを生成（input_imageをstart_frameとして扱う）
+                    # プロンプトのデバッグ出力
+                    # for i, row in enumerate(section_settings):
+                    #     if i == 0:
+                    #         print(f"セクション0のプロンプトを確認: '{row[2] if len(row) > 2 else None}'")
+                    #     if i == 1:
+                    #         print(f"セクション1のプロンプトを確認: '{row[2] if len(row) > 2 else None}'")
+                    
+                    # 処理対象セクション数を表示
+                    # print(f"[INFO] 処理対象のセクション数: {len(section_settings)}")
+                    
+                    # 重要: UI値とState値を比較して、State値を優先
+                    end_frame_value = end_frame_state_value if end_frame_state_value is not None else end_frame.value
+                    input_image_value = input_image_state_value if input_image_state_value is not None else input_image.value
+                    
+                    # print(f"[INFO] ダウンロードに使用するエンドフレーム: {end_frame_value}")
+                    # print(f"[INFO] ダウンロードに使用する開始フレーム: {input_image_value}")
+                    
+                    zip_path = download_zipfile_handler(section_settings, end_frame_value, input_image_value, additional_info)
+                    # print(f"生成されたZIPパス: {zip_path}")
+                    return gr.update(value=zip_path, visible=True)
+                
+                # ダウンロードボタンのクリックイベントを登録
+                download_sections_button.click(
+                    fn=handle_download_sections,
+                    inputs=[end_frame_state, input_image_state],  # State変数も入力として受け取る
+                    outputs=[download_file]
+                )
 
                 # 各キーフレームについて、影響を受ける可能性のある後続のキーフレームごとに個別のイベントを設定
                 # ここではイベント登録の定義のみ行い、実際の登録はUIコンポーネント定義後に行う
@@ -3132,6 +3545,19 @@ with block:
                 inputs=[input_image, copy_metadata],
                 outputs=[prompt, seed]
             )
+            
+            # 開始フレーム画像の変更をState変数に保存するハンドラを追加
+            def update_input_image_state(image_path):
+                # 画像パスをState変数に保存
+                # print(f"[INFO] 開始フレーム画像パスをStateに保存: {image_path}")
+                return image_path
+            
+            # 開始フレーム変更時にStateも更新
+            input_image.change(
+                fn=update_input_image_state,
+                inputs=[input_image],
+                outputs=[input_image_state]
+            )
 
             # チェックボックスの変更時に再読み込みを行う
             def check_metadata_on_checkbox_change(copy_enabled, image_path):
@@ -3143,25 +3569,49 @@ with block:
             # セクション画像のメタデータをチェックボックス変更時に再読み込みする関数
             def update_section_metadata_on_checkbox_change(copy_enabled, *section_images):
                 if not copy_enabled:
-                    # チェックボックスがオフの場合は何もしない
-                    return [gr.update()] * max_keyframes
+                    # チェックボックスがオフの場合は、何も変更せずに現在の値を維持する
+                    print("[INFO] チェックボックスがオフのため、現在のプロンプト値を維持します")
+                    
+                    # gr.updateの配列を返す - valueを指定しないとUI値が維持される
+                    updates = []
+                    for _ in range(max_keyframes):
+                        updates.append(gr.update())
+                    
+                    return updates
 
                 # 各セクションの画像があれば、それぞれのメタデータを再取得する
                 updates = []
                 for i, section_image in enumerate(section_images):
                     if section_image is not None:
                         # セクションメタデータハンドラを直接利用してメタデータを取得
-                        # 前に定義したハンドラを再利用するため、仮引数としてNoneを設定
-                        handler = create_section_metadata_handler(i, None)
-                        # メタデータを取得
-                        update = handler(section_image, copy_enabled)
-                        updates.append(update)
+                        # section_prompt_inputsからセクションのプロンプト欄を取得して渡す
+                        if i < len(section_prompt_inputs):
+                            section_prompt_input = section_prompt_inputs[i]
+                        else:
+                            section_prompt_input = None
+                            
+                        handler = create_section_metadata_handler(i, section_prompt_input)
+                        # メタデータを取得 - 戻り値の最初の要素（プロンプト値）のみを使用
+                        update_result = handler(section_image, copy_enabled)
+                        
+                        # update_resultは(プロンプト値, 画像パス)のタプル
+                        # プロンプト値のみをリストに追加
+                        if isinstance(update_result, tuple) and len(update_result) > 0:
+                            prompt_value = update_result[0]
+                            # gr.update()の場合は空文字列に置き換え
+                            if hasattr(prompt_value, '__type__') and prompt_value.__type__ == 'update':
+                                prompt_value = ""
+                            updates.append(prompt_value)
+                        else:
+                            # 予期せぬ戻り値の場合は空文字列
+                            updates.append("")
                     else:
-                        updates.append(gr.update())
+                        # 画像がなければ空文字列
+                        updates.append("")
 
                 # 不足分を追加
                 while len(updates) < max_keyframes:
-                    updates.append(gr.update())
+                    updates.append("")
 
                 return updates[:max_keyframes]
 
