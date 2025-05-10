@@ -4,6 +4,12 @@ sys.path.append(os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__
 
 from diffusers_helper.hf_login import login
 
+# VAEキャッシュ機能のインポート
+from eichi_utils.vae_cache import vae_decode_cache
+
+# VAEキャッシュ機能のグローバル設定
+vae_cache_enabled = False  # チェックボックスの状態を保持するグローバル変数
+
 import os
 import random
 import time
@@ -114,7 +120,7 @@ import math
 from PIL import Image
 from diffusers import AutoencoderKLHunyuanVideo
 from transformers import LlamaModel, CLIPTextModel, LlamaTokenizerFast, CLIPTokenizer
-from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
+from diffusers_helper.hunyuan import encode_prompt_conds, vae_encode, vae_decode_fake, vae_decode
 from diffusers_helper.utils import save_bcthw_as_mp4, crop_or_pad_yield_mask, soft_append_bcthw, resize_and_center_crop, state_dict_weighted_merge, state_dict_offset_merge, generate_timestamp
 from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModelPacked
 from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
@@ -222,7 +228,13 @@ os.makedirs(outputs_folder, exist_ok=True)
 # v1.9.1テスト実装
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False):
+    # グローバル変数を使用
+    global vae_cache_enabled
+    # パラメータ経由の値とグローバル変数の値を確認
+    print(f"worker関数でのVAEキャッシュ設定: パラメータ={use_vae_cache}, グローバル変数={vae_cache_enabled}")
+    # グローバル変数の値を優先
+    use_vae_cache = vae_cache_enabled or use_vae_cache
 
     # フレーム保存フラグのタイプと値を確認（必ずブール値であるべき）
     print(translate("[DEBUG] worker関数に渡されたフラグ - save_latent_frames型: {0}, 値: {1}").format(type(save_latent_frames).__name__, save_latent_frames))
@@ -655,7 +667,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     if preview_latent.dtype != torch.float16:
                         preview_latent = preview_latent.to(dtype=torch.float16)
 
-                    decoded_image = vae_decode(preview_latent, vae)
+                    # VAEキャッシュ設定に応じてデコード関数を切り替え
+                    if use_vae_cache:
+                        print(translate("[INFO] VAEキャッシュを使用: プレビュー画像"))
+                        decoded_image = vae_decode_cache(preview_latent, vae)
+                    else:
+                        decoded_image = vae_decode(preview_latent, vae)
                     decoded_image = (decoded_image[0, :, 0] * 127.5 + 127.5).permute(1, 2, 0).cpu().numpy().clip(0, 255).astype(np.uint8)
                     # デコードした画像を保存
                     Image.fromarray(decoded_image).save(os.path.join(outputs_folder, f'{job_id}_tensor_preview.png'))
@@ -988,7 +1005,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             #     print(translate("VAEデコード前メモリ: {memory_allocated:.2f}GB").format(memory_allocated=torch.cuda.memory_allocated()/1024**3))
 
             if history_pixels is None:
-                history_pixels = vae_decode(real_history_latents, vae).cpu()
+                # VAEキャッシュ設定に応じてデコード関数を切り替え
+                print(f"[DEBUG] 履歴フレームデコード前のVAEキャッシュ設定: {use_vae_cache}, 型: {type(use_vae_cache)}")
+                if use_vae_cache:
+                    print(translate("[INFO] VAEキャッシュを使用: 履歴フレーム"))
+                    history_pixels = vae_decode_cache(real_history_latents, vae).cpu()
+                else:
+                    print("[INFO] 通常デコード使用: 履歴フレーム")
+                    history_pixels = vae_decode(real_history_latents, vae).cpu()
                 
                 # 最初のセクションで全フレーム画像を保存
                 # 「全フレーム画像保存」または「最終セクションのみ全フレーム画像保存かつ最終セクション」が有効な場合
@@ -1100,7 +1124,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     section_latent_frames = int(latent_window_size * 2 + 1) if is_last_section else int(latent_window_size * 2)
                     overlapped_frames = int(latent_window_size * 4 - 3)
 
-                current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
+                # VAEキャッシュ設定に応じてデコード関数を切り替え
+                if use_vae_cache:
+                    print(translate("[INFO] VAEキャッシュを使用: 現在のセクション"))
+                    current_pixels = vae_decode_cache(real_history_latents[:, :, :section_latent_frames], vae).cpu()
+                else:
+                    current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
                 history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
                 
                 # 各セクションで生成された個々のフレームを静止画として保存
@@ -1420,8 +1449,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                         print(translate("  - データ型をfloat16に変更: {0} → torch.float16").format(current_chunk.dtype))
                                         current_chunk = current_chunk.to(dtype=torch.float16)
 
-                                    # VAEデコード処理
-                                    chunk_pixels = vae_decode(current_chunk, vae).cpu()
+                                    # VAEデコード処理 - VAEキャッシュ設定に応じて関数を切り替え
+                                    print(f"[DEBUG] チャンクデコード前のVAEキャッシュ設定: {use_vae_cache}, 型: {type(use_vae_cache)}")
+                                    if use_vae_cache:
+                                        print(translate("[INFO] VAEキャッシュを使用: チャンク{0}").format(chunk_idx+1))
+                                        chunk_pixels = vae_decode_cache(current_chunk, vae).cpu()
+                                    else:
+                                        print(translate("[INFO] 通常デコード使用: チャンク{0}").format(chunk_idx+1))
+                                        chunk_pixels = vae_decode(current_chunk, vae).cpu()
                                     print(translate("チャンク{0}のVAEデコード完了 (フレーム数: {1})").format(chunk_idx+1, chunk_frames))
 
                                     # デコード後のピクセルデータ情報を出力
@@ -1835,7 +1870,9 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_scales_text="0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False):
+    # プロセス関数の最初でVAEキャッシュ設定を確認
+    print(f"process関数開始時のVAEキャッシュ設定: {use_vae_cache}, 型: {type(use_vae_cache)}")
     global stream
     global batch_stopped
 
@@ -1896,6 +1933,10 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     # FP8最適化設定のログ出力
     print(translate("\u25c6 FP8最適化: {0}").format(fp8_optimization))
+    
+    # VAEキャッシュ設定のログ出力
+    print(translate("\u25c6 VAEキャッシュ: {0}").format(use_vae_cache))
+    print(f"VAEキャッシュ詳細状態: use_vae_cache={use_vae_cache}, type={type(use_vae_cache)}")
 
     # オールパディング設定のログ出力
     if use_all_padding:
@@ -2097,7 +2138,8 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             resolution,
             batch_index,
             save_latent_frames,  # 全フレーム画像保存フラグ（ラジオボタンから設定）
-            save_last_section_frames  # 最終セクションのみ全フレーム画像保存フラグ（ラジオボタンから設定）
+            save_last_section_frames,  # 最終セクションのみ全フレーム画像保存フラグ（ラジオボタンから設定）
+            use_vae_cache  # VAEキャッシュ設定
         )
 
         # 現在のバッチの出力ファイル名
@@ -2214,15 +2256,36 @@ with block:
             # オールパディング設定
             use_all_padding = gr.Checkbox(label=translate("オールパディング"), value=False, info=translate("数値が小さいほど直前の絵への影響度が下がり動きが増える"), elem_id="all_padding_checkbox")
             all_padding_value = gr.Slider(label=translate("パディング値"), minimum=0.2, maximum=3, value=1, step=0.1, info=translate("すべてのセクションに適用するパディング値（0.2〜3の整数）"), visible=False)
+            
+            # VAEキャッシュ設定
+            use_vae_cache = gr.Checkbox(
+                label=translate("VAEキャッシュを使用"),
+                value=False,
+                info=translate("VAEデコードを1フレームずつ処理し速度向上（高メモリ使用）"),
+                elem_id="vae_cache_checkbox"
+            )
 
             # オールパディングのチェックボックス状態に応じてスライダーの表示/非表示を切り替える
             def toggle_all_padding_visibility(use_all_padding):
                 return gr.update(visible=use_all_padding)
+                
+            # VAEキャッシュのチェックボックス状態変更ハンドラ
+            def update_vae_cache_state(value):
+                global vae_cache_enabled
+                vae_cache_enabled = value
+                print(f"VAEキャッシュの状態を変更しました: {vae_cache_enabled}")
+                return None
 
             use_all_padding.change(
                 fn=toggle_all_padding_visibility,
                 inputs=[use_all_padding],
                 outputs=[all_padding_value]
+            )
+            
+            use_vae_cache.change(
+                fn=update_vae_cache_state,
+                inputs=[use_vae_cache],
+                outputs=[]
             )
         with gr.Column(scale=1):
             # 設定から動的に選択肢を生成
@@ -3528,6 +3591,26 @@ with block:
             section_calc_display = gr.HTML("", label="")
 
             use_teacache = gr.Checkbox(label=translate('Use TeaCache'), value=True, info=translate('Faster speed, but often makes hands and fingers slightly worse.'))
+            
+            # VAEキャッシュ設定
+            use_vae_cache = gr.Checkbox(
+                label=translate('VAEキャッシュを使用'),
+                value=False,
+                info=translate('デコードを1フレームずつ処理し、速度向上（メモリ使用量増加。VRAM24GB以上推奨。それ以下の場合、メモリスワップで逆に遅くなります）')
+            )
+            print(f"VAEキャッシュCheckbox初期化: id={id(use_vae_cache)}")
+            
+            # グローバル変数に現在の値を保存するためのイベントハンドラ
+            # グローバル変数vae_cache_enabledはファイル先頭で既に宣言済み
+            
+            def update_vae_cache_state(value):
+                global vae_cache_enabled
+                vae_cache_enabled = value
+                print(f"VAEキャッシュ状態を更新: {vae_cache_enabled}")
+                return None
+                
+            # チェックボックスの状態が変更されたときにグローバル変数を更新
+            use_vae_cache.change(fn=update_vae_cache_state, inputs=[use_vae_cache], outputs=[])
 
             # Use Random Seedの初期値
             use_random_seed_default = True
@@ -3839,12 +3922,36 @@ with block:
     # 実行前のバリデーション関数
     def validate_and_process(*args):
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
+        # 引数のデバッグ出力
+        print(f"validate_and_process 引数数: {len(args)}")
+        # フレーム保存モードとVAEキャッシュの引数位置を確認
+        if len(args) >= 33:  # フレーム保存モードは32番目の引数
+            print(f"フレーム保存モード設定値(args): {args[32]}, 型: {type(args[32])}")
+        if len(args) >= 34:  # VAEキャッシュは33番目の引数
+            print(f"VAEキャッシュ設定値(args): {args[33]}, 型: {type(args[33])}")
+        
+        # グローバル変数宣言
+        global vae_cache_enabled
+
         input_img = args[0]  # 入力の最初が入力画像
         section_settings = args[24]  # section_settingsはprocess関数の24番目の引数
         resolution_value = args[30] if len(args) > 30 else 640  # resolutionは30番目
         batch_count = args[31] if len(args) > 31 else 1  # batch_countは31番目
-        # 旧パラメータの代わりにフレーム保存モードを取得
+        
+        # フレーム保存モードを取得（実際には32番目）
         frame_save_mode = args[32] if len(args) > 32 else translate("保存しない")
+        
+        # VAEキャッシュを取得（実際には33番目、ただしグローバル変数を優先）
+        use_vae_cache_ui_value = args[33] if len(args) > 33 else False
+        
+        # UIの値よりもグローバル変数を優先
+        use_vae_cache_value = vae_cache_enabled
+        
+        print(f"VAEキャッシュ設定値(UI): {use_vae_cache_ui_value}, 型: {type(use_vae_cache_ui_value)}")
+        print(f"VAEキャッシュ設定値(グローバル変数): {vae_cache_enabled}, 型: {type(vae_cache_enabled)}")
+        print(f"最終的なVAEキャッシュ設定値: {use_vae_cache_value}, 型: {type(use_vae_cache_value)}")
+        
+        print(f"フレーム保存モード: {frame_save_mode}(index=32)")
         
         # デバッグ：フレーム保存モードの型と値を確認
         print(translate("[DEBUG] frame_save_modeの型: {0}, 値: {1}").format(type(frame_save_mode).__name__, frame_save_mode))
@@ -3918,87 +4025,74 @@ with block:
         except (ValueError, TypeError):
             resolution_value = 640
             
+        # グローバル変数vae_cache_enabledは既に宣言済み
+        
+        # フレーム保存モードのブール値変換
+        save_latent_frames = False
+        save_last_section_frames = False
+        if isinstance(frame_save_mode, str):
+            if frame_save_mode == translate("全フレーム画像保存"):
+                save_latent_frames = True
+            elif frame_save_mode == translate("最終セクションのみ全フレーム画像保存"):
+                save_last_section_frames = True
+        
+        # グローバル変数からVAEキャッシュ設定を取得
+        use_vae_cache_flag = vae_cache_enabled
+        print(f"最終的なVAEキャッシュ設定フラグ: {use_vae_cache_flag}")
+        
+        # 引数リストを再構築
         if len(new_args) <= 30:
-            # 不足している場合は追加
+            # fp8_optimization, resolution, batch_count, save_latent_frames, save_last_section_frames, use_vae_cacheを追加
             if len(new_args) <= 29:
-                # fp8_optimizationがない場合
-                new_args.append(False)
-            # resolutionを追加
-            new_args.append(resolution_value)
-            # batch_countを追加
-            new_args.append(batch_count)
-            # save_latent_framesを追加
-            new_args.append(save_latent_frames)
+                new_args.append(False)  # fp8_optimization
+            new_args.append(resolution_value)  # resolution
+            new_args.append(batch_count)  # batch_count
+            new_args.append(save_latent_frames)  # save_latent_frames
+            new_args.append(save_last_section_frames)  # save_last_section_frames
+            new_args.append(use_vae_cache_flag)  # use_vae_cache
         else:
-            # 既に存在する場合は更新
+            # 既存の値を更新
             new_args[30] = resolution_value  # resolution
-            if len(new_args) > 31:
+            
+            # 不足している値を追加
+            if len(new_args) <= 31:
+                new_args.append(batch_count)  # batch_count
+                new_args.append(save_latent_frames)  # save_latent_frames
+                new_args.append(save_last_section_frames)  # save_last_section_frames
+                new_args.append(use_vae_cache_flag)  # use_vae_cache
+            elif len(new_args) <= 32:
                 new_args[31] = batch_count  # batch_count
-                if len(new_args) > 32:
-                    # 常に新しいブール値を設定し、文字列などの値が渡されないようにする
-                    if frame_save_mode_value == translate("全フレーム画像保存"):
-                        new_args[32] = True  # save_latent_frames = True
-                        if len(new_args) > 33:
-                            new_args[33] = False  # save_last_section_frames = False
-                        else:
-                            new_args.append(False)  # save_last_section_framesを追加
-                    elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
-                        new_args[32] = False  # save_latent_frames = False
-                        if len(new_args) > 33:
-                            new_args[33] = True  # save_last_section_frames = True
-                        else:
-                            new_args.append(True)  # save_last_section_framesを追加
-                    else:
-                        new_args[32] = False  # save_latent_frames = False
-                        if len(new_args) > 33:
-                            new_args[33] = False  # save_last_section_frames = False
-                        else:
-                            new_args.append(False)  # save_last_section_framesを追加
-                    
-                    # 直接設定した値を確認
-                    print(translate("[DEBUG] new_argsに直接設定したフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(
-                        new_args[32], new_args[33] if len(new_args) > 33 else new_args[-1]
-                    ))
-                else:
-                    # 常に新しいブール値を設定し、文字列などの値が渡されないようにする
-                    if frame_save_mode_value == translate("全フレーム画像保存"):
-                        new_args.append(True)  # save_latent_frames = True
-                        new_args.append(False)  # save_last_section_frames = False
-                    elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
-                        new_args.append(False)  # save_latent_frames = False
-                        new_args.append(True)  # save_last_section_frames = True
-                    else:
-                        new_args.append(False)  # save_latent_frames = False
-                        new_args.append(False)  # save_last_section_frames = False
-                    
-                    # 直接設定した値を確認
-                    print(translate("[DEBUG] new_argsに直接設定したフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(
-                        new_args[-2], new_args[-1]
-                    ))
+                new_args.append(save_latent_frames)  # save_latent_frames
+                new_args.append(save_last_section_frames)  # save_last_section_frames
+                new_args.append(use_vae_cache_flag)  # use_vae_cache
+            elif len(new_args) <= 33:
+                new_args[31] = batch_count  # batch_count
+                new_args[32] = save_latent_frames  # save_latent_frames
+                new_args.append(save_last_section_frames)  # save_last_section_frames
+                new_args.append(use_vae_cache_flag)  # use_vae_cache
+            elif len(new_args) <= 34:
+                new_args[31] = batch_count  # batch_count
+                new_args[32] = save_latent_frames  # save_latent_frames
+                new_args[33] = save_last_section_frames  # save_last_section_frames
+                new_args.append(use_vae_cache_flag)  # use_vae_cache
             else:
-                new_args.append(batch_count)  # batch_countを追加
-                
-                # 常に新しいブール値を設定し、文字列などの値が渡されないようにする
-                if frame_save_mode_value == translate("全フレーム画像保存"):
-                    new_args.append(True)  # save_latent_frames = True
-                    new_args.append(False)  # save_last_section_frames = False
-                elif frame_save_mode_value == translate("最終セクションのみ全フレーム画像保存"):
-                    new_args.append(False)  # save_latent_frames = False
-                    new_args.append(True)  # save_last_section_frames = True
-                else:
-                    new_args.append(False)  # save_latent_frames = False
-                    new_args.append(False)  # save_last_section_frames = False
-                
-                # 直接設定した値を確認
-                print(translate("[DEBUG] new_argsに直接設定したフラグ - save_latent_frames: {0}, save_last_section_frames: {1}").format(
-                    new_args[-2], new_args[-1]
-                ))
+                new_args[31] = batch_count  # batch_count
+                new_args[32] = save_latent_frames  # save_latent_frames
+                new_args[33] = save_last_section_frames  # save_last_section_frames
+                new_args[34] = use_vae_cache_flag  # use_vae_cache
+        
+        # 最終的な設定値の確認
+        print(f"[DEBUG] 最終的なフラグ設定 - save_latent_frames: {save_latent_frames}, save_last_section_frames: {save_last_section_frames}, use_vae_cache: {use_vae_cache_flag}")
 
         # process関数のジェネレータを返す
         yield from process(*new_args)
 
     # 実行ボタンのイベント
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode]
+    # UIから渡されるパラメーターリスト
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode, use_vae_cache]
+    
+    # デバッグ: チェックボックスの現在値を出力
+    print(f"use_vae_cacheチェックボックス値: {use_vae_cache.value if hasattr(use_vae_cache, 'value') else 'no value attribute'}, id={id(use_vae_cache)}")
     start_button.click(fn=validate_and_process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, seed])
     end_button.click(fn=end_process, outputs=[end_button])
 
