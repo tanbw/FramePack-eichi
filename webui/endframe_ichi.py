@@ -1961,8 +1961,9 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     print(translate("\u25c6 生成セクション数: {0}回").format(total_latent_sections))
     print(translate("\u25c6 サンプリングステップ数: {0}").format(steps))
     print(translate("\u25c6 TeaCache使用: {0}").format(use_teacache))
-    # TeaCache使用の直後にSEED値の情報を表示
-    print(translate("\u25c6 使用SEED値: {0}").format(seed))
+    # TeaCache使用の直後にSEED値の情報を表示 - バッチ処理の初期値として表示
+    # 実際のバッチ処理では各バッチでSEED値が変わる可能性があるため、「初期SEED値」として表示
+    print(translate("\u25c6 初期SEED値: {0}").format(seed))
     print(translate("\u25c6 LoRA使用: {0}").format(use_lora))
 
     # FP8最適化設定のログ出力
@@ -2043,13 +2044,31 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # 元のシード値を保存（バッチ処理用）
     original_seed = seed
 
-    if use_random_seed:
+    # ランダムシード状態をデバッグ表示
+    print(f"[DEBUG] use_random_seed: {use_random_seed}, タイプ: {type(use_random_seed)}")
+    
+    # ランダムシード生成を文字列型も含めて判定
+    use_random = False
+    if isinstance(use_random_seed, bool):
+        use_random = use_random_seed
+    elif isinstance(use_random_seed, str):
+        use_random = use_random_seed.lower() in ["true", "yes", "1", "on"]
+        
+    print(f"[DEBUG] 実際のランダムシード使用状態: {use_random}")
+    
+    if use_random:
+        # ランダムシード設定前の値を保存
+        previous_seed = seed
+        # 特定の範囲内で新しいシード値を生成
         seed = random.randint(0, 2**32 - 1)
+        # ユーザーにわかりやすいメッセージを表示
+        print(translate("\n[INFO] ランダムシード機能が有効なため、指定されたSEED値 {0} の代わりに新しいSEED値 {1} を使用します。").format(previous_seed, seed))
         # UIのseed欄もランダム値で更新
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update(value=seed)
         # ランダムシードの場合は最初の値を更新
         original_seed = seed
     else:
+        print(translate("[INFO] 指定されたSEED値 {0} を使用します。").format(seed))
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
     stream = AsyncStream()
@@ -2087,16 +2106,41 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # 現在のバッチ番号を表示
         if batch_count > 1:
             batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
-            print("\n{batch_info}")
+            print(f"\n{batch_info}")
             # UIにもバッチ情報を表示
             yield None, gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
         # バッチインデックスに応じてSEED値を設定
-        current_seed = original_seed + batch_index
+        # ランダムシード使用判定を再度実施
+        use_random = False
+        if isinstance(use_random_seed, bool):
+            use_random = use_random_seed
+        elif isinstance(use_random_seed, str):
+            use_random = use_random_seed.lower() in ["true", "yes", "1", "on"]
+        
+        # 複数バッチがある場合の表示
         if batch_count > 1:
-            print(translate("現在のSEED値: {0}").format(current_seed))
-        # 現在のバッチ用のシードを設定
-        seed = current_seed
+            # ランダムシードを使用しない場合のみ、バッチインデックスでシードを調整
+            if not use_random:
+                prev_seed = seed
+                current_seed = original_seed + batch_index
+                # 現在のバッチ用のシードを設定
+                seed = current_seed
+                if batch_index > 0:  # 最初のバッチ以外でメッセージ表示
+                    print(translate("[INFO] バッチ {0}/{1} の処理を開始: SEED値を {2} に設定しました。").format(
+                        batch_index + 1, batch_count, seed
+                    ))
+            else:
+                # ランダムシード使用時は各バッチで新しい値を生成
+                if batch_index > 0:  # 最初のバッチ以外は新しい値を生成
+                    prev_seed = seed
+                    seed = random.randint(0, 2**32 - 1)
+                    print(translate("[INFO] バッチ {0}/{1} の処理を開始: 新しいランダムSEED値 {2} を生成しました。").format(
+                        batch_index + 1, batch_count, seed
+                    ))
+        
+        # 常に現在のシード値を表示（バッチ数に関わらず）
+        print(translate("現在のSEED値: {0}").format(seed))
 
         # もう一度停止フラグを確認 - worker処理実行前
         if batch_stopped:
@@ -2191,9 +2235,19 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             if flag == 'progress':
                 preview, desc, html = data
                 # バッチ処理中は現在のバッチ情報を追加
+                # 単一バッチでも常にSEED値情報を表示する
+                batch_info = ""
                 if batch_count > 1:
                     batch_info = translate("バッチ処理: {0}/{1} - ").format(batch_index + 1, batch_count)
+                
+                # 現在のSEED値を常に表示
+                current_seed_info = translate("現在のSEED値: {0}").format(seed)
+                if batch_info:
                     desc = batch_info + desc
+                
+                # プロンプトの末尾に現在のシード値の情報を追加（バッチ処理数に関わらず）
+                if current_seed_info not in desc:
+                    desc = desc + "\n\n" + current_seed_info
                 # preview_imageを明示的に設定
                 yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True), gr.update()
 

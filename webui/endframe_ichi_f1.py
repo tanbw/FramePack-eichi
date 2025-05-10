@@ -1687,13 +1687,31 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # 元のシード値を保存（バッチ処理用）
     original_seed = seed
 
-    if use_random_seed:
+    # ランダムシード状態をデバッグ表示
+    print(translate("[DEBUG] use_random_seed: {0}, タイプ: {1}").format(use_random_seed, type(use_random_seed).__name__))
+    
+    # ランダムシード生成を文字列型も含めて判定
+    use_random = False
+    if isinstance(use_random_seed, bool):
+        use_random = use_random_seed
+    elif isinstance(use_random_seed, str):
+        use_random = use_random_seed.lower() in ["true", "yes", "1", "on"]
+        
+    print(translate("[DEBUG] 実際のランダムシード使用状態: {0}").format(use_random))
+    
+    if use_random:
+        # ランダムシード設定前の値を保存
+        previous_seed = seed
+        # 特定の範囲内で新しいシード値を生成
         seed = random.randint(0, 2**32 - 1)
+        # ユーザーにわかりやすいメッセージを表示
+        print(translate("\n[INFO] ランダムシード機能が有効なため、指定されたSEED値 {0} の代わりに新しいSEED値 {1} を使用します。").format(previous_seed, seed))
         # UIのseed欄もランダム値で更新
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update(value=seed)
         # ランダムシードの場合は最初の値を更新
         original_seed = seed
     else:
+        print(translate("[INFO] 指定されたSEED値 {0} を使用します。").format(seed))
         yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
     stream = AsyncStream()
@@ -1738,7 +1756,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # バッチインデックスに応じてSEED値を設定
         current_seed = original_seed + batch_index
         if batch_count > 1:
-            print(translate("現在のSEED値: {0}").format(current_seed))
+            print(translate("初期SEED値: {0}").format(current_seed))
         # 現在のバッチ用のシードを設定
         seed = current_seed
 

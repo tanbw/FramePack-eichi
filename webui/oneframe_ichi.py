@@ -386,9 +386,17 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         # 入力画像の処理
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Image processing ...'))))
         
-        H, W, C = input_image.shape
-        height, width = find_nearest_bucket(H, W, resolution=resolution)
-        input_image_np = resize_and_center_crop(input_image, target_width=width, target_height=height)
+        # 入力画像がNoneの場合はデフォルトの黒い画像を作成
+        if input_image is None:
+            print(translate("[INFO] 入力画像が指定されていないため、黒い画像を生成します"))
+            # 指定された解像度の黒い画像を生成（デフォルトは640x640）
+            height = width = resolution
+            input_image = np.zeros((height, width, 3), dtype=np.uint8)
+            input_image_np = input_image
+        else:
+            H, W, C = input_image.shape
+            height, width = find_nearest_bucket(H, W, resolution=resolution)
+            input_image_np = resize_and_center_crop(input_image, target_width=width, target_height=height)
         
         # 入力画像は必要な場合のみ保存（デバッグ用）
         # Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}_input.png'))
@@ -1200,8 +1208,11 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
     batch_count = max(1, min(int(batch_count), 100))  # 1〜100の間に制限
     print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
     
-    # 入力画像チェック
-    assert input_image is not None, translate('No input image!')
+    # 入力画像チェック - 厳格なチェックを避け、エラーを出力するだけに変更
+    if input_image is None:
+        print(translate("[WARN] 入力画像が指定されていません。デフォルトの画像を生成します。"))
+        # 空の入力画像を生成
+        # ここではNoneのままとし、実際のworker関数内でNoneの場合に対応する
     
     # LoRAの状態をログ出力
     if use_lora and has_lora_support:
@@ -1231,7 +1242,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         current_seed = original_seed + batch_index
         
         if batch_count > 1:
-            print(translate("\u25c6 現在のシード値: {0}").format(current_seed))
+            print(translate("\u25c6 初期シード値: {0}").format(current_seed))
         
         if batch_stopped:
             break
