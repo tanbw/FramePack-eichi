@@ -16,6 +16,32 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 
 感謝您 [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** 對多語言支援的協助。
 
+## 🌟 新功能：FramePack-oichi 添加 (v1.9.2)
+
+**FramePack-eichi v1.9.2**引入了一個新功能「FramePack-oichi」。這是一個從單一輸入圖像預測生成下一幀未來圖像的專用工具。
+
+![FramePack-oichi 截圖](../images/framepack_oichi_screenshot.png)
+
+### 🤔 什麼是 FramePack-oichi?
+
+- **單幀推論**：僅生成下一幀，而非整個視頻
+- **輕量級處理**：比常規視頻生成更輕便快速，允許快速確認結果
+- **用戶友好**：簡單的UI設計，即使初學者也能直觀操作
+- **多語言支持**：完全支持日語、英語和繁體中文
+
+### 💡 使用場景
+
+- **創意探索**：快速查看「圖像可能如何移動」
+- **資源節省**：與完整視頻生成相比，使用更少的資源處理
+- **連續生成**：可以將生成的圖像作為輸入再次使用，構建多幀序列
+
+### 🚀 啟動方式
+
+提供專用啟動腳本：
+- 日語版：`run_oneframe_ichi.bat`
+- 英語版：`run_oneframe_ichi_en.bat`
+- 繁體中文版：`run_oneframe_ichi_zh-tw.bat`
+
 ## 🌟 新功能：F1 模型添加 (v1.9.1)
 
 **FramePack-eichi v1.9.1** 在傳統的逆向生成模型「FramePack-eichi」（標準版）基礎上，添加了一個支持正向生成的新模型「FramePack-~~eichi~~ F1」。
@@ -81,7 +107,39 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 - **[配置信息](README_column_zh.md#%E6%80%A7%E8%83%BD%E8%A8%AD%E5%AE%9A)** - 詳細配置選項
 - **[更新日誌](README_changelog.md)** - 完整更新歷史
 
-## 📝 最新更新資訊 (v1.9.1)
+## 📝 最新更新資訊 (v1.9.2)
+
+### 主要變更
+
+#### 1. 「FramePack-oichi」新功能添加
+- **下一幀預測**：從單一輸入圖像預測生成下一幀未來圖像的新功能
+- **專用啟動腳本**：添加了`run_oneframe_ichi.bat`和其他語言版本
+- **輕量便捷**：比常規視頻生成更輕便，可快速查看下一幀
+- **完整多語言支持**：完全支持日語、英語和中文
+
+#### 2. 幀圖像保存功能
+- **幀保存選項**：添加保存所有生成幀圖像的選項
+- **靈活選擇**：可選擇保存所有分段的所有幀或僅保存最終分段的幀
+- **更易可視化**：使中間視頻過程的可視化和作為素材資源的使用更加容易
+
+#### 3. 分段信息批量管理增強
+- **ZIP文件批量下載**：添加了通過ZIP文件批量下載分段信息的功能
+- **高效多項目管理**：更高效地管理和備份多個項目
+- **批量上傳支持**：支持批量上傳開始圖像、結束圖像和分段信息（提示詞、圖像）
+
+#### 4. LoRA功能增強
+- **同時使用多個LoRA**：支持同時使用三個LoRA
+- **目錄選擇默認**：默認從目錄選擇，能夠選擇/webui/lora文件夾中的LoRA
+- **全模式支持**：在所有模式（標準版、F1版、oneframe版）中支持LoRA功能增強
+
+#### 5. VAE緩存功能（基於furusu研究）
+- **逐幀VAE解碼**：通過逐幀VAE解碼提高處理速度 - 基於[furusu的研究](https://note.com/gcem156/n/nb93535d80c82)和[FramePack實現](https://github.com/laksjdjf/FramePack)
+- **靈活平衡調整**：可調整內存使用量和處理速度之間的平衡
+- **輕鬆開關切換**：從設置屏幕簡單切換
+- **無默認影響**：默認為關閉，因此除非啟用否則沒有影響
+- **性能提升**：通過利用幀間獨立性的計算緩存實現高達30%的速度提升
+
+## 📝 更新資訊 (v1.9.1)
 
 ### 主要變更
 
@@ -276,10 +334,14 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
    - `run_endframe_ichi_f1.bat` - F1版/日語用（v1.9.1新增）
    - `run_endframe_ichi_en_f1.bat` - F1版/英語用（v1.9.1新增）
    - `run_endframe_ichi_zh-tw_f1.bat` - F1版/繁體中文用（v1.9.1新增）
+   - `run_oneframe_ichi.bat` - 單幀推論/日語用（v1.9.2新增）
+   - `run_oneframe_ichi_en.bat` - 單幀推論/英語用（v1.9.2新增）
+   - `run_oneframe_ichi_zh-tw.bat` - 單幀推論/繁體中文用（v1.9.2新增）
 
 2. 將以下檔案和資料夾放在`webui`資料夾中：
    - `endframe_ichi.py` - 標準版主應用程式檔案
    - `endframe_ichi_f1.py` - F1版主應用程式檔案（v1.9.1新增）
+   - `oneframe_ichi.py` - 單幀推論版主應用程式檔案（v1.9.2新增）
    - `eichi_utils` 資料夾 - 工具模組
      - `__init__.py`
      - `frame_calculator.py` - 幀大小計算模組
@@ -293,6 +355,9 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
      - `png_metadata.py` - PNG元數據模組（v1.9.1新增）
      - `text_encoder_manager.py` - 文本編碼器管理模組（v1.9.1新增）
      - `transformer_manager.py` - 轉換器模型管理模組（v1.9.1新增）
+     - `section_manager.py` - 分段信息管理模組（v1.9.2新增）
+     - `vae_cache.py` - VAE緩存模組（v1.9.2新增）
+     - `README_vae_cache.md` - VAE緩存功能說明（v1.9.2新增）
    - `lora_utils` 資料夾 - LoRA相關模組
      - `__init__.py`
      - `dynamic_swap_lora.py` - LoRA管理模組（為兼容性保留）
@@ -546,6 +611,31 @@ LoRA 應用處理流程：
 ## 📝 更新日誌
 
 最新的更新資訊如下所示。完整的更新歷史請參考[更新日誌](README_changelog.md)。
+
+### 2025-05-11：版本 1.9.2
+- **「FramePack-oichi」新功能添加**：
+  - 從單一輸入圖像預測生成下一幀未來圖像的新功能
+  - 添加專用啟動腳本（`run_oneframe_ichi.bat`等）
+  - 比常規視頻生成更輕便，可快速查看下一幀
+  - 完全支持多語言（日語、英語、中文）
+- **幀圖像保存功能**：
+  - 添加保存所有生成幀圖像的選項
+  - 可選擇保存所有分段的所有幀或僅保存最終分段的幀
+  - 使中間視頻過程的可視化和作為素材資源的使用更加容易
+- **分段信息批量管理增強**：
+  - 添加了通過ZIP文件批量下載分段信息的功能
+  - 更高效地管理和備份多個項目
+  - 支持批量上傳開始圖像、結束圖像和分段信息並在內容修改後重新下載
+- **LoRA功能增強**：
+  - 支持同時使用三個LoRA
+  - 默認從目錄選擇，能夠選擇/webui/lora文件夾中的LoRA
+  - 在所有模式（標準版、F1版、oneframe版）中支持LoRA功能增強
+- **VAE緩存功能**：
+  - 通過逐幀VAE解碼提高處理速度 - 基於furusu研究 [詳情1](https://note.com/gcem156/n/nb93535d80c82) [詳情2](https://github.com/laksjdjf/FramePack)
+  - 可調整內存使用量和處理速度之間的平衡
+  - 從設置屏幕簡單切換開/關
+  - 默認為關閉，因此沒有影響
+  - 通過利用幀間獨立性的計算緩存實現高達30%的速度提升
 
 ### 2025-05-04：版本 1.9.1
 - **F1 模型添加**：引入了支持正向生成的新模型 "FramePack_F1_I2V_HY_20250503"

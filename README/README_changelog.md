@@ -4,6 +4,31 @@
 
 ## 日本語
 
+### 2025-05-11: バージョン1.9.2
+- **「FramePack-oichi」新機能追加**:
+  - 1枚の入力画像から次の1枚の未来フレーム画像を予測生成する新機能
+  - 専用の起動スクリプト（`run_oneframe_ichi.bat`他）を追加
+  - 通常の動画生成より軽量で手軽に次の1フレームを確認可能
+  - 多言語対応（日本語、英語、中国語）を完備
+- **フレーム画像保存機能**:
+  - 生成した全フレーム画像を保存するオプションを追加
+  - 全セクションの全フレーム保存か最終セクションのみの保存か選択可能
+  - 動画の中間過程の可視化や素材としての活用が容易に
+- **セクション情報の一括管理機能強化**:
+  - セクション情報のZIPファイルによる一括ダウンロード機能を追加
+  - 複数プロジェクトの効率的な管理・バックアップが可能に
+  - 開始画像、終了画像、セクション情報(プロンプト、画像)の一括アップロード及び内容変更後の再一括ダウンロード反映に対応
+- **LoRA機能の強化**:
+  - 3つのLoRAの同時使用に対応
+  - ディレクトリから選択をデフォルトとし、/webui/loraフォルダに格納されたLoRAを選択可能
+  - 全モード（無印版、F1版、oneframe版）でLoRA機能強化を対応
+- **VAEキャッシュ機能**:
+  - フレーム単位でのVAEデコードによる処理速度向上 ※furusu氏の検証に基づく実装 [詳細1](https://note.com/gcem156/n/nb93535d80c82) [詳細2](https://github.com/laksjdjf/FramePack)
+  - メモリ使用量と処理速度のバランス調整が柔軟に
+  - 設定画面から簡単にオン/オフを切り替え可能
+  - デフォルトはOFFのため影響なし
+  - フレーム間の独立性を活かした計算キャッシュにより最大30%程度の高速化を実現
+
 ### 2025-05-04: バージョン1.9.1
 - **F1モデルの追加**:
   - 順生成に対応した新モデル「FramePack_F1_I2V_HY_20250503」を導入
@@ -164,6 +189,31 @@
 
 ## English
 
+### 2025-05-11: Version 1.9.2
+- **"FramePack-oichi" New Feature Added**:
+  - New function to predict and generate the next future frame image from a single input image
+  - Added dedicated startup scripts (`run_oneframe_ichi.bat` and others)
+  - Lighter and easier way to check the next frame compared to regular video generation
+  - Complete multilingual support (Japanese, English, Chinese)
+- **Frame Image Save Function**:
+  - Added option to save all generated frame images
+  - Choice between saving all frames from all sections or only from the final section
+  - Easier visualization of intermediate video process and use as material resources
+- **Section Information Batch Management Enhancement**:
+  - Added batch download function of section information via ZIP file
+  - Efficient management and backup of multiple projects
+  - Support for bulk upload of start images, end images, section information (prompts, images) and re-download after content changes
+- **LoRA Function Enhancement**:
+  - Support for simultaneous use of three LoRAs
+  - Default selection from directory, ability to select LoRAs stored in the /webui/lora folder
+  - LoRA function enhancement supported in all modes (Standard, F1, oneframe)
+- **VAE Cache Function**:
+  - Processing speed improvement through frame-by-frame VAE decoding - Based on research by furusu [Details1](https://note.com/gcem156/n/nb93535d80c82) [Details2](https://github.com/laksjdjf/FramePack)
+  - Flexible adjustment of balance between memory usage and processing speed
+  - Easy on/off switching from settings screen
+  - No impact as default is OFF
+  - Achieves up to 30% speed improvement through computational caching leveraging frame independence
+
 ### 2025-05-04: Version 1.9.1
 - **F1 Model Added**:
   - Introduction of the new "FramePack_F1_I2V_HY_20250503" model supporting forward generation
@@ -323,6 +373,31 @@
 - Added keyframe guide functionality
 
 ## 简体中文
+
+### 2025-05-11: 版本1.9.2
+- **"FramePack-oichi"新功能添加**:
+  - 新功能可从单张输入图像预测生成下一张未来帧图像
+  - 添加专用启动脚本（`run_oneframe_ichi.bat`等）
+  - 与常规视频生成相比，更轻便简单地检查下一帧
+  - 完整的多语言支持（日语、英语、中文）
+- **帧图像保存功能**:
+  - 添加保存所有生成帧图像的选项
+  - 可选择保存所有段落的所有帧或仅最终段落的帧
+  - 更容易可视化视频中间过程并作为素材资源使用
+- **分段信息批量管理功能增强**:
+  - 添加通过ZIP文件批量下载分段信息的功能
+  - 高效管理和备份多个项目
+  - 支持批量上传开始图像、结束图像、分段信息（提示词、图像）以及内容更改后的重新下载
+- **LoRA功能增强**:
+  - 支持同时使用三个LoRA
+  - 默认从目录中选择，能够选择存储在/webui/lora文件夹中的LoRA
+  - 所有模式（标准版、F1版、oneframe版）都支持LoRA功能增强
+- **VAE缓存功能**:
+  - 通过逐帧VAE解码提高处理速度 - 基于furusu研究的实现 [详情1](https://note.com/gcem156/n/nb93535d80c82) [详情2](https://github.com/laksjdjf/FramePack)
+  - 灵活调整内存使用量和处理速度之间的平衡
+  - 从设置屏幕轻松切换开/关
+  - 默认为关闭，因此没有影响
+  - 利用帧之间的独立性实现计算缓存，实现高达30%的速度提升
 
 ### 2025-05-04: 版本1.9.1
 - **F1模型添加**:

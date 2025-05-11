@@ -16,6 +16,32 @@ In other words, it's a ~~local~~ **worldwide** modification specialized in creat
 
 We're extremely grateful to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for multilingual support cooperation.
 
+## 🌟 New Feature: FramePack-oichi Addition (v1.9.2)
+
+**FramePack-eichi v1.9.2** introduces a new feature called "FramePack-oichi". This is a dedicated tool for predicting and generating the next future frame image from a single input image.
+
+![FramePack-oichi Screenshot](../images/framepack_oichi_screenshot.png)
+
+### 🤔 What is FramePack-oichi?
+
+- **One-Frame Inference**: Generates only the next frame, not the entire video
+- **Lightweight Processing**: Lighter and faster than regular video generation, allowing quick result confirmation
+- **User-Friendly**: Simple UI design for intuitive operation even for beginners
+- **Multilingual Support**: Full support for Japanese, English, and Traditional Chinese
+
+### 💡 Usage Scenarios
+
+- **Idea Exploration**: Quickly check "how an image might move next"
+- **Resource Saving**: Process with fewer resources compared to full video generation
+- **Sequential Generation**: Possible to use the generated image as input again to build up frames
+
+### 🚀 Launch Method
+
+Dedicated launch scripts are provided:
+- Japanese version: `run_oneframe_ichi.bat`
+- English version: `run_oneframe_ichi_en.bat`
+- Traditional Chinese version: `run_oneframe_ichi_zh-tw.bat`
+
 ## 🌟 New Feature: F1 Model Addition (v1.9.1)
 
 **FramePack-eichi v1.9.1** adds a new forward-generation model "FramePack-~~eichi~~ F1" alongside the traditional reverse-generation model "FramePack-eichi" (standard version).
@@ -51,6 +77,8 @@ We're extremely grateful to [https://github.com/hinablue](https://github.com/hin
 
 - **High-Quality Video Generation**: Generate natural motion videos from a single image (existing feature)
 - **F1 Model Support**: New model for forward generation, enabling more intuitive video creation (added in v1.9.1)
+- **FramePack-oichi**: New feature to generate the next future frame image from a single input image (added in v1.9.2)
+- **Frame Image Save Function**: Added option to save all generated frame images or only those from the final section (added in v1.9.2)
 - **Flexible Video Length Settings**: Support for 1-20 second section modes (unique feature)
 - **Section Frame Size Settings**: Toggle between 0.5-second and 1-second modes (added in v1.5)
 - **All-Padding Function**: Use the same padding value for all sections (added in v1.4)
@@ -61,6 +89,9 @@ We're extremely grateful to [https://github.com/hinablue](https://github.com/hin
 - **Prompt Management**: Easy saving, editing, and reuse of prompts (added in v1.3)
 - **PNG Metadata Embedding**: Automatically record prompts, seed values, and section information in generated images (added in v1.9.1)
 - **Hunyuan/FramePack LoRA Support**: Add custom expressions through model customization (significantly improved in v1.9/v1.9.1)
+- **LoRA Function Enhancement**: Support for simultaneous use of three LoRAs and selection from the /webui/lora folder (added in v1.9.2)
+- **Section Information Batch Management**: Support for downloading/uploading section information via ZIP file and reflecting changes after content modification (added in v1.9.2)
+- **VAE Cache Function**: Processing speed improvement through frame-by-frame VAE decoding (optional feature) - Based on research by furusu [Details1](https://note.com/gcem156/n/nb93535d80c82) [Details2](https://github.com/laksjdjf/FramePack) (added in v1.9.2)
 - **FP8 Optimization**: Reduce VRAM usage and optimize processing speed for LoRA application (added in v1.9.1)
 - **MP4 Compression Settings**: Adjust the balance between video file size and quality (merged from original in v1.6.2)
 - **Output Folder Management**: Specify output folders and OS-independent folder opening (added in v1.2)
@@ -79,7 +110,39 @@ We're extremely grateful to [https://github.com/hinablue](https://github.com/hin
 - **[Configuration Information](README_column_en.md#-%EF%B8%8F-configuration-information)** - Detailed configuration options
 - **[Changelog](README_changelog.md)** - Complete update history
 
-## 📝 Latest Update Information (v1.9.1)
+## 📝 Latest Update Information (v1.9.2)
+
+### Major Changes
+
+#### 1. "FramePack-oichi" New Feature Added
+- **Next Frame Prediction**: New feature to predict and generate the next future frame image from a single input image
+- **Dedicated Startup Scripts**: Added `run_oneframe_ichi.bat` and other language versions
+- **Lightweight and Convenient**: Lighter than regular video generation for quick next frame checking
+- **Complete Multilingual Support**: Japanese, English, and Chinese fully supported
+
+#### 2. Frame Image Save Function
+- **Frame Saving Option**: Added option to save all generated frame images
+- **Flexible Selection**: Choice between saving all frames from all sections or only from the final section
+- **Easier Visualization**: Makes it easier to visualize intermediate video process and use as material resources
+
+#### 3. Section Information Batch Management Enhancement
+- **ZIP File Batch Download**: Added batch download function for section information via ZIP file
+- **Efficient Multi-Project Management**: More efficient management and backup of multiple projects
+- **Bulk Upload Support**: Support for bulk upload of start images, end images, and section information (prompts, images)
+
+#### 4. LoRA Function Enhancement
+- **Simultaneous LoRA Use**: Support for using three LoRAs simultaneously
+- **Directory Selection Default**: Default selection from directory with ability to select LoRAs from /webui/lora folder
+- **All Mode Support**: LoRA function enhancement supported in all modes (Standard, F1, oneframe)
+
+#### 5. VAE Cache Function (Based on research by furusu)
+- **Frame-by-Frame VAE Decoding**: Processing speed improvement through frame-by-frame VAE decoding - Implementation based on [research by furusu](https://note.com/gcem156/n/nb93535d80c82) and [FramePack implementation](https://github.com/laksjdjf/FramePack)
+- **Flexible Balance Adjustment**: Adjustable balance between memory usage and processing speed
+- **Easy On/Off Toggle**: Simple toggling from settings screen
+- **No Default Impact**: Default is OFF, so no impact unless enabled
+- **Performance Boost**: Achieves up to 30% speed improvement through computational caching by leveraging frame independence
+
+## 📝 Update Information (v1.9.1)
 
 ### Major Changes
 
@@ -277,10 +340,14 @@ First, you need to install the original FramePack.
    - `run_endframe_ichi_f1.bat` - F1 version/Japanese (added in v1.9.1)
    - `run_endframe_ichi_en_f1.bat` - F1 version/English (added in v1.9.1)
    - `run_endframe_ichi_zh-tw_f1.bat` - F1 version/Traditional Chinese (added in v1.9.1)
+   - `run_oneframe_ichi.bat` - One-frame inference/Japanese (added in v1.9.2)
+   - `run_oneframe_ichi_en.bat` - One-frame inference/English (added in v1.9.2)
+   - `run_oneframe_ichi_zh-tw.bat` - One-frame inference/Traditional Chinese (added in v1.9.2)
 
 2. Place the following files and folders in the `webui` folder:
    - `endframe_ichi.py` - Standard version main application file
    - `endframe_ichi_f1.py` - F1 version main application file (added in v1.9.1)
+   - `oneframe_ichi.py` - One-frame inference version main application file (added in v1.9.2)
    - `eichi_utils` folder - Utility modules
      - `__init__.py`
      - `frame_calculator.py` - Frame size calculation module
@@ -294,6 +361,9 @@ First, you need to install the original FramePack.
      - `png_metadata.py` - PNG metadata module (added in v1.9.1)
      - `text_encoder_manager.py` - Text encoder management module (added in v1.9.1)
      - `transformer_manager.py` - Transformer model management module (added in v1.9.1)
+     - `section_manager.py` - Section information management module (added in v1.9.2)
+     - `vae_cache.py` - VAE cache module (added in v1.9.2)
+     - `README_vae_cache.md` - VAE cache function explanation (added in v1.9.2)
    - `lora_utils` folder - LoRA-related modules
      - `__init__.py`
      - `dynamic_swap_lora.py` - LoRA management module (maintained for backward compatibility)
@@ -586,6 +656,31 @@ This project is released under the [Apache License 2.0](LICENSE), in compliance 
 ## 📝 Update History
 
 The latest update information is shown below. For the full update history, please refer to the [Changelog](README_changelog.md).
+
+### 2025-05-11: Version 1.9.2
+- **"FramePack-oichi" New Feature Added**:
+  - New feature to predict and generate the next future frame image from a single input image
+  - Added dedicated startup scripts (`run_oneframe_ichi.bat` and others)
+  - Lighter than regular video generation for quick next frame checking
+  - Complete multilingual support (Japanese, English, Chinese)
+- **Frame Image Save Function**:
+  - Added option to save all generated frame images
+  - Choice between saving all frames from all sections or only from the final section
+  - Makes it easier to visualize intermediate video process and use as material resources
+- **Section Information Batch Management Enhancement**:
+  - Added batch download function for section information via ZIP file
+  - More efficient management and backup of multiple projects
+  - Support for bulk upload of start images, end images, and section information with content change re-download support
+- **LoRA Function Enhancement**:
+  - Support for using three LoRAs simultaneously
+  - Default selection from directory with ability to select LoRAs from /webui/lora folder
+  - LoRA function enhancement supported in all modes (Standard, F1, oneframe)
+- **VAE Cache Function**:
+  - Processing speed improvement through frame-by-frame VAE decoding - Based on research by furusu [Details1](https://note.com/gcem156/n/nb93535d80c82) [Details2](https://github.com/laksjdjf/FramePack)
+  - Adjustable balance between memory usage and processing speed
+  - Simple toggling from settings screen
+  - Default is OFF, so no impact unless enabled
+  - Achieves up to 30% speed improvement through computational caching by leveraging frame independence
 
 ### 2025-05-04: Version 1.9.1
 - **F1 Model Addition**: Introduced new "FramePack_F1_I2V_HY_20250503" model supporting forward generation
