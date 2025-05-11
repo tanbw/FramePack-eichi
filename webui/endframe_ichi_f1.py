@@ -131,6 +131,10 @@ high_vram = free_mem_gb > 100
 print(translate('Free VRAM {0} GB').format(free_mem_gb))
 print(translate('High-VRAM Mode: {0}').format(high_vram))
 
+# モデルを並列ダウンロードしておく
+from eichi_utils.model_downloader import ModelDownloader
+ModelDownloader().download_f1()
+
 # グローバルなモデル状態管理インスタンスを作成
 # F1モードではuse_f1_model=Trueを指定
 transformer_manager = TransformerManager(device=gpu, high_vram_mode=high_vram, use_f1_model=True)
