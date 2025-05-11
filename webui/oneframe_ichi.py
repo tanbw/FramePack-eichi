@@ -1226,7 +1226,8 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             lora_files, lora_files2, lora_scales_text, use_lora, fp8_optimization, resolution, output_directory=None, 
             batch_count=1, use_random_seed=False, latent_window_size=9, latent_index=0, 
             use_clean_latents_2x=True, use_clean_latents_4x=True, use_clean_latents_post=True,
-            lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, lora_files3=None):
+            lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, lora_files3=None,
+            use_rope_batch=False):
     global stream
     global batch_stopped, user_abort, user_abort_notified
     
@@ -1315,11 +1316,26 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             # UIにもバッチ情報を表示
             yield None, gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True)
                 
-        # バッチごとにシードを変更
-        current_seed = original_seed + batch_index
+        # RoPE値バッチ処理の場合はRoPE値をインクリメント、それ以外は通常のシードインクリメント
+        current_seed = original_seed
+        current_latent_window_size = latent_window_size
         
-        if batch_count > 1:
-            print(translate("\u25c6 初期シード値: {0}").format(current_seed))
+        if use_rope_batch:
+            # RoPE値をインクリメント（最大64まで）
+            new_rope_value = latent_window_size + batch_index
+            
+            # RoPE値が64を超えたら処理を終了
+            if new_rope_value > 64:
+                print(translate("\u25c6 RoPE値が上限（64）に達したため、処理を終了します"))
+                break
+                
+            current_latent_window_size = new_rope_value
+            print(translate("\u25c6 現在のRoPE値: {0}").format(current_latent_window_size))
+        else:
+            # 通常のバッチ処理：シード値をインクリメント
+            current_seed = original_seed + batch_index
+            if batch_count > 1:
+                print(translate("\u25c6 初期シード値: {0}").format(current_seed))
         
         if batch_stopped:
             break
@@ -1341,7 +1357,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             async_run(worker, input_image, prompt, n_prompt, current_seed, steps, cfg, gs, rs, 
                      gpu_memory_preservation, use_teacache, lora_files, lora_files2, lora_scales_text, 
                      output_dir, use_lora, fp8_optimization, resolution,
-                     latent_window_size, latent_index, use_clean_latents_2x, use_clean_latents_4x, use_clean_latents_post,
+                     current_latent_window_size, latent_index, use_clean_latents_2x, use_clean_latents_4x, use_clean_latents_post,
                      lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, lora_files3)
         except Exception as e:
             import traceback
@@ -1537,6 +1553,13 @@ with block:
                     value=1,
                     step=1,
                     info=translate("同じ設定で連続生成する回数。SEEDは各回で+1されます")
+                )
+                
+                # RoPE値バッチ処理用のチェックボックス
+                use_rope_batch = gr.Checkbox(
+                    label=translate("RoPE値バッチ処理を使用"),
+                    value=False,
+                    info=translate("チェックすると、SEEDではなくRoPE値を各バッチで+1していきます（64に達すると停止）")
                 )
             
             # 生成開始/中止ボタン - endframe_ichiと完全に同じ実装
@@ -2134,7 +2157,7 @@ with block:
            lora_files, lora_files2, lora_scales_text, use_lora, fp8_optimization, resolution, output_dir, 
            batch_count, use_random_seed, latent_window_size, latent_index, 
            use_clean_latents_2x, use_clean_latents_4x, use_clean_latents_post,
-           lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, lora_files3]  # LoRA拡張を追加
+           lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, lora_files3, use_rope_batch]  # RoPE値バッチ処理を追加
     start_button.click(fn=process, inputs=ips, outputs=[result_image, preview_image, progress_desc, progress_bar, start_button, end_button])
     end_button.click(fn=end_process, outputs=[end_button])
     
