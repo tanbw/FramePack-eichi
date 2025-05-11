@@ -2,6 +2,10 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './submodules/FramePack'))))
 
+# グローバル変数 - 停止フラグと通知状態管理
+user_abort = False
+user_abort_notified = False
+
 from diffusers_helper.hf_login import login
 
 import os
@@ -754,17 +758,22 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
                     
                     if stream.input_queue.top() == 'end':
-                        print(translate("\n[INFO] ユーザーがタスクを中断しました"))
-                        # コールバック内での中断検出（デバッグログ削除）
+                        # グローバル変数を直接設定
+                        global batch_stopped, user_abort, user_abort_notified
+                        batch_stopped = True
+                        user_abort = True
+                        
+                        # 通知は一度だけ行うようにする - user_abort_notifiedが設定されていない場合のみ表示
+                        # 通常は既にend_process()内で設定済みなのでここでは表示されない
+                        if not user_abort_notified:
+                            print(translate("\n[INFO] 開始前または現在の処理完了後に停止します..."))
+                            user_abort_notified = True
+                        
+                        # 中断検出をoutput_queueに通知
                         stream.output_queue.push(('end', None))
                         
-                        # グローバル変数を直接設定
-                        global batch_stopped
-                        batch_stopped = True
-                        # batch_stoppedフラグをセット
-                        
-                        # KeyboardInterrupt例外を発生させる
-                        raise KeyboardInterrupt('User ends the task.')
+                        # 戻り値に特殊値を設定して上位処理で検知できるようにする
+                        return {'user_interrupt': True}
                     
                     current_step = d['i'] + 1
                     percentage = int(100.0 * current_step / steps)
@@ -772,8 +781,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     desc = translate('1フレームモード: サンプリング中...')
                     stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 except KeyboardInterrupt:
-                    print(f"[DEBUG] コールバック中のKeyboardInterrupt: 例外を上位に伝播")
-                    raise  # 再スロー
+                    print(f"[DEBUG] コールバック中のKeyboardInterrupt: 安全に停止処理")
+                    # 例外を再スローしない - 戻り値で制御
+                    return {'user_interrupt': True}
                 except Exception as e:
                     import traceback
                     print(f"[DEBUG] コールバック内でエラー: {type(e).__name__} - {e}")
@@ -876,7 +886,31 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     callback=callback,
                 )
                 
-                print(translate("[INFO] 生成は正常に完了しました"))
+                # コールバックからの戻り値をチェック（コールバック関数が特殊な値を返した場合）
+                if isinstance(generated_latents, dict) and generated_latents.get('user_interrupt'):
+                    # ユーザーが中断したことを検出したが、メッセージは出さない（既に表示済み）
+                    # 現在のバッチは完了させる（KeyboardInterruptは使わない）
+                    print(translate("[DEBUG] バッチ内処理を完了します"))
+                else:
+                    print(translate("[INFO] 生成は正常に完了しました"))
+                
+            except KeyboardInterrupt:
+                print(translate("[INFO] キーボード割り込みを検出しました - 安全に停止します"))
+                # リソースのクリーンアップ
+                del llama_vec, llama_vec_n, llama_attention_mask, llama_attention_mask_n
+                del clip_l_pooler, clip_l_pooler_n
+                try:
+                    # モデルをCPUに移動（可能な場合のみ）
+                    if 'transformer' in locals() and transformer is not None:
+                        if hasattr(transformer, 'cpu'):
+                            transformer.cpu()
+                    # GPUキャッシュをクリア
+                    torch.cuda.empty_cache()
+                except Exception as cleanup_e:
+                    print(translate("[WARN] 停止時のクリーンアップでエラー: {0}").format(cleanup_e))
+                # バッチ停止フラグを設定
+                batch_stopped = True
+                return None
                 
             except RuntimeError as e:
                 error_msg = str(e)
@@ -1003,7 +1037,8 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 
                 # メタデータを埋め込み
                 try:
-                    embed_metadata_to_png(output_filename, output_filename, metadata)
+                    # 関数は2つの引数しか取らないので修正
+                    embed_metadata_to_png(output_filename, metadata)
                     print(translate("[INFO] 画像メタデータを埋め込みました"))
                 except Exception as e:
                     print(translate("[WARNING] メタデータ埋め込みエラー: {0}").format(e))
@@ -1193,7 +1228,11 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             use_clean_latents_2x=True, use_clean_latents_4x=True, use_clean_latents_post=True,
             lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, lora_files3=None):
     global stream
-    global batch_stopped
+    global batch_stopped, user_abort, user_abort_notified
+    
+    # 新たな処理開始時にグローバルフラグをリセット
+    user_abort = False
+    user_abort_notified = False
     
     # この処置は誤りです - gr.updateは直接呼び出しても何も起こりません
     # コメントアウトします
@@ -1258,8 +1297,10 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
     
     yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True)
     
-    # バッチ処理用の変数
+    # バッチ処理用の変数 - 各フラグをリセット
     batch_stopped = False
+    user_abort = False
+    user_abort_notified = False
     original_seed = seed if seed else (random.randint(0, 2**32 - 1) if use_random_seed else 31337)
     
     # バッチ処理ループ
@@ -1355,7 +1396,39 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                     break
                     
         except KeyboardInterrupt:
-            print(f"[DEBUG] ストリーム待機中にKeyboardInterrupt: 中断します")
+            print(f"[DEBUG] ストリーム待機中にKeyboardInterrupt: 中断して資源を解放します")
+            # 明示的なリソースクリーンアップ
+            try:
+                # グローバルモデル変数のクリーンアップ
+                global transformer, text_encoder, text_encoder_2, vae, image_encoder
+                # 各モデルが存在する場合にCPUに移動
+                if transformer is not None and hasattr(transformer, 'cpu'):
+                    try:
+                        transformer.cpu()
+                    except: pass
+                if text_encoder is not None and hasattr(text_encoder, 'cpu'):
+                    try:
+                        text_encoder.cpu()
+                    except: pass
+                if text_encoder_2 is not None and hasattr(text_encoder_2, 'cpu'):
+                    try:
+                        text_encoder_2.cpu()
+                    except: pass
+                if vae is not None and hasattr(vae, 'cpu'):
+                    try:
+                        vae.cpu()
+                    except: pass
+                if image_encoder is not None and hasattr(image_encoder, 'cpu'):
+                    try:
+                        image_encoder.cpu()
+                    except: pass
+                
+                # GPUキャッシュの完全クリア
+                torch.cuda.empty_cache()
+                print(f"[DEBUG] リソースのクリーンアップが完了しました")
+            except Exception as cleanup_e:
+                print(f"[DEBUG] リソースクリーンアップ中にエラー: {cleanup_e}")
+            
             # UIをリセット
             yield None, gr.update(visible=False), translate("キーボード割り込みにより処理が中断されました"), '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
             return
@@ -1367,14 +1440,21 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             yield None, gr.update(visible=False), translate("エラーにより処理が中断されました"), '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
             return
     
-    # すべてのバッチ処理が正常に完了した場合のみ、効果音を鳴らす
-    if not batch_stopped:
+    # すべてのバッチ処理が正常に完了した場合と中断された場合で表示メッセージを分ける
+    if batch_stopped:
+        if user_abort:
+            print(translate("\n[INFO] ユーザーの指示により処理を停止しました"))
+        else:
+            print(translate("\n[INFO] バッチ処理が中断されました"))
+    else:
         print(translate("\n[INFO] 全てのバッチ処理が完了しました"))
     
-    # バッチ処理終了後は必ずbatch_stoppedフラグをリセット
+    # バッチ処理終了後は必ずフラグをリセット
     batch_stopped = False
+    user_abort = False
+    user_abort_notified = False
     
-    # 処理完了時の効果音（Windowsの場合）
+    # 処理完了時の効果音
     if HAS_WINSOUND:
         try:
             # Windows環境では完了音を鳴らす
@@ -1382,8 +1462,13 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             print(translate("[INFO] Windows完了通知音を再生しました"))
         except Exception as e:
             print(translate("[WARN] 完了通知音の再生に失敗しました: {0}").format(e))
+    
+    # 処理状態に応じてメッセージを表示
+    if batch_stopped or user_abort:
+        print("\n" + "-" * 50)
+        print(translate("【ユーザー中断】処理は正常に中断されました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
+        print("-" * 50 + "\n")
     else:
-        # Linux/Mac環境ではログにメッセージを出力
         print("\n" + "*" * 50)
         print(translate("【全バッチ処理完了】プロセスが完了しました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
         print("*" * 50 + "\n")
@@ -1393,13 +1478,20 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
 def end_process():
     """生成終了ボタンが押された時の処理"""
     global stream
-    global batch_stopped
+    global batch_stopped, user_abort, user_abort_notified
 
-    # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
-    batch_stopped = True
-    print(translate("\n停止ボタンが押されました。バッチ処理を停止します..."))
-    # 現在実行中のバッチを停止
-    stream.input_queue.push('end')
+    # 重複停止通知を防止するためのチェック
+    if not user_abort:
+        # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
+        batch_stopped = True
+        user_abort = True
+        
+        # 通知は一度だけ表示（ここで表示してフラグを設定）
+        print(translate("\n停止ボタンが押されました。開始前または現在の処理完了後に停止します..."))
+        user_abort_notified = True  # 通知フラグを設定
+        
+        # 現在実行中のバッチを停止
+        stream.input_queue.push('end')
 
     # ボタンの名前を一時的に変更することでユーザーに停止処理が進行中であることを表示
     return gr.update(value=translate("停止処理中..."))
