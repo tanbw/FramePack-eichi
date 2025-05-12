@@ -175,7 +175,15 @@ except Exception as e:
 vae.eval()
 image_encoder.eval()
 
-if not high_vram:
+# VAE設定を適用（カスタム設定またはデフォルト設定）
+from eichi_utils import apply_vae_settings, load_vae_settings
+
+# VAE設定を適用
+vae = apply_vae_settings(vae)
+
+# 低VRAMモードでカスタム設定が無効な場合はデフォルトの設定を適用
+vae_settings = load_vae_settings()
+if not high_vram and not vae_settings.get('custom_vae_settings', False):
     vae.enable_slicing()
     vae.enable_tiling()
 
@@ -4477,6 +4485,21 @@ with block:
 
             # MP4圧縮設定スライダーを追加
             mp4_crf = gr.Slider(label=translate("MP4 Compression"), minimum=0, maximum=100, value=16, step=1, info=translate("数値が小さいほど高品質になります。0は無圧縮。黒画面が出る場合は16に設定してください。"))
+            
+            # VAEタイリング設定（ゴースト対策）
+            from eichi_utils import create_vae_settings_ui, get_current_vae_settings_display
+            vae_settings_accordion, vae_controls = create_vae_settings_ui(translate)
+            
+            # VAEの実際の設定値を表示する関数を実装
+            def update_vae_settings_display():
+                global vae
+                if vae is not None:
+                    current_settings = get_current_vae_settings_display(vae)
+                    return current_settings
+                return "VAEがロードされていません"
+            
+            # 初回表示時に実行
+            vae_controls['current_settings_md'].value = update_vae_settings_display()
 
             # セクションごとの動画保存チェックボックスを追加（デフォルトOFF）
             keep_section_videos = gr.Checkbox(label=translate("完了時にセクションごとの動画を残す - チェックがない場合は最終動画のみ保存されます（デフォルトOFF）"), value=False)
