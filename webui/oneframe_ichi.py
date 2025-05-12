@@ -120,7 +120,7 @@ from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode
 from diffusers_helper.utils import save_bcthw_as_mp4, crop_or_pad_yield_mask, soft_append_bcthw, resize_and_center_crop, state_dict_weighted_merge, state_dict_offset_merge, generate_timestamp
 from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModelPacked
 from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
-from diffusers_helper.memory import cpu, gpu, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation, fake_diffusers_current_device, DynamicSwapInstaller, unload_complete_models, load_model_as_complete
+from diffusers_helper.memory import cpu, gpu, gpu_complete_modules, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation, fake_diffusers_current_device, DynamicSwapInstaller, unload_complete_models, load_model_as_complete
 from diffusers_helper.thread_utils import AsyncStream, async_run
 from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
 from eichi_utils.ui_styles import get_app_css
@@ -388,20 +388,31 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     for i, (path, scale) in enumerate(zip(current_lora_paths, current_lora_scales)):
                         print(translate("\u25c6 LoRA {0}: {1} (デフォルトスケール: {2})").format(i+1, os.path.basename(path), scale))
         
+        # -------- LoRA 設定 START ---------
         # LoRA設定を更新（リロードは行わない）
         print(translate("\n[INFO] LoRA設定を更新します："))
         print(translate("  - LoRAパス: {0}").format(current_lora_paths))
         print(translate("  - LoRAスケール: {0}").format(current_lora_scales))
-        print(translate("  - FP8最適化: {0}").format(fp8_optimization))
         print(translate("  - 高VRAM: {0}").format(high_vram))
-        
-        # このポイントで適切な設定を渡す
+
+        # LoRA設定のみを更新
         transformer_manager.set_next_settings(
             lora_paths=current_lora_paths,
             lora_scales=current_lora_scales,
-            fp8_enabled=fp8_optimization,
             high_vram_mode=high_vram
         )
+        # -------- LoRA 設定 END ---------
+
+        # -------- FP8 設定 START ---------
+        # FP8設定を個別に更新（LoRAとは独立して設定できるように）
+        print(translate("\n[INFO] FP8最適化設定を更新します："))
+        print(translate("  - FP8最適化: {0}").format(fp8_optimization))
+
+        transformer_manager.set_next_settings(
+            fp8_enabled=fp8_optimization,
+            force_dict_split=True  # 常に辞書分割処理を行う
+        )
+        # -------- FP8 設定 END ---------
         
         # セクション処理開始前にtransformerの状態を確認
         print(translate("\nLoRA適用前のtransformer状態チェック..."))
@@ -742,12 +753,30 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     
                     transformer = transformer_manager.get_transformer()
             
-            # eichiと同様にtransformerをGPUに移動（ensure_transformer_stateでリロードしたtransformerは
-            # 仮想デバイス上のものなので、明示的にGPUに移動する必要がある）
+            # endframe_ichiと同様にtransformerをGPUに移動
+            # vae, text_encoder, text_encoder_2, image_encoderをCPUに移動し、メモリを解放
             if not high_vram:
-                unload_complete_models()
-                move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=gpu_memory_preservation)
-            
+                # GPUメモリの解放 - transformerは処理中に必要なので含めない
+                unload_complete_models(
+                    text_encoder, text_encoder_2, image_encoder, vae
+                )
+
+                # FP8最適化の有無に関わらず、gpu_complete_modulesに登録してから移動
+                if transformer not in gpu_complete_modules:
+                    # endframe_ichiと同様に、unload_complete_modulesで確実に解放されるようにする
+                    gpu_complete_modules.append(transformer)
+                    print(translate("transformerをgpu_complete_modulesに登録しました"))
+
+                # メモリ確保した上でGPUへ移動
+                # GPUメモリ保存値を明示的に浮動小数点に変換
+                preserved_memory = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
+                print(translate('Setting transformer memory preservation to: {0} GB').format(preserved_memory))
+                move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory)
+            else:
+                # ハイVRAMモードでも正しくロードしてgpu_complete_modulesに追加
+                load_model_as_complete(transformer, target_device=gpu, unload=True)
+
+            # teacacheの設定
             if use_teacache:
                 transformer.initialize_teacache(enable_teacache=True, num_steps=steps)
             else:
@@ -933,12 +962,14 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             total_generated_latent_frames += int(generated_latents.shape[2])
             history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
             
-            # eichiと同様にメモリを明示的かつ効率的に解放
+            # 生成完了後のメモリ最適化 - 軽量な処理に変更
             if not high_vram:
-                # transformerのメモリを解放
+                # transformerのメモリを軽量に解放（辞書リセットなし）
                 print(translate("\n生成完了 - transformerをアンロード中..."))
+
+                # 元の方法に戻す - 軽量なオフロードで速度とメモリのバランスを取る
                 offload_model_from_device_for_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=8)
-                
+
                 # アンロード後のメモリ状態をログ
                 free_mem_gb_after_unload = get_cuda_free_memory_gb(gpu)
                 print(translate("transformerアンロード後の空きVRAM {0} GB").format(free_mem_gb_after_unload))
@@ -1109,14 +1140,20 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         except Exception as unload_error:
                             print(translate("{0}のアンロード中にエラー: {1}").format(model_name, unload_error))
                 
-                # 一括アンロード（遅延ロード方式のため実際に存在するモデルのみアンロード）
-                models_to_unload = []
-                for model in [text_encoder, text_encoder_2, image_encoder, vae, transformer]:
-                    if model is not None:
-                        models_to_unload.append(model)
-                
-                if models_to_unload:
-                    unload_complete_models(*models_to_unload)
+                # 一括アンロード - endframe_ichiと同じアプローチでモデルを明示的に解放
+                if transformer is not None:
+                    # まずtransformer_managerの状態をリセット - これが重要
+                    transformer_manager.current_state['is_loaded'] = False
+                    # FP8最適化モードの有無に関わらず常にCPUに移動
+                    transformer.to('cpu')
+                    print(translate("transformerをCPUに移動しました"))
+
+                # endframe_ichi.pyと同様に明示的にすべてのモデルを一括アンロード
+                # モデルを直接リストで渡す（引数展開ではなく）
+                unload_complete_models(
+                    text_encoder, text_encoder_2, image_encoder, vae, transformer
+                )
+                print(translate("すべてのモデルをアンロードしました"))
                 
                 # 明示的なガベージコレクション（複数回）
                 import gc
@@ -1587,8 +1624,9 @@ with block:
             
             # 詳細設定アコーディオン - 埋め込みプロンプト機能の直後に配置
             with gr.Accordion(translate("詳細設定"), open=False, elem_classes="section-accordion"):
+                # レイテント処理設定セクション
                 gr.Markdown(f"### " + translate("レイテント処理設定"))
-                
+
                 with gr.Row():
                     with gr.Column(scale=1):
                         # ツイートに基づくRoPE値の設定
@@ -1700,13 +1738,6 @@ with block:
                         info=translate("各LoRAのスケール値をカンマ区切りで入力 (例: 0.8,0.5,0.3)"),
                         visible=False
                     )
-                    # FP8最適化オプション（高速化のための実験的機能）
-                    fp8_optimization = gr.Checkbox(
-                        label=translate("FP8最適化（高速化）"), 
-                        value=False, 
-                        info=translate("GPUで高速化できますが若干精度が落ちます"), 
-                        visible=False
-                    )
 
                     # LoRAディレクトリからファイル一覧を取得する関数
                     def scan_lora_directory():
@@ -1744,43 +1775,41 @@ with block:
                     def toggle_lora_settings(use_lora):
                         # グローバル変数を使うように修正
                         global previous_lora_mode
-                        
+
                         # まだグローバル変数が定義されていなければ初期化
                         if 'previous_lora_mode' not in globals():
                             global previous_lora_mode
                             previous_lora_mode = translate("ディレクトリから選択")
-                        
+
                         # 現在のモード値を取得（UI要素が存在する場合）
                         current_mode = getattr(lora_mode, 'value', translate("ディレクトリから選択"))
-                        
+
                         # LoRAが無効化される場合、現在のモードを記憶
                         if not use_lora and current_mode:
                             previous_lora_mode = current_mode
                             print(translate("[DEBUG] 前回のLoRAモードを保存: {0}").format(previous_lora_mode))
-                        
+
                         if use_lora:
                             # LoRA使用時は前回のモードを復元
                             is_upload_mode = previous_lora_mode == translate("ファイルアップロード")
-                            
+
                             # 選択肢の更新
                             choices = scan_lora_directory() if not is_upload_mode else None
-                            
+
                             # モードに基づいた表示設定
                             return [
                                 gr.update(visible=True, value=previous_lora_mode),  # lora_mode - 前回の値を復元
                                 gr.update(visible=is_upload_mode),  # lora_upload_group
                                 gr.update(visible=not is_upload_mode),  # lora_dropdown_group
                                 gr.update(visible=True),  # lora_scales_text
-                                gr.update(visible=True),  # fp8_optimization
                             ]
                         else:
-                            # LoRA不使用時はすべて非表示
+                            # LoRA不使用時はLoRA関連UIのみ非表示（FP8最適化は表示したまま）
                             return [
                                 gr.update(visible=False),  # lora_mode
                                 gr.update(visible=False),  # lora_upload_group
                                 gr.update(visible=False),  # lora_dropdown_group
                                 gr.update(visible=False),  # lora_scales_text
-                                gr.update(visible=False),  # fp8_optimization
                             ]
                     
                     # LoRA読み込み方式に応じて表示を切り替える関数
@@ -1848,8 +1877,8 @@ with block:
                     use_lora.change(
                         fn=toggle_lora_full_update,
                         inputs=[use_lora],
-                        outputs=[lora_mode, lora_upload_group, lora_dropdown_group, 
-                                 lora_scales_text, fp8_optimization,
+                        outputs=[lora_mode, lora_upload_group, lora_dropdown_group,
+                                 lora_scales_text,
                                  lora_dropdown1, lora_dropdown2, lora_dropdown3]
                     )
                     
@@ -1913,8 +1942,19 @@ with block:
                 lora_dropdown2 = gr.Dropdown(visible=False)
                 lora_dropdown3 = gr.Dropdown(visible=False)
                 lora_scales_text = gr.Textbox(visible=False, value="0.8,0.8,0.8")
-                fp8_optimization = gr.Checkbox(visible=False, value=False)
-            
+
+            # FP8最適化セクション - endframe_ichiと同様にLoRAセクションの下に配置
+            with gr.Group() as fp8_optimization_group:
+                gr.Markdown(f"### " + translate("メモリ最適化設定"))
+
+                with gr.Row():
+                    # FP8最適化オプション - LoRAとは独立して設定可能に
+                    fp8_optimization = gr.Checkbox(
+                        label=translate("FP8最適化"),
+                        value=False,
+                        info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）")
+                    )
+
             # プロンプト入力
             prompt = gr.Textbox(label=translate("プロンプト"), value=get_default_startup_prompt(), lines=6)
             n_prompt = gr.Textbox(label=translate("ネガティブプロンプト"), value='')

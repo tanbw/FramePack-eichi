@@ -44,17 +44,18 @@ class TransformerManager:
         self._load_virtual_transformer()
         print(translate("transformerを仮想デバイスにロードしました"))
         
-    def set_next_settings(self, lora_paths=None, lora_scales=None, fp8_enabled=False, high_vram_mode=False, use_f1_model=None, lora_path=None, lora_scale=None):
+    def set_next_settings(self, lora_paths=None, lora_scales=None, fp8_enabled=False, high_vram_mode=False, use_f1_model=None, lora_path=None, lora_scale=None, force_dict_split=False):
         """次回のロード時に使用する設定をセット（即時のリロードは行わない）
-        
+
         Args:
             lora_paths: LoRAファイルのパスのリスト（Noneの場合はLoRA無効）
             lora_scales: LoRAのスケール値のリスト（lora_pathsがNoneの場合は無視）
-            fp8_enabled: FP8最適化の有効/無効（LoRAが設定されている場合のみ有効）
+            fp8_enabled: FP8最適化の有効/無効
             high_vram_mode: High-VRAMモードの有効/無効
             use_f1_model: F1モデル使用フラグ（Noneの場合は現在の設定を維持）
             lora_path: 後方互換性のための単一LoRAパス
             lora_scale: 後方互換性のための単一LoRAスケール
+            force_dict_split: 強制的に辞書分割処理を行うかどうか（デフォルトはFalse）
         """
         # 後方互換性のための処理
         if lora_paths is None and lora_path is not None:
@@ -80,16 +81,19 @@ class TransformerManager:
             elif len(lora_scales) > len(lora_paths):
                 lora_scales = lora_scales[:len(lora_paths)]
         
-        # LoRAが設定されていない場合はFP8最適化を強制的に無効化
-        actual_fp8_enabled = fp8_enabled if lora_paths and len(lora_paths) > 0 else False
-        
+        # # LoRAが設定されていない場合はFP8最適化を強制的に無効化
+        # actual_fp8_enabled = fp8_enabled if lora_paths and len(lora_paths) > 0 else False
+        # LoRAが設定されていない場合でもFP8最適化を有効に
+        actual_fp8_enabled = fp8_enabled
+
         # F1モデルフラグが指定されていない場合は現在の設定を維持
         actual_use_f1_model = use_f1_model if use_f1_model is not None else self.current_state.get('use_f1_model', False)
-        
+
         self.next_state = {
             'lora_paths': lora_paths if lora_paths else [],
             'lora_scales': lora_scales if lora_scales else [],
             'fp8_enabled': actual_fp8_enabled,
+            'force_dict_split': force_dict_split,
             'high_vram': high_vram_mode,
             'is_loaded': self.current_state['is_loaded'],
             'use_f1_model': actual_use_f1_model
@@ -98,10 +102,10 @@ class TransformerManager:
         if lora_paths and len(lora_paths) > 0:
             for i, (path, scale) in enumerate(zip(lora_paths, lora_scales)):
                 print(f"  - LoRA {i+1}: {os.path.basename(path)} (スケール: {scale})")
-            print(f"  - FP8 optimization: {actual_fp8_enabled}")
         else:
             print(translate("  - LoRA: None"))
-            print(translate("  - FP8 optimization: 無効 (LoRAが設定されていないため)"))
+        print(f"  - FP8 optimization: {actual_fp8_enabled}")
+        print(f"  - Force dict split: {force_dict_split}")
         print(f"  - High-VRAM mode: {high_vram_mode}")
         print(f"  - F1 Model: {actual_use_f1_model}")
     
@@ -135,8 +139,12 @@ class TransformerManager:
                 if current_path_to_scale.get(path) != next_path_to_scale.get(path):
                     return True
         
-        # LoRAが有効で、FP8最適化設定が異なる場合はリロードが必要
-        if next_paths and self.current_state.get('fp8_enabled') != self.next_state.get('fp8_enabled'):
+        # LoRAパスの有無に関わらずFP8最適化設定が異なる場合はリロードが必要
+        if self.current_state.get('fp8_enabled') != self.next_state.get('fp8_enabled'):
+            return True
+
+        # 辞書分割強制フラグの比較
+        if self.current_state.get('force_dict_split', False) != self.next_state.get('force_dict_split', False):
             return True
 
         # High-VRAMモードの比較
@@ -216,13 +224,17 @@ class TransformerManager:
             else:
                 print(translate("  - LoRA: None"))
             print(f"  - FP8 optimization: {self.next_state['fp8_enabled']}")
+            print(f"  - Force dict split: {self.next_state.get('force_dict_split', False)}")
             print(f"  - High-VRAM mode: {self.next_state['high_vram']}")
 
             # モードに応じたモデルパスを選択
             model_path = self._get_model_path()
             
             lora_paths = self.next_state.get('lora_paths', []) or []
-            if (not lora_paths) and self.next_state['fp8_enabled']:
+            force_dict_split = self.next_state.get('force_dict_split', False)
+
+            # LoRAとFP8最適化が無効で、かつ辞書分割も強制されていない場合のみ、シンプルな読み込み
+            if (not lora_paths) and not self.next_state['fp8_enabled'] and not force_dict_split:
                 # LoRAとFP8最適化が無効な場合は、from_pretrained で新しいtransformerインスタンスを作成
                 self.transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained(
                     model_path,
@@ -306,7 +318,28 @@ class TransformerManager:
                         raise e
                 
                 # 必要に応じてLoRA、FP8最適化が施された状態辞書を読み込み。assign=Trueで仮想デバイスのテンソルを置換
+                print(translate("状態辞書を読み込んでいます..."))
                 self.transformer.load_state_dict(state_dict, assign=True, strict=True)
+
+                # 読み込み後に一時的な状態辞書をメモリから解放
+                # 注: 大きな状態辞書がメモリに残ると大量のRAMを消費するため、
+                # ここでの明示的な解放は非常に重要
+                import gc
+                # 参照を削除する前に状態辞書のサイズを取得
+                try:
+                    state_dict_size = sum(param.numel() * param.element_size() for param in state_dict.values() if hasattr(param, 'numel'))
+                    print(translate("解放される状態辞書サイズ: {0:.2f} GB").format(state_dict_size / (1024**3)))
+                except:
+                    pass
+
+                # ここで参照を明示的に削除
+                # 注: メインの参照は本メソッド終了時に自動解放されるが、
+                # 他にもコンテキスト内で保持される可能性があるため明示的に削除
+                torch_state_dict_backup = state_dict
+                del state_dict
+
+                # Pythonの循環参照オブジェクトを強制的に解放
+                gc.collect()
             
             self.transformer.cpu()
             self.transformer.eval()
@@ -321,9 +354,32 @@ class TransformerManager:
             else:
                 self.transformer.to(self.device)
             
+            # 中間変数のクリーンアップ
+            # 状態辞書のコピーを保持する前に不要な参照を削除
+            if 'temp_dict' in locals():
+                del temp_dict
+            if 'state_dict' in locals() and state_dict is not None:
+                print(translate("大きな状態辞書参照を解放します"))
+                # 参照カウントを減らす
+                del state_dict
+                # 明示的なメモリクリーンアップ
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+
             # 状態を更新
             self.next_state['is_loaded'] = True
             self.current_state = self.next_state.copy()
+
+            # システムメモリの状態を報告（可能な場合）
+            try:
+                import psutil
+                process = psutil.Process()
+                ram_usage = process.memory_info().rss / (1024 * 1024 * 1024)  # GB単位
+                print(translate("現在のRAM使用量: {0:.2f} GB").format(ram_usage))
+            except:
+                pass
             
             print(translate("transformerのリロードが完了しました"))
             return True

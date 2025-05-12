@@ -1126,11 +1126,18 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         transformer_manager.set_next_settings(
             lora_paths=current_lora_paths,
             lora_scales=current_lora_scales,
-            fp8_enabled=fp8_optimization,
             high_vram_mode=high_vram,
         )
 
         # -------- LoRA 設定 END ---------
+
+        # -------- FP8 設定 START ---------
+        # FP8設定を個別に更新
+        transformer_manager.set_next_settings(
+            fp8_enabled=fp8_optimization,
+            force_dict_split=True  # 常に辞書分割処理を行う
+        )
+        # -------- FP8 設定 END ---------
 
         # セクション処理開始前にtransformerの状態を確認
         print(translate("\nセクション処理開始前のtransformer状態チェック..."))
@@ -3522,12 +3529,6 @@ with block:
                     info=translate("各LoRAのスケール値をカンマ区切りで入力 (例: 0.8,0.5,0.3)"),
                     visible=False
                 )
-                fp8_optimization = gr.Checkbox(
-                    label=translate("FP8最適化"),
-                    value=False,
-                    info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）"),
-                    visible=False
-                )
                 lora_blocks_type = gr.Dropdown(
                     label=translate("LoRAブロック選択"),
                     choices=["all", "single_blocks", "double_blocks", "db0-9", "db10-19", "sb0-9", "sb10-19", "important"],
@@ -3593,7 +3594,7 @@ with block:
                         # LoRA使用時はデフォルトでディレクトリから選択モードを表示
                         choices = scan_lora_directory()
                         print(translate("[DEBUG] toggle_lora_settings - 選択肢リスト: {0}").format(choices))
-                        
+
                         # 選択肢がある場合は確実に文字列型に変換
                         # 型チェックを追加
                         for i, choice in enumerate(choices):
@@ -3601,7 +3602,7 @@ with block:
                                 print(translate("[DEBUG] toggle_lora_settings - 選択肢を文字列に変換: インデックス {0}, 元の値 {1}, 型 {2}").format(
                                     i, choice, type(choice).__name__))
                                 choices[i] = str(choice)
-                        
+
                         # ドロップダウンが初期化時にも確実に更新されるようにする
                         # LoRAを有効にしたときにドロップダウンの選択肢も適切に更新
                         # まずモードを表示してからフラグを返す
@@ -3610,7 +3611,6 @@ with block:
                             gr.update(visible=False),  # lora_upload_group - デフォルトでは非表示
                             gr.update(visible=True),  # lora_dropdown_group - デフォルトで表示
                             gr.update(visible=True),  # lora_scales_text
-                            gr.update(visible=True),  # fp8_optimization
                         ]
                     else:
                         # LoRA不使用時はすべて非表示
@@ -3619,7 +3619,6 @@ with block:
                             gr.update(visible=False),  # lora_upload_group
                             gr.update(visible=False),  # lora_dropdown_group
                             gr.update(visible=False),  # lora_scales_text
-                            gr.update(visible=False),  # fp8_optimization
                         ]
                 
                 # LoRA読み込み方式に応じて表示を切り替える関数
@@ -3750,7 +3749,7 @@ with block:
                 use_lora.change(
                     fn=toggle_lora_full_update,
                     inputs=[use_lora],
-                    outputs=[lora_mode, lora_upload_group, lora_dropdown_group, lora_scales_text, fp8_optimization, 
+                    outputs=[lora_mode, lora_upload_group, lora_dropdown_group, lora_scales_text,
                              lora_dropdown1, lora_dropdown2, lora_dropdown3]
                 )
                 
@@ -3849,6 +3848,15 @@ with block:
                 # LoRAサポートが無効の場合のメッセージ
                 if not has_lora_support:
                     gr.Markdown(translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
+
+            # FP8最適化設定 START
+            with gr.Row():
+                fp8_optimization = gr.Checkbox(
+                    label=translate("FP8最適化"),
+                    value=False,
+                    info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）")
+                )
+            # FP8最適化設定 END
 
             prompt = gr.Textbox(label=translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
