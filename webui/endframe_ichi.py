@@ -901,6 +901,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # -------- LoRA 設定 START ---------
 
+        # UI設定のuse_loraフラグ値を保存
+        original_use_lora = use_lora
+        print(f"[DEBUG] UI設定のuse_loraフラグの値: {original_use_lora}")
+
         # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
         if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
             old_env = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
@@ -1184,22 +1188,28 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 elif len(current_lora_scales) > len(current_lora_paths):
                     # 余分は切り捨て
                     current_lora_scales = current_lora_scales[:len(current_lora_paths)]
-        
+
+        # UIでLoRA使用が有効になっていた場合、ファイル選択に関わらず強制的に有効化
+        if original_use_lora:
+            use_lora = True
+            print(translate("[INFO] UIでLoRA使用が有効化されているため、LoRA使用を有効にします"))
+
+        print(f"[DEBUG] 最終的なuse_loraフラグ: {use_lora}")
+
         # LoRA設定を更新（リロードは行わない）
         transformer_manager.set_next_settings(
             lora_paths=current_lora_paths,
             lora_scales=current_lora_scales,
+            fp8_enabled=fp8_optimization,  # fp8_enabledパラメータを追加
             high_vram_mode=high_vram,
+            force_dict_split=True  # 常に辞書分割処理を行う
         )
 
         # -------- LoRA 設定 END ---------
 
         # -------- FP8 設定 START ---------
-        # FP8設定を個別に更新
-        transformer_manager.set_next_settings(
-            fp8_enabled=fp8_optimization,
-            force_dict_split=True  # 常に辞書分割処理を行う
-        )
+        # FP8設定（既にLoRA設定に含めたので不要）
+        # この行は削除しても問題ありません
         # -------- FP8 設定 END ---------
 
         # セクション処理開始前にtransformerの状態を確認
@@ -3733,7 +3743,7 @@ with block:
                     choices=[translate("ディレクトリから選択"), translate("ファイルアップロード")],
                     value=translate("ディレクトリから選択"),
                     label=translate("LoRA読み込み方式"),
-                    visible=False
+                    visible=False  # 初期状態では非表示
                 )
 
                 # ファイルアップロード方式のコンポーネント（グループ化）
