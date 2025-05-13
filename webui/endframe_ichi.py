@@ -9,7 +9,7 @@ from eichi_utils.vae_cache import vae_decode_cache
 
 # グローバル変数の設定
 vae_cache_enabled = False  # VAEキャッシュのチェックボックス状態を保持
-current_prompt = None      # プロンプトキューから読み込まれた現在のプロンプト
+current_prompt = None      # キューから読み込まれた現在のプロンプト
 
 import os
 import random
@@ -203,9 +203,32 @@ else:
 
 # グローバル変数
 batch_stopped = False  # バッチ処理の停止フラグ
-prompt_queue_enabled = False  # プロンプトキューの有効/無効フラグ
+queue_enabled = False  # キュー機能の有効/無効フラグ
+queue_type = "prompt"  # キューのタイプ（"prompt" または "image"）
 prompt_queue_file_path = None  # プロンプトキューファイルのパス
 vae_cache_enabled = False  # VAEキャッシュの有効/無効フラグ
+image_queue_files = []  # イメージキューのファイルリスト
+input_folder_name_value = "inputs"  # 入力フォルダ名（デフォルト値）
+
+# イメージキューのための画像ファイルリストを取得する関数（グローバル関数）
+def get_image_queue_files():
+    global image_queue_files, input_folder_name_value
+    input_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), input_folder_name_value)
+
+    # 入力ディレクトリが存在するかチェック（ボタン押下時のみ作成するため、ここでは作成しない）
+    if not os.path.exists(input_dir):
+        print(translate("入力ディレクトリが存在しません: {0}（保存及び入力フォルダを開くボタンを押すと作成されます）").format(input_dir))
+        return []
+
+    # 画像ファイル（png, jpg, jpeg）のみをリスト
+    image_files = []
+    for file in sorted(os.listdir(input_dir)):
+        if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+            image_files.append(os.path.join(input_dir, file))
+
+    print(translate("入力ディレクトリから画像ファイル{0}個を読み込みました").format(len(image_files)))
+    image_queue_files = image_files
+    return image_files
 
 stream = AsyncStream()
 
@@ -237,96 +260,130 @@ app_settings = load_settings()
 output_folder_name = app_settings.get('output_folder', 'outputs')
 print(translate("設定から出力フォルダを読み込み: {0}").format(output_folder_name))
 
+# 入力フォルダ名も設定から取得
+input_folder_name_value = app_settings.get('input_folder', 'inputs')
+print(translate("設定から入力フォルダを読み込み: {0}").format(input_folder_name_value))
+
 # 出力フォルダのフルパスを生成
 outputs_folder = get_output_folder_path(output_folder_name)
 os.makedirs(outputs_folder, exist_ok=True)
 
+# 入力フォルダも存在確認して作成
+input_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), input_folder_name_value)
+os.makedirs(input_dir, exist_ok=True)
+
 # キーフレーム処理関数は keyframe_handler.py に移動済み
 
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_prompt_queue=False, prompt_queue_file=None):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_queue=False, prompt_queue_file=None):
     # グローバル変数を使用
     global vae_cache_enabled, current_prompt
     # パラメータ経由の値とグローバル変数の値を確認
     print(f"worker関数でのVAEキャッシュ設定: パラメータ={use_vae_cache}, グローバル変数={vae_cache_enabled}")
 
-    # プロンプトキューの処理
+    # キュー処理
     current_prompt = prompt
+    current_image = input_image
 
-    # プロンプトキューファイルのチェック - バッチ処理開始時に保存された値を使用
+    # キュー状態のチェック - バッチ処理開始時に保存された値を使用
     # これにより、バッチ処理中のUIでの変更の影響を受けない
-    use_queue = bool(use_prompt_queue)
+    use_queue_flag = bool(use_queue)  # パラメータから直接使用
+    queue_type_flag = queue_type  # グローバル変数を使用
 
-    print(f"worker: プロンプトキュー状態: {use_queue}")
+    print(f"worker: キュー状態: {use_queue_flag}, タイプ: {queue_type_flag}")
 
     # パラメータも診断のため確認
-    # 入力パラメータをチェック
-    param_queue = False
-    if isinstance(use_prompt_queue, bool):
-        param_queue = use_prompt_queue
-        print(f"worker: 【グローバル版】パラメータ値(ブール型): {param_queue}")
-    elif hasattr(use_prompt_queue, 'value') and not isinstance(use_prompt_queue.value, str):
-        param_queue = bool(use_prompt_queue.value)
-        print(f"worker: 【グローバル版】パラメータ値(Gradioオブジェクト): {param_queue}")
-    elif isinstance(use_prompt_queue, str) and use_prompt_queue.lower() in ('true', 'false', 't', 'f', 'yes', 'no', 'y', 'n', '1', '0'):
-        param_queue = use_prompt_queue.lower() in ('true', 't', 'yes', 'y', '1')
-        print(f"worker: 【グローバル版】パラメータ値(文字列): {param_queue}")
+    if isinstance(use_queue, bool):
+        param_queue = use_queue
+        print(f"worker: パラメータ値(ブール型): {param_queue}")
+    elif hasattr(use_queue, 'value'):
+        param_queue = bool(use_queue.value)
+        print(f"worker: パラメータ値(Gradioオブジェクト): {param_queue}")
     else:
-        print(f"worker: 【グローバル版】パラメータ値が無効な形式: {type(use_prompt_queue).__name__}")
+        print(f"worker: パラメータ値が無効な形式: {type(use_queue).__name__}")
 
-    # グローバル変数を優先して使用
-    print(f"worker: 【グローバル版】最終的なキュー状態: {use_queue}")
+    # キュー処理の開始
+    if use_queue_flag:
+        # キュータイプに応じた処理
+        if queue_type_flag == "prompt":
+            # プロンプトキュー処理
+            print(f"worker: プロンプトキューを使用")
 
-    print(f"worker: 最終的なプロンプトキュー状態: {use_queue}")
+            # パラメータからファイルパス情報を確認
+            print(f"worker: prompt_queue_file パラメータの型: {type(prompt_queue_file).__name__}")
+            if hasattr(prompt_queue_file, 'name'):
+                print(f"worker: 【ファイル診断】prompt_queue_file.name: {prompt_queue_file.name}")
 
-    # バッチ処理開始時に保存されたファイルパスを使用
-    # ファイル診断情報の出力
-    print(f"worker: prompt_queue_file パラメータの型: {type(prompt_queue_file).__name__}")
+            # バッチ処理開始時に保存された値を使用
+            if prompt_queue_file_path is not None:
+                queue_file_path = prompt_queue_file_path
+                print(f"worker: プロンプトキューファイルを使用: {queue_file_path}")
 
-    # パラメータからの情報も確認
-    if hasattr(prompt_queue_file, 'name'):
-        print(f"worker: 【ファイル診断】prompt_queue_file.name: {prompt_queue_file.name}")
+                try:
+                    # ファイルが存在し、読み込める場合
+                    if queue_file_path and os.path.exists(queue_file_path):
+                        print(f"プロンプトキューファイルを読み込みます: {queue_file_path}")
 
-    # バッチ処理開始時に保存された値を使用
-    if prompt_queue_file_path is not None and use_queue:
-        # グローバル変数のファイルパスを使用
-        queue_file_path = prompt_queue_file_path
-        print(f"worker: プロンプトキューファイルを使用: {queue_file_path}")
+                        with open(queue_file_path, 'r', encoding='utf-8') as f:
+                            # 空行を除去して整形
+                            prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
+                            print(f"読み込まれたプロンプト行数: {len(prompt_lines)}")
 
-        print(f"プロンプトキューファイル処理: {queue_file_path}")
+                        # バッチインデックスに応じたプロンプトを選択
+                        if prompt_lines and batch_index is not None and 0 <= batch_index < len(prompt_lines):
+                            current_prompt = prompt_lines[batch_index]
+                            print(f"バッチ {batch_index + 1}/{len(prompt_lines)} のプロンプト: {current_prompt[:50]}...")
+                            print(translate("◆ プロンプトキュー行を優先: {0}/{1} 行目を処理中").format(batch_index + 1, len(prompt_lines)))
+                        else:
+                            # バッチインデックスが不正な場合
+                            if batch_index is None:
+                                print("バッチインデックスが未指定です")
+                            elif batch_index < 0 or (prompt_lines and batch_index >= len(prompt_lines)):
+                                print(f"バッチインデックスが範囲外です: {batch_index}, プロンプト数: {len(prompt_lines) if prompt_lines else 0}")
+                            elif not prompt_lines:
+                                print("プロンプトファイルに有効な行がありません")
 
-        try:
-            # ファイルが存在し、読み込める場合
-            if queue_file_path and os.path.exists(queue_file_path):
-                print(f"プロンプトキューファイルを読み込みます: {queue_file_path}")
+                            print(f"元のプロンプトを使用します: {prompt[:50]}...")
+                    else:
+                        print(f"プロンプトキューファイルが存在しないか無効です: {queue_file_path}")
+                except Exception as e:
+                    print(f"プロンプトキュー処理エラー: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
 
-                with open(queue_file_path, 'r', encoding='utf-8') as f:
-                    # 空行を除去して整形
-                    prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
-                    print(f"読み込まれたプロンプト行数: {len(prompt_lines)}")
+        elif queue_type_flag == "image":
+            # イメージキュー処理
+            print(f"worker: イメージキューを使用")
 
-                # バッチインデックスに応じたプロンプトを選択
-                if prompt_lines and batch_index is not None and 0 <= batch_index < len(prompt_lines):
-                    current_prompt = prompt_lines[batch_index]
-                    print(f"バッチ {batch_index + 1}/{len(prompt_lines)} のプロンプト: {current_prompt[:50]}...")
-                    # よりわかりやすいメッセージとして、プロンプトごとの処理であることを明確に表示
-                    print(translate("◆ プロンプトキュー行を優先: {0}/{1} 行目を処理中").format(batch_index + 1, len(prompt_lines)))
-                else:
-                    # バッチインデックスが不正な場合
-                    if batch_index is None:
-                        print("バッチインデックスが未指定です")
-                    elif batch_index < 0 or (prompt_lines and batch_index >= len(prompt_lines)):
-                        print(f"バッチインデックスが範囲外です: {batch_index}, プロンプト数: {len(prompt_lines) if prompt_lines else 0}")
-                    elif not prompt_lines:
-                        print("プロンプトファイルに有効な行がありません")
-
-                    print(f"元のプロンプトを使用します: {prompt[:50]}...")
+            # batch_indexが0（最初の実行）なら入力画像を使用
+            if batch_index == 0 or batch_index is None:
+                print(f"イメージキュー: 最初の実行のため入力画像を使用")
+                # 現在の入力画像をそのまま使用
+                current_image = input_image
             else:
-                print(f"プロンプトキューファイルが存在しないか無効です: {queue_file_path}")
-        except Exception as e:
-            print(f"プロンプトキュー処理エラー: {str(e)}")
-            import traceback
-            traceback.print_exc()
+                # 2回目以降はinputsフォルダの画像を使用
+                global image_queue_files
+
+                # 画像ファイルリストを取得（初回または未取得の場合）
+                if not image_queue_files:
+                    get_image_queue_files()
+
+                # イメージキューの詳細ログ出力（デバッグ用）
+                print(f"worker: イメージキュー詳細: 画像数={len(image_queue_files)}, batch_index={batch_index}")
+                for i, img in enumerate(image_queue_files):
+                    print(f"    worker: 画像{i+1}: {os.path.basename(img)}")
+
+                # 入力画像 + 画像キュー
+                if image_queue_files and batch_index - 1 < len(image_queue_files):
+                    # 画像ファイルがある場合はそれを使用（batch_index-1の理由は1回目は入力画像を使うため）
+                    queue_index = batch_index - 1
+                    img_path = image_queue_files[queue_index]
+                    print(f"イメージキュー: {batch_index}回目の実行、画像ファイル使用: {os.path.basename(img_path)} (インデックス: {queue_index})")
+                    current_image = img_path
+                else:
+                    # 画像ファイルが足りない場合は入力画像に戻る
+                    print(f"イメージキュー: 画像ファイルが足りないため入力画像を再使用")
+                    current_image = input_image
     # グローバル変数の値を優先
     use_vae_cache = vae_cache_enabled or use_vae_cache
 
@@ -728,7 +785,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             img_pt = img_pt.permute(2, 0, 1)[None, :, None]
             return img_np, img_pt, height, width
 
-        input_image_np, input_image_pt, height, width = preprocess_image(input_image, resolution=resolution)
+        input_image_np, input_image_pt, height, width = preprocess_image(current_image, resolution=resolution)
         Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
         # 入力画像にメタデータを埋め込んで保存
         initial_image_path = os.path.join(outputs_folder, f'{job_id}.png')
@@ -778,7 +835,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # デコードした画像を入力画像として設定
                     input_image = decoded_image
                     # 前処理用のデータも生成
-                    input_image_np, input_image_pt, height, width = preprocess_image(input_image)
+                    input_image_np, input_image_pt, height, width = preprocess_image(current_image)
                     print(translate("テンソルからデコードした画像を生成しました: {0}x{1}").format(height, width))
                 except Exception as e:
                     print(translate("テンソルからのデコード中にエラーが発生しました: {0}").format(e))
@@ -2247,14 +2304,16 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
     return False, error_html + error_bar
 
-def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_prompt_queue=False, prompt_queue_file=None):
+def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_queue=False, prompt_queue_file=None):
     # プロセス関数の最初でVAEキャッシュ設定を確認
     print(f"process関数開始時のVAEキャッシュ設定: {use_vae_cache}, 型: {type(use_vae_cache)}")
     global stream
     global batch_stopped
-    global prompt_queue_enabled
+    global queue_enabled
+    global queue_type
     global prompt_queue_file_path
     global vae_cache_enabled
+    global image_queue_files
 
     # バッチ処理開始時に停止フラグをリセット
     batch_stopped = False
@@ -2280,7 +2339,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         print(translate("[WARN] バッチ処理回数が無効です。デフォルト値の1を使用します: {0}").format(batch_count))
         batch_count = 1  # デフォルト値
     # プロンプトキューが有効な場合は行数も表示
-    if bool(use_prompt_queue) and prompt_queue_file_path is not None and os.path.exists(prompt_queue_file_path):
+    if bool(use_queue) and queue_type == "prompt" and prompt_queue_file_path is not None and os.path.exists(prompt_queue_file_path):
         try:
             with open(prompt_queue_file_path, 'r', encoding='utf-8') as f:
                 prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
@@ -2558,20 +2617,44 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
         # 現在のバッチ番号を表示
         if batch_count > 1:
-            # プロンプトキューが有効な場合はその情報も表示
-            if bool(use_prompt_queue) and prompt_queue_file_path is not None and os.path.exists(prompt_queue_file_path):
-                try:
-                    with open(prompt_queue_file_path, 'r', encoding='utf-8') as f:
-                        prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
-                        prompt_count = len(prompt_lines)
-                        if prompt_count > 0:
-                            if batch_index + 1 <= prompt_count:
-                                batch_info = translate("バッチ処理: {0}/{1}（プロンプトキュー行を優先: {2}/{3}）").format(batch_index + 1, batch_count, batch_index + 1, prompt_count)
+            # キューが有効な場合はその情報も表示
+            if bool(use_queue):
+                # プロンプトキューの場合
+                if queue_type == "prompt" and prompt_queue_file_path is not None and os.path.exists(prompt_queue_file_path):
+                    try:
+                        with open(prompt_queue_file_path, 'r', encoding='utf-8') as f:
+                            prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
+                            prompt_count = len(prompt_lines)
+                            if prompt_count > 0:
+                                if batch_index + 1 <= prompt_count:
+                                    batch_info = translate("バッチ処理: {0}/{1}（プロンプトキュー行を優先: {2}/{3}）").format(batch_index + 1, batch_count, batch_index + 1, prompt_count)
+                                else:
+                                    batch_info = translate("バッチ処理: {0}/{1}（共通プロンプト使用）").format(batch_index + 1, batch_count)
                             else:
-                                batch_info = translate("バッチ処理: {0}/{1}（共通プロンプト使用）").format(batch_index + 1, batch_count)
-                        else:
-                            batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
-                except Exception:
+                                batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
+                    except Exception:
+                        batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
+
+                # イメージキューの場合
+                elif queue_type == "image":
+                    # グローバル変数からイメージキュー情報を取得
+                    global image_queue_files
+
+                    # イメージキューのファイルリストを更新（まだ取得していない場合）
+                    if not image_queue_files:
+                        get_image_queue_files()
+
+                    if batch_index == 0:
+                        batch_info = translate("バッチ処理: {0}/{1}（イメージキュー: 入力画像使用）").format(batch_index + 1, batch_count)
+                    elif batch_index - 1 < len(image_queue_files):
+                        img_file = os.path.basename(image_queue_files[batch_index - 1])
+                        batch_info = translate("バッチ処理: {0}/{1}（イメージキュー: 画像 {2} 使用）").format(
+                            batch_index + 1, batch_count, img_file)
+                    else:
+                        batch_info = translate("バッチ処理: {0}/{1}（イメージキュー: 画像不足のため入力画像再使用）").format(batch_index + 1, batch_count)
+
+                # その他の場合
+                else:
                     batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
             else:
                 batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
@@ -2672,9 +2755,42 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 for filename in os.listdir(lora_dir):
                     if filename.endswith(('.safetensors', '.pt', '.bin')):
                         print(f"  - {filename}")
+
+        # イメージキューが有効な場合、バッチに応じた入力画像を設定
+        current_input_image = input_image  # デフォルトでは元の入力画像
+
+        if bool(use_queue) and queue_type == "image":
+            # 最初のバッチ以外は処理
+            if batch_index > 0:
+
+                # イメージキューのファイルリストを更新（まだ取得していない場合）
+                if not image_queue_files:
+                    get_image_queue_files()
+
+                # イメージキューのリストを詳細に出力（デバッグ用）
+                print(f"イメージキュー詳細: 画像数={len(image_queue_files)}, batch_index={batch_index}")
+                for i, img in enumerate(image_queue_files):
+                    print(f"    画像{i+1}: {os.path.basename(img)}")
+
+                # 画像キューから適切な画像を選択
+                if image_queue_files and batch_index - 1 < len(image_queue_files):
+                    queue_index = batch_index - 1
+                    img_path = image_queue_files[queue_index]
+                    img_name = os.path.basename(img_path)
+                    print(translate("イメージキュー: バッチ{0}に画像「{1}」を設定 (インデックス: {2})").format(batch_index + 1, img_name, queue_index))
+                    current_input_image = img_path
+                else:
+                    print(translate("イメージキュー: 画像が足りないため入力画像を再使用"))
+            else:
+                print(translate("イメージキュー: 最初のバッチには入力画像を使用"))
+
+        # 入力画像の情報をログに出力
+        if isinstance(current_input_image, str):
+            print(translate("処理用入力画像: {0}").format(current_input_image))
+
         async_run(
             worker,
-            input_image,
+            current_input_image,  # イメージキューで変更された可能性がある入力画像
             prompt,
             n_prompt,
             seed,
@@ -2712,7 +2828,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             save_latent_frames,  # 全フレーム画像保存フラグ（ラジオボタンから設定）
             save_last_section_frames,  # 最終セクションのみ全フレーム画像保存フラグ（ラジオボタンから設定）
             use_vae_cache,  # VAEキャッシュ設定
-            bool(use_prompt_queue),  # プロンプトキュー使用フラグ - 確実にブール値として渡す
+            bool(use_queue),  # キュー使用フラグ - 確実にブール値として渡す
             prompt_queue_file  # プロンプトキューファイル
         )
 
@@ -2735,7 +2851,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 batch_info = ""
                 if batch_count > 1:
                     # プロンプトキューが有効な場合はその情報も表示
-                    if bool(use_prompt_queue) and prompt_queue_file_path is not None and os.path.exists(prompt_queue_file_path):
+                    if bool(use_queue) and queue_type == "prompt" and prompt_queue_file_path is not None and os.path.exists(prompt_queue_file_path):
                         try:
                             with open(prompt_queue_file_path, 'r', encoding='utf-8') as f:
                                 prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
@@ -2963,11 +3079,20 @@ with block:
                             info=translate("同じ設定で連続生成する回数。SEEDは各回で+1されます")
                         )
 
-                # プロンプトキュー機能のチェックボックス
-                use_prompt_queue = gr.Checkbox(
-                    label=translate("プロンプトキューを使用"),
+                # キュー機能のチェックボックス
+                use_queue = gr.Checkbox(
+                    label=translate("キューを使用"),
                     value=False,
-                    info=translate("チェックをオンにするとテキストファイルから複数のプロンプトを読み込めます。")
+                    info=translate("チェックをオンにするとプロンプトまたは画像の連続処理ができます。")
+                )
+
+                # キュータイプの選択
+                queue_type_selector = gr.Radio(
+                    choices=[translate("プロンプトキュー"), translate("イメージキュー")],
+                    value=translate("プロンプトキュー"),
+                    label=translate("キュータイプ"),
+                    visible=False,
+                    interactive=True
                 )
 
                 # プロンプトキュー設定コンポーネント（初期状態では非表示）
@@ -2976,7 +3101,79 @@ with block:
                         label=translate("プロンプトキューファイル (.txt) - 1行に1つのプロンプトが記載されたテキストファイル"),
                         file_types=[".txt"]
                     )
-                    gr.Markdown(translate("※ ファイル内の各行が別々のプロンプトとして処理されます。\n※ チェックボックスがオフの場合は無効。\n※ バッチ処理回数より行数が多い場合は行数分処理されます。"))
+                    gr.Markdown(translate("※ ファイル内の各行が別々のプロンプトとして処理されます。\n※ チェックボックスがオフの場合は無効。\n※ バッチ処理回数より行数が多い場合は行数分処理されます。\n※ バッチ処理回数が1でもキュー回数が優先されます。"))
+
+                # イメージキュー用グループ
+                with gr.Group(visible=False) as image_queue_group:
+                    gr.Markdown(translate("※ 1回目はImage画像を使用し、2回目以降は入力フォルダの画像ファイルを名前順に使用します。\n※ バッチ回数が全画像数を超える場合、残りはImage画像で処理されます。\n※ バッチ処理回数が1でもキュー回数が優先されます。"))
+
+                    # 入力フォルダ設定
+                    with gr.Row():
+                        input_folder_name = gr.Textbox(
+                            label=translate("入力フォルダ名"),
+                            value=input_folder_name_value,  # グローバル変数から値を取得
+                            info=translate("画像ファイルを格納するフォルダ名")
+                        )
+                        open_input_folder_btn = gr.Button(value="📂 " + translate("保存及び入力フォルダを開く"), size="md")
+
+                    # 入力フォルダ関連のイベントハンドラ
+                    def handle_input_folder_change(folder_name):
+                        """入力フォルダ名が変更されたときの処理（グローバル変数に保存するだけ）"""
+                        global input_folder_name_value
+
+                        # 入力値をトリミング
+                        folder_name = folder_name.strip()
+
+                        # 空の場合はデフォルト値に戻す
+                        if not folder_name:
+                            folder_name = "inputs"
+
+                        # 無効な文字を削除（パス区切り文字やファイル名に使えない文字）
+                        folder_name = ''.join(c for c in folder_name if c.isalnum() or c in ('_', '-'))
+
+                        # グローバル変数を更新（設定の保存は行わない）
+                        input_folder_name_value = folder_name
+                        print(translate("入力フォルダ名をメモリに保存: {0}（保存及び入力フォルダを開くボタンを押すと保存されます）").format(folder_name))
+
+                        # UIの表示を更新
+                        return gr.update(value=folder_name)
+
+                    def open_input_folder():
+                        """入力フォルダを開く処理（保存も実行）"""
+                        global input_folder_name_value
+
+                        # 念のため設定を保存
+                        settings = load_settings()
+                        settings['input_folder'] = input_folder_name_value
+                        save_settings(settings)
+                        print(translate("入力フォルダ設定を保存しました: {0}").format(input_folder_name_value))
+
+                        # 入力フォルダのパスを取得
+                        input_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), input_folder_name_value)
+
+                        # フォルダが存在しなければ作成
+                        if not os.path.exists(input_dir):
+                            os.makedirs(input_dir, exist_ok=True)
+                            print(translate("入力ディレクトリを作成しました: {0}").format(input_dir))
+
+                        # 画像ファイルリストを更新
+                        get_image_queue_files()
+
+                        # プラットフォームに応じてフォルダを開く
+                        try:
+                            if os.name == 'nt':  # Windows
+                                os.startfile(input_dir)
+                            elif os.name == 'posix':  # macOS, Linux
+                                if sys.platform == 'darwin':  # macOS
+                                    subprocess.Popen(['open', input_dir])
+                                else:  # Linux
+                                    subprocess.Popen(['xdg-open', input_dir])
+                            print(translate("入力フォルダを開きました: {0}").format(input_dir))
+                            return translate("設定を保存し、入力フォルダを開きました")
+                        except Exception as e:
+                            error_msg = translate("フォルダを開けませんでした: {0}").format(str(e))
+                            print(error_msg)
+                            return error_msg
 
                 # ファイルアップロード時のイベントハンドラ
                 def handle_file_upload(file_obj):
@@ -2997,6 +3194,8 @@ with block:
 
                     return file_obj
 
+                # イメージキューのための画像ファイルリスト取得関数はグローバル関数を使用
+
                 # ファイルアップロードイベントをハンドラに接続
                 prompt_queue_file.change(
                     fn=handle_file_upload,
@@ -3004,42 +3203,84 @@ with block:
                     outputs=[prompt_queue_file]
                 )
 
-                # チェックボックスの状態によってプロンプトキュー設定の表示/非表示を切り替える関数
-                def toggle_prompt_queue_settings(use_queue):
+                # 入力フォルダ名変更イベントをハンドラに接続
+                input_folder_name.change(
+                    fn=handle_input_folder_change,
+                    inputs=[input_folder_name],
+                    outputs=[input_folder_name]
+                )
+
+                # 入力フォルダを開くボタンにイベントを接続
+                open_input_folder_btn.click(
+                    fn=open_input_folder,
+                    inputs=[],
+                    outputs=[gr.Textbox(visible=False)]  # 一時的なフィードバック表示用（非表示）
+                )
+
+                # チェックボックスの状態によってキュー設定の表示/非表示を切り替える関数
+                def toggle_queue_settings(use_queue_val):
                     # グローバル変数を使用
-                    global prompt_queue_enabled
+                    global queue_enabled, queue_type
 
                     # デバッグ情報
-                    print(f"トグル関数: チェックボックスの型={type(use_queue).__name__}, 値={use_queue}")
+                    print(f"トグル関数: チェックボックスの型={type(use_queue_val).__name__}, 値={use_queue_val}")
 
                     # チェックボックスの値をブール値に確実に変換
                     is_enabled = False
 
                     # Gradioオブジェクトの場合
-                    if hasattr(use_queue, 'value'):
-                        is_enabled = bool(use_queue.value)
+                    if hasattr(use_queue_val, 'value'):
+                        is_enabled = bool(use_queue_val.value)
                     # ブール値の場合
-                    elif isinstance(use_queue, bool):
-                        is_enabled = use_queue
+                    elif isinstance(use_queue_val, bool):
+                        is_enabled = use_queue_val
                     # 文字列の場合 (True/Falseを表す文字列かチェック)
-                    elif isinstance(use_queue, str) and use_queue.lower() in ('true', 'false', 't', 'f', 'yes', 'no', 'y', 'n', '1', '0'):
-                        is_enabled = use_queue.lower() in ('true', 't', 'yes', 'y', '1')
-
-                    # 状態を直接変更
+                    elif isinstance(use_queue_val, str) and use_queue_val.lower() in ('true', 'false', 't', 'f', 'yes', 'no', 'y', 'n', '1', '0'):
+                        is_enabled = use_queue_val.lower() in ('true', 't', 'yes', 'y', '1')
 
                     # グローバル変数に保存
-                    prompt_queue_enabled = is_enabled
+                    queue_enabled = is_enabled
 
-                    # バッチ処理中も直接変更のみ
+                    print(f"キュー設定の表示状態を変更: {is_enabled} (グローバル変数に保存: queue_enabled={queue_enabled})")
 
-                    print(f"プロンプトキュー設定の表示状態を変更: {is_enabled} (グローバル変数に保存: prompt_queue_enabled={prompt_queue_enabled})")
-                    return gr.update(visible=is_enabled)
+                    # キュータイプの選択肢も表示/非表示を切り替える
+                    # チェックがオンならプロンプトキュー（デフォルト）のグループを表示、オフなら両方非表示
+                    if is_enabled:
+                        # キュータイプの現在の選択に基づいて適切なグループを表示
+                        if queue_type == "prompt":
+                            return [gr.update(visible=True), gr.update(visible=True), gr.update(visible=False)]
+                        else:  # image
+                            return [gr.update(visible=True), gr.update(visible=False), gr.update(visible=True)]
+                    else:
+                        # チェックがオフなら全て非表示
+                        return [gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)]
+
+                # キュータイプの選択による表示切り替え
+                def toggle_queue_type(queue_type_val):
+                    global queue_type
+
+                    # キュータイプをグローバル変数に保存
+                    if queue_type_val == translate("プロンプトキュー"):
+                        queue_type = "prompt"
+                        return [gr.update(visible=True), gr.update(visible=False)]
+                    else:
+                        queue_type = "image"
+                        # イメージキューを選択した場合、画像ファイルリストを更新
+                        get_image_queue_files()
+                        return [gr.update(visible=False), gr.update(visible=True)]
 
                 # チェックボックスの変更イベントに関数を紐づけ
-                use_prompt_queue.change(
-                    fn=toggle_prompt_queue_settings,
-                    inputs=[use_prompt_queue],
-                    outputs=[prompt_queue_group]
+                use_queue.change(
+                    fn=toggle_queue_settings,
+                    inputs=[use_queue],
+                    outputs=[queue_type_selector, prompt_queue_group, image_queue_group]
+                )
+
+                # キュータイプの選択イベントに関数を紐づけ
+                queue_type_selector.change(
+                    fn=toggle_queue_type,
+                    inputs=[queue_type_selector],
+                    outputs=[prompt_queue_group, image_queue_group]
                 )
 
             # 開始・終了ボタン
@@ -4943,13 +5184,15 @@ with block:
             # プロンプト管理パネル（右カラムから左カラムに移動済み）
 
     # 実行前のバリデーション関数
-    def validate_and_process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_prompt_queue=False, prompt_queue_file=None):
+    def validate_and_process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_queue=False, prompt_queue_file=None):
+        # グローバル変数の宣言 - 関数の先頭で行う
+        global batch_stopped, queue_enabled, queue_type, prompt_queue_file_path, vae_cache_enabled, image_queue_files
         # すべての入力パラメーターの型情報をデバッグ出力（問題診断用）
         print("=== 入力パラメーター型情報 ===")
-        print(f"use_prompt_queue: 型={type(use_prompt_queue).__name__}")
+        print(f"use_queue: 型={type(use_queue).__name__}")
         print(f"prompt_queue_file: 型={type(prompt_queue_file).__name__}")
-        if hasattr(use_prompt_queue, 'value'):
-            print(f"use_prompt_queue.value: {use_prompt_queue.value}, 型={type(use_prompt_queue.value).__name__}")
+        if hasattr(use_queue, 'value'):
+            print(f"use_queue.value: {use_queue.value}, 型={type(use_queue.value).__name__}")
         if hasattr(prompt_queue_file, 'name'):
             print(f"prompt_queue_file.name: {prompt_queue_file.name}, 型={type(prompt_queue_file.name).__name__}")
         print("=========================")
@@ -5149,32 +5392,52 @@ with block:
         # 最終的な設定値の確認
         print(f"[DEBUG] 最終的なフラグ設定 - save_latent_frames: {save_latent_frames}, save_last_section_frames: {save_last_section_frames}, use_vae_cache: {use_vae_cache}, use_lora: {use_lora}")
 
-        # プロンプトキューの基本情報を出力
-        # グローバル変数から保存された状態を使用し、バッチ処理中は変更されないようにローカル変数にコピー
-        global prompt_queue_enabled
-        queue_enabled = prompt_queue_enabled
+        # キュー機能の状態を確認
+        # グローバル変数の状態を先に取得
+        global queue_enabled, queue_type
 
-        # バッチ処理中にUIでの変更が影響しないよう、グローバル変数の状態を保存
-        # この値はプロセス全体で使用され、次回の生成開始まで変わらない
-        print(f"プロンプトキュー変数の型: {type(use_prompt_queue).__name__}")
-        print(f"プロンプトキュー状態: {queue_enabled}")
+        # UIから受け取ったパラメータに応じてグローバル変数を更新
+        if isinstance(use_queue, bool) and use_queue:
+            # パラメータで有効化された場合はグローバル変数を更新
+            queue_enabled = True
+
+        # キュー機能の状態をログに出力
+        print(f"キュー変数の型: {type(use_queue).__name__}")
+        print(f"キュー状態: {queue_enabled}, タイプ: {queue_type}")
+
+        # イメージキューの場合は、事前に画像ファイルリストを更新
+        if queue_enabled and queue_type == "image":
+            # inputs フォルダから画像ファイルリストを更新
+            get_image_queue_files()
+            image_queue_count = len(image_queue_files)
+            print(f"イメージキュー使用: inputs フォルダの画像 {image_queue_count} 個を使用します")
+
+            # バッチ数を画像数+1（入力画像を含む）に合わせる
+            if image_queue_count > 0:
+                # 入力画像を使う1回 + 画像ファイル分のバッチ数
+                total_needed_batches = 1 + image_queue_count
+
+                # 設定されたバッチ数より必要数が多い場合は調整
+                if total_needed_batches > batch_count:
+                    print(f"画像キュー数+1に合わせてバッチ数を自動調整: {batch_count} → {total_needed_batches}")
+                    batch_count = total_needed_batches
 
         # パラメータもチェックして整合性を確認（診断用）
         param_enabled = False
-        if isinstance(use_prompt_queue, bool):
-            param_enabled = use_prompt_queue
+        if isinstance(use_queue, bool):
+            param_enabled = use_queue
             print(f"【最新版】パラメータからの値: {param_enabled} (ブール型)")
-        elif hasattr(use_prompt_queue, 'value'):
-            param_enabled = bool(use_prompt_queue.value)
+        elif hasattr(use_queue, 'value'):
+            param_enabled = bool(use_queue.value)
             print(f"【最新版】パラメータからの値: {param_enabled} (Gradioオブジェクト)")
-        elif isinstance(use_prompt_queue, str) and use_prompt_queue.lower() in ('true', 'false', 't', 'f', 'yes', 'no', 'y', 'n', '1', '0'):
-            param_enabled = use_prompt_queue.lower() in ('true', 't', 'yes', 'y', '1')
+        elif isinstance(use_queue, str) and use_queue.lower() in ('true', 'false', 't', 'f', 'yes', 'no', 'y', 'n', '1', '0'):
+            param_enabled = use_queue.lower() in ('true', 't', 'yes', 'y', '1')
             print(f"【最新版】パラメータからの値: {param_enabled} (文字列)")
         else:
-            print(f"【最新版】パラメータは使用できない形式: {type(use_prompt_queue).__name__}")
+            print(f"【最新版】パラメータは使用できない形式: {type(use_queue).__name__}")
 
         # グローバル変数と渡されたパラメータに不一致がある場合は警告
-        if param_enabled != queue_enabled and not isinstance(use_prompt_queue, str):
+        if param_enabled != queue_enabled and not isinstance(use_queue, str):
             print(f"【警告】グローバル変数とパラメータの値が一致しません: グローバル={queue_enabled}, パラメータ={param_enabled}")
 
         # グローバル変数の値を優先して使用
@@ -5283,13 +5546,13 @@ with block:
             save_latent_frames=save_latent_frames,
             save_last_section_frames=save_last_section_frames,
             use_vae_cache=use_vae_cache,
-            use_prompt_queue=bool(queue_enabled),  # 確実にブール値として渡す
+            use_queue=bool(queue_enabled),  # 確実にブール値として渡す
             prompt_queue_file=prompt_queue_file
         )
 
     # 実行ボタンのイベント
     # UIから渡されるパラメーターリスト
-    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_files3, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode, use_vae_cache, use_prompt_queue, prompt_queue_file]
+    ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf, all_padding_value, end_frame, end_frame_strength, frame_size_radio, keep_section_videos, lora_files, lora_files2, lora_files3, lora_scales_text, output_dir, save_section_frames, section_settings, use_all_padding, use_lora, lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, save_tensor_data, tensor_data_input, fp8_optimization, resolution, batch_count, frame_save_mode, use_vae_cache, use_queue, prompt_queue_file]
     
     # デバッグ: チェックボックスの現在値を出力
     print(f"use_vae_cacheチェックボックス値: {use_vae_cache.value if hasattr(use_vae_cache, 'value') else 'no value attribute'}, id={id(use_vae_cache)}")
