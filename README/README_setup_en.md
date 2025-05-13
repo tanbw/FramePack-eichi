@@ -1,4 +1,4 @@
-# FramePack-eichi Setup Guide: Comprehensive Installation Manual for All Environments | [日本語](README_setup.md) | [繁體中文](README_setup_zh.md)
+# FramePack-eichi Setup Guide: Comprehensive Installation Manual for All Environments | [日本語](README_setup.md) | [繁體中文](README_setup_zh.md) | [Русский](README_setup_ru.md)
 
 > **Disclaimer**: This document is a compilation of information collected from the internet and does not guarantee functionality in all environments. The procedures described may not work properly due to differences in environments and versions. Please adjust them according to your specific environment as needed. It is also recommended to always refer to the latest information in the official repository.
 

@@ -73,13 +73,32 @@ _reverse_mapping = {
     "12秒": "_KEY_VIDEO_LENGTH_12SEC",
     "16秒": "_KEY_VIDEO_LENGTH_16SEC",
     "20秒": "_KEY_VIDEO_LENGTH_20SEC",
+    
+    # ロシア語→内部キー
+    "0.5 секунды (17 кадров)": "_KEY_FRAME_SIZE_05SEC",
+    "1 секунда (33 кадра)": "_KEY_FRAME_SIZE_1SEC",
+    "Нормальный": "_KEY_MODE_NORMAL",
+    "Нормальный режим": "_KEY_MODE_NORMAL_FULL",
+    "Цикл": "_KEY_MODE_LOOP",
+    "Циклический режим": "_KEY_MODE_LOOP_FULL",
+    "1 секунда": "_KEY_VIDEO_LENGTH_1SEC",
+    "2 сек": "_KEY_VIDEO_LENGTH_2SEC",
+    "3 сек": "_KEY_VIDEO_LENGTH_3SEC",
+    "4 сек": "_KEY_VIDEO_LENGTH_4SEC",
+    "6 сек": "_KEY_VIDEO_LENGTH_6SEC",
+    "8 сек": "_KEY_VIDEO_LENGTH_8SEC",
+    "10 сек": "_KEY_VIDEO_LENGTH_10SEC",
+    "12 сек": "_KEY_VIDEO_LENGTH_12SEC",
+    "16 сек": "_KEY_VIDEO_LENGTH_16SEC",
+    "20 сек": "_KEY_VIDEO_LENGTH_20SEC",
 }
 
 # 内部キーから各言語への変換マップ
 _internal_to_lang = {
     "ja": {},
     "en": {},
-    "zh-tw": {}
+    "zh-tw": {},
+    "ru": {}
 }
 
 def init():
@@ -89,7 +108,7 @@ def init():
     
     # 各言語ファイルを読み込み
     locales_dir = os.path.join(os.path.dirname(__file__), './')
-    for locale in ["en", "ja", "zh-tw"]:
+    for locale in ["en", "ja", "zh-tw", "ru"]:
         json_file = os.path.join(locales_dir, f"{locale}.json")
         if os.path.exists(json_file):
             with open(json_file, 'r', encoding='utf-8') as f:

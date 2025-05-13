@@ -1,4 +1,4 @@
-# FramePack-eichi | [日本語](../README.md) | [English](README_en.md)
+# FramePack-eichi | [日本語](../README.md) | [English](README_en.md) | [Русский](README_ru.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/git-ai-code/FramePack-eichi)
 
 FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.com/lllyasviel/FramePack) 分支，由 nirvash 的 [nirvash/FramePack](https://github.com/nirvash/FramePack) 開發的功能增強版本。在 nirvash 的開創性改進基礎上，增加了許多細緻的功能。此外，從 v1.9 開始，在 Kohya Tech 的許可下，引入了 [kohya-ss/FramePack-LoRAReady](https://github.com/kohya-ss/FramePack-LoRAReady) 的代碼，大幅提升了 LoRA 功能的性能和穩定性。

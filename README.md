@@ -1,4 +1,4 @@
-# FramePack-eichi | [English](README/README_en.md) | [繁體中文](README/README_zh.md)
+# FramePack-eichi | [English](README/README_en.md) | [繁體中文](README/README_zh.md) | [Русский](README/README_ru.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/git-ai-code/FramePack-eichi)
 
 FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/lllyasviel/FramePack)のフォークであるnirvash氏の[nirvash/FramePack](https://github.com/nirvash/FramePack)を元にして作成された機能追加バージョンです。nirvash氏の先駆的な改良に基づき、細かい機能が多数搭載されています。

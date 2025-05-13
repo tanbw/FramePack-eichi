@@ -1,4 +1,4 @@
-# FramePack-eichi Extended Documentation | [日本語](README_column.md) | [繁體中文](README_column_zh.md)
+# FramePack-eichi Extended Documentation | [日本語](README_column.md) | [繁體中文](README_column_zh.md) | [Русский](README_column_ru.md)
 
 This document serves as a detailed version of the FramePack-eichi main README, providing in-depth information about each feature and setting. For more practical usage methods, please refer to the [User Guide](README_userguide_en.md), and for update history, see the [Changelog](README_changelog.md).
 

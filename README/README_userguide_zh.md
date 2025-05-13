@@ -1,4 +1,4 @@
-# FramePack-eichi 使用指南 | [日本語](README_userguide.md) | [English](README_userguide_en.md)
+# FramePack-eichi 使用指南 | [日本語](README_userguide.md) | [English](README_userguide_en.md) | [Русский](README_userguide_ru.md)
 
 本指南詳細介紹了FramePack-eichi標準版和F1版的使用方法。這兩個版本各有不同的特點和用途，請根據您的目的選擇最適合的模型。有關基本信息和安裝方法，請參閱[README](README_zh.md)；有關詳細設置，請參閱[擴充文檔](README_column_zh.md)；更新歷史請參閱[更新日誌](README_changelog.md)。
 

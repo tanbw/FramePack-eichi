@@ -39,7 +39,7 @@ parser.add_argument('--share', action='store_true')
 parser.add_argument("--server", type=str, default='127.0.0.1')
 parser.add_argument("--port", type=int, default=8000)
 parser.add_argument("--inbrowser", action='store_true')
-parser.add_argument("--lang", type=str, default='ja', help="Language: ja, zh-tw, en")
+parser.add_argument("--lang", type=str, default='ja', help="Language: ja, zh-tw, en, ru")
 args = parser.parse_args()
 
 # Load translations from JSON files

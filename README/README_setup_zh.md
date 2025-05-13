@@ -1,4 +1,4 @@
-# FramePack-eichi 設置指南：各環境構建步驟的綜合手冊 | [日本語](README_setup.md) | [English](README_setup_en.md)
+# FramePack-eichi 設置指南：各環境構建步驟的綜合手冊 | [日本語](README_setup.md) | [English](README_setup_en.md) | [Русский](README_setup_ru.md)
 
 > **免責聲明**：本文檔彙集了互聯網上的信息，不保證在所有環境中都能正常運行。由於環境和版本的差異，此處描述的步驟可能無法正常運行。請根據您的具體環境進行必要的調整。同時，建議您始終參考官方存儲庫中的最新信息。
 

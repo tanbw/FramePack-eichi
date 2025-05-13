@@ -1,4 +1,4 @@
-# FramePack-eichi User Guide | [日本語](README_userguide.md) | [繁體中文](README_userguide_zh.md)
+# FramePack-eichi User Guide | [日本語](README_userguide.md) | [繁體中文](README_userguide_zh.md) | [Русский](README_userguide_ru.md)
 
 This guide provides detailed instructions on how to use both the Standard and F1 versions of FramePack-eichi. Each has different features and uses, so choose the optimal model based on your purpose. For basic information and installation methods, please refer to the [README](README_en.md); for detailed settings, check the [Extended Documentation](README_column_en.md); and for update history, see the [Changelog](README_changelog.md).
 

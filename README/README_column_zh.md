@@ -1,4 +1,4 @@
-# FramePack-eichi 擴充文檔 | [日本語](README_column.md) | [English](README_column_en.md)
+# FramePack-eichi 擴充文檔 | [日本語](README_column.md) | [English](README_column_en.md) | [Русский](README_column_ru.md)
 
 本文件是 FramePack-eichi 主 README 的詳細版本，提供了有關每個功能和配置的詳細資訊。有關更實用的使用方法，請參閱[使用指南](README_userguide_zh.md)，更新歷史請參閱[更新日誌](README_changelog.md)。
 
