@@ -2152,6 +2152,14 @@ with block:
                 start_button = gr.Button(value=translate("Start Generation"))
                 end_button = gr.Button(value=translate("End Generation"), interactive=False)
 
+            # FP8最適化設定
+            with gr.Row():
+                fp8_optimization = gr.Checkbox(
+                    label=translate("FP8 最適化"),
+                    value=True,
+                    info=translate("メモリ使用量を削減し速度を改善（PyTorch 2.1以上が必要）")
+                )
+
             # セクション入力用のリストを初期化
             section_number_inputs = []
             section_image_inputs = []
@@ -2174,13 +2182,14 @@ with block:
             # 簡略化セクション表示
             # セクションタイトルの関数は削除し、固定メッセージのみ表示
 
-            # 埋め込みプロンプトおよびシードを複写するチェックボックスの定義
+            # 埋め込みプロンプトおよびシードを複写するチェックボックス - 参照用に定義（表示はLoRA設定の下で行う）
             # グローバル変数として定義し、後で他の場所から参照できるようにする
             global copy_metadata
             copy_metadata = gr.Checkbox(
                 label=translate("埋め込みプロンプトおよびシードを複写する"),
                 value=False,
-                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します"),
+                visible=False  # 元の位置では非表示
             )
 
             # F1モードではセクション設定は完全に削除
@@ -2610,14 +2619,29 @@ with block:
                 # JavaScriptコードをUIに追加
                 gr.HTML(f"<script>{js_init_code}</script>")
 
-            # FP8最適化設定 START
-            with gr.Row():
-                fp8_optimization = gr.Checkbox(
-                    label=translate("FP8最適化"),
-                    value=False,
-                    info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）")
-                )
-            # FP8最適化設定 END
+            # FP8最適化設定は開始・終了ボタンの下に移動済み
+
+            # 埋め込みプロンプトおよびシードを複写するチェックボックス（LoRA設定の下に表示）
+            copy_metadata_visible = gr.Checkbox(
+                label=translate("埋め込みプロンプトおよびシードを複写する"),
+                value=False,
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+            )
+
+            # 表示用チェックボックスと実際の処理用チェックボックスを同期
+            copy_metadata_visible.change(
+                fn=lambda x: x,
+                inputs=[copy_metadata_visible],
+                outputs=[copy_metadata]
+            )
+
+            # 元のチェックボックスが変更されたときも表示用を同期
+            copy_metadata.change(
+                fn=lambda x: x,
+                inputs=[copy_metadata],
+                outputs=[copy_metadata_visible],
+                queue=False  # 高速化のためキューをスキップ
+            )
 
             # プロンプト入力
             prompt = gr.Textbox(label=translate("Prompt"), value=get_default_startup_prompt(), lines=6)

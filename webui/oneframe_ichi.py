@@ -1607,14 +1607,23 @@ with block:
             with gr.Row():
                 start_button = gr.Button(value=translate("Start Generation"))
                 end_button = gr.Button(value=translate("End Generation"), interactive=False)
-            
-            # 埋め込みプロンプト機能 - endframe_ichiと完全に同じ実装
+
+            # FP8最適化設定
+            with gr.Row():
+                fp8_optimization = gr.Checkbox(
+                    label=translate("FP8 最適化"),
+                    value=True,
+                    info=translate("メモリ使用量を削減し速度を改善（PyTorch 2.1以上が必要）")
+                )
+
+            # 埋め込みプロンプト機能 - 参照用に定義（表示はLoRA設定の下で行う）
             # グローバル変数として定義し、後で他の場所から参照できるようにする
             global copy_metadata
             copy_metadata = gr.Checkbox(
                 label=translate("埋め込みプロンプトおよびシードを複写する"),
                 value=False,
-                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します"),
+                visible=False  # 元の位置では非表示
             )
                 
             # メタデータ抽出結果表示用（非表示）
@@ -1943,17 +1952,28 @@ with block:
                 lora_dropdown3 = gr.Dropdown(visible=False)
                 lora_scales_text = gr.Textbox(visible=False, value="0.8,0.8,0.8")
 
-            # FP8最適化セクション - endframe_ichiと同様にLoRAセクションの下に配置
-            with gr.Group() as fp8_optimization_group:
-                gr.Markdown(f"### " + translate("メモリ最適化設定"))
+            # LoRA設定の下に埋め込みプロンプトおよびシードを複写するチェックボックスを表示
+            # 埋め込みプロンプトおよびシードを複写するチェックボックス（LoRA設定の下に表示）
+            copy_metadata_visible = gr.Checkbox(
+                label=translate("埋め込みプロンプトおよびシードを複写する"),
+                value=False,
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+            )
 
-                with gr.Row():
-                    # FP8最適化オプション - LoRAとは独立して設定可能に
-                    fp8_optimization = gr.Checkbox(
-                        label=translate("FP8最適化"),
-                        value=False,
-                        info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）")
-                    )
+            # 表示用チェックボックスと実際の処理用チェックボックスを同期
+            copy_metadata_visible.change(
+                fn=lambda x: x,
+                inputs=[copy_metadata_visible],
+                outputs=[copy_metadata]
+            )
+
+            # 元のチェックボックスが変更されたときも表示用を同期
+            copy_metadata.change(
+                fn=lambda x: x,
+                inputs=[copy_metadata],
+                outputs=[copy_metadata_visible],
+                queue=False  # 高速化のためキューをスキップ
+            )
 
             # プロンプト入力
             prompt = gr.Textbox(label=translate("プロンプト"), value=get_default_startup_prompt(), lines=6)

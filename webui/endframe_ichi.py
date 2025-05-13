@@ -7,8 +7,9 @@ from diffusers_helper.hf_login import login
 # VAEキャッシュ機能のインポート
 from eichi_utils.vae_cache import vae_decode_cache
 
-# VAEキャッシュ機能のグローバル設定
-vae_cache_enabled = False  # チェックボックスの状態を保持するグローバル変数
+# グローバル変数の設定
+vae_cache_enabled = False  # VAEキャッシュのチェックボックス状態を保持
+current_prompt = None      # プロンプトキューから読み込まれた現在のプロンプト
 
 import os
 import random
@@ -245,7 +246,7 @@ os.makedirs(outputs_folder, exist_ok=True)
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, save_latent_frames=False, save_last_section_frames=False, use_vae_cache=False, use_prompt_queue=False, prompt_queue_file=None):
     # グローバル変数を使用
-    global vae_cache_enabled
+    global vae_cache_enabled, current_prompt
     # パラメータ経由の値とグローバル変数の値を確認
     print(f"worker関数でのVAEキャッシュ設定: パラメータ={use_vae_cache}, グローバル変数={vae_cache_enabled}")
 
@@ -602,7 +603,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         print(translate("[ERROR] セクションプロンプト処理エラー: {0}").format(e))
 
             # 共通プロンプトを使用
-            print(translate("[section_prompt] セクション{0}は共通プロンプトを使用します").format(i_section))
+            # プロンプトキューを使用している場合は、その情報も表示
+            global current_prompt
+            if 'current_prompt' in globals() and current_prompt != prompt:
+                print(translate("[section_prompt] セクション{0}は共通プロンプトを使用します（プロンプトキュー: {1}...）").format(i_section, current_prompt[:30]))
+            else:
+                print(translate("[section_prompt] セクション{0}は共通プロンプトを使用します").format(i_section))
             return llama_vec, clip_l_pooler, llama_attention_mask
 
 
@@ -2970,7 +2976,7 @@ with block:
                         label=translate("プロンプトキューファイル (.txt) - 1行に1つのプロンプトが記載されたテキストファイル"),
                         file_types=[".txt"]
                     )
-                    gr.Markdown(translate("※ プロンプトキューを使用すると、ファイル内の各行が別々のプロンプトとして順番に処理されます。\n※ チェックボックスがオフの場合はファイルがアップロードされていても無効になります。\n※ バッチ処理回数がプロンプト行数より多い場合、残りのバッチは下部の「プロンプト」欄に入力された共通プロンプトで処理されます。\n※ バッチ処理回数が1の場合もプロンプトキュー行数分の実行が優先的に使用されます。"))
+                    gr.Markdown(translate("※ ファイル内の各行が別々のプロンプトとして処理されます。\n※ チェックボックスがオフの場合は無効。\n※ バッチ処理回数より行数が多い場合は行数分処理されます。"))
 
                 # ファイルアップロード時のイベントハンドラ
                 def handle_file_upload(file_obj):
@@ -3041,6 +3047,14 @@ with block:
                 start_button = gr.Button(value=translate("Start Generation"))
                 end_button = gr.Button(value=translate("End Generation"), interactive=False)
 
+            # FP8最適化設定
+            with gr.Row():
+                fp8_optimization = gr.Checkbox(
+                    label=translate("FP8 最適化"),
+                    value=True,
+                    info=translate("メモリ使用量を削減し速度を改善（PyTorch 2.1以上が必要）")
+                )
+
             # セクション入力用のリストを初期化
             section_number_inputs = []
             section_image_inputs = []
@@ -3096,12 +3110,13 @@ with block:
             initial_title = update_section_title(translate("1秒 (33フレーム)"), MODE_TYPE_NORMAL, translate("1秒"))
 
             # 埋め込みプロンプトおよびシードを複写するチェックボックスの定義
-            # グローバル変数として定義し、後で他の場所から参照できるようにする
+            # 参照先として必要だが、表示はLoRA設定の下で行うため非表示に設定
             global copy_metadata
             copy_metadata = gr.Checkbox(
                 label=translate("埋め込みプロンプトおよびシードを複写する"),
                 value=False,
-                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します"),
+                visible=False  # 元の位置では非表示
             )
 
             with gr.Accordion(translate("セクション設定"), open=False, elem_classes="section-accordion"):
@@ -3849,14 +3864,27 @@ with block:
                 if not has_lora_support:
                     gr.Markdown(translate("LoRAサポートは現在無効です。lora_utilsモジュールが必要です。"))
 
-            # FP8最適化設定 START
-            with gr.Row():
-                fp8_optimization = gr.Checkbox(
-                    label=translate("FP8最適化"),
-                    value=False,
-                    info=translate("メモリ使用量を削減し、速度を改善します（PyTorch 2.1以上が必要）")
-                )
-            # FP8最適化設定 END
+            # 埋め込みプロンプトおよびシードを複写するチェックボックス（LoRA設定の下に表示）
+            copy_metadata_visible = gr.Checkbox(
+                label=translate("埋め込みプロンプトおよびシードを複写する"),
+                value=False,
+                info=translate("チェックをオンにすると、画像のメタデータからプロンプトとシードを自動的に取得します")
+            )
+
+            # 表示用チェックボックスと実際の処理用チェックボックスを同期
+            copy_metadata_visible.change(
+                fn=lambda x: x,
+                inputs=[copy_metadata_visible],
+                outputs=[copy_metadata]
+            )
+
+            # 元のチェックボックスが変更されたときも表示用を同期
+            copy_metadata.change(
+                fn=lambda x: x,
+                inputs=[copy_metadata],
+                outputs=[copy_metadata_visible],
+                queue=False  # 高速化のためキューをスキップ
+            )
 
             prompt = gr.Textbox(label=translate("Prompt"), value=get_default_startup_prompt(), lines=6)
 
