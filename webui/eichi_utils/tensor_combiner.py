@@ -7,12 +7,13 @@ import safetensors.torch as sf
 from datetime import datetime
 import gradio as gr
 
-from locales.i18n_extended import translate
-
 # ルートパスをシステムパスに追加
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_path not in sys.path:
     sys.path.append(root_path)
+
+# ルートパスを追加した後でインポート
+from locales.i18n_extended import translate
 
 def combine_tensor_files(file1_path, file2_path, output_path=None):
     """2つのsafetensorsファイルを読み込み、結合して新しいファイルに保存する
