@@ -8,6 +8,16 @@ user_abort_notified = False
 
 # バッチ処理とキュー機能用グローバル変数
 batch_stopped = False  # バッチ処理中断フラグ
+
+# テキストエンコード結果のキャッシュ用グローバル変数を初期化
+cached_prompt = None
+cached_n_prompt = None
+cached_llama_vec = None
+cached_llama_vec_n = None
+cached_clip_l_pooler = None
+cached_clip_l_pooler_n = None
+cached_llama_attention_mask = None
+cached_llama_attention_mask_n = None
 queue_enabled = False  # キュー機能の有効/無効フラグ
 queue_type = "prompt"  # キューのタイプ（"prompt" または "image"）
 prompt_queue_file_path = None  # プロンプトキューファイルのパス
@@ -348,6 +358,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
     # モデル変数をグローバルとして宣言（遅延ロード用）
     global vae, text_encoder, text_encoder_2, transformer, image_encoder
     global queue_enabled, queue_type, prompt_queue_file_path, image_queue_files
+    # テキストエンコード結果をキャッシュするグローバル変数
+    global cached_prompt, cached_n_prompt, cached_llama_vec, cached_llama_vec_n, cached_clip_l_pooler, cached_clip_l_pooler_n
+    global cached_llama_attention_mask, cached_llama_attention_mask_n
 
     # キュー状態のログ出力
     use_queue_flag = bool(use_queue)
@@ -673,55 +686,97 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         # テキストエンコーディング
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Text encoding ...'))))
         
-        try:
-            # 常にtext_encoder_managerから最新のテキストエンコーダーを取得する
-            print(translate("\nテキストエンコーダを初期化します..."))
-            try:
-                # text_encoder_managerを使用して初期化
-                if not text_encoder_manager.ensure_text_encoder_state():
-                    print(translate("テキストエンコーダの初期化に失敗しました。再試行します..."))
-                    time.sleep(3)
-                    if not text_encoder_manager.ensure_text_encoder_state():
-                        raise Exception(translate("テキストエンコーダとtext_encoder_2の初期化に複数回失敗しました"))
-                text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
-                print(translate("テキストエンコーダの初期化が完了しました"))
-            except Exception as e:
-                print(translate("テキストエンコーダのロードに失敗しました: {0}").format(e))
-                traceback.print_exc()
-                raise e
-            
-            if not high_vram:
-                print(translate("\nテキストエンコーダをGPUにロード..."))
-                fake_diffusers_current_device(text_encoder, gpu)
-                load_model_as_complete(text_encoder_2, target_device=gpu)
-            
-            # テキストエンコーディング実行
-            llama_vec, clip_l_pooler = encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
-            
-            # ローVRAMモードでは使用後すぐにCPUに戻す
-            if not high_vram:
-                if text_encoder is not None and hasattr(text_encoder, 'to'):
-                    text_encoder.to('cpu')
-                if text_encoder_2 is not None and hasattr(text_encoder_2, 'to'):
-                    text_encoder_2.to('cpu')
-                
-                # メモリ状態をログ
-                free_mem_gb = get_cuda_free_memory_gb(gpu)
-                print(translate("\nテキストエンコード後の空きVRAM {0} GB").format(free_mem_gb))
-                
-                # メモリクリーンアップ
-                torch.cuda.empty_cache()
-        except Exception as e:
-            print(translate("テキストエンコードエラー: {0}").format(e))
-            raise e
+        # キャッシュの使用判断
+        global cached_prompt, cached_n_prompt, cached_llama_vec, cached_llama_vec_n
+        global cached_clip_l_pooler, cached_clip_l_pooler_n, cached_llama_attention_mask, cached_llama_attention_mask_n
         
-        if cfg == 1:
-            llama_vec_n, clip_l_pooler_n = torch.zeros_like(llama_vec), torch.zeros_like(clip_l_pooler)
+        # プロンプトが変更されたかチェック
+        use_cache = (cached_prompt == prompt and cached_n_prompt == n_prompt and 
+                    cached_llama_vec is not None and cached_llama_vec_n is not None)
+        
+        if use_cache:
+            # キャッシュを使用
+            print(translate("\nキャッシュされたテキストエンコード結果を使用します"))
+            llama_vec = cached_llama_vec
+            clip_l_pooler = cached_clip_l_pooler
+            llama_vec_n = cached_llama_vec_n
+            clip_l_pooler_n = cached_clip_l_pooler_n
+            llama_attention_mask = cached_llama_attention_mask
+            llama_attention_mask_n = cached_llama_attention_mask_n
         else:
-            llama_vec_n, clip_l_pooler_n = encode_prompt_conds(n_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
+            # キャッシュなし - 新規エンコード
+            try:
+                # 常にtext_encoder_managerから最新のテキストエンコーダーを取得する
+                print(translate("\nテキストエンコーダを初期化します..."))
+                try:
+                    # text_encoder_managerを使用して初期化
+                    if not text_encoder_manager.ensure_text_encoder_state():
+                        print(translate("テキストエンコーダの初期化に失敗しました。再試行します..."))
+                        time.sleep(3)
+                        if not text_encoder_manager.ensure_text_encoder_state():
+                            raise Exception(translate("テキストエンコーダとtext_encoder_2の初期化に複数回失敗しました"))
+                    text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
+                    print(translate("テキストエンコーダの初期化が完了しました"))
+                except Exception as e:
+                    print(translate("テキストエンコーダのロードに失敗しました: {0}").format(e))
+                    traceback.print_exc()
+                    raise e
+                
+                if not high_vram:
+                    print(translate("\nテキストエンコーダをGPUにロード..."))
+                    fake_diffusers_current_device(text_encoder, gpu)
+                    load_model_as_complete(text_encoder_2, target_device=gpu)
+                
+                # テキストエンコーディング実行
+                print(translate("\nプロンプトをエンコードしています..."))
+                llama_vec, clip_l_pooler = encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
+                
+                if cfg == 1:
+                    llama_vec_n, clip_l_pooler_n = torch.zeros_like(llama_vec), torch.zeros_like(clip_l_pooler)
+                else:
+                    print(translate("\nネガティブプロンプトをエンコードしています..."))
+                    llama_vec_n, clip_l_pooler_n = encode_prompt_conds(n_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
+                
+                # ローVRAMモードでは使用後すぐにCPUに戻す
+                if not high_vram:
+                    if text_encoder is not None and hasattr(text_encoder, 'to'):
+                        text_encoder.to('cpu')
+                    if text_encoder_2 is not None and hasattr(text_encoder_2, 'to'):
+                        text_encoder_2.to('cpu')
+                    
+                    # メモリ状態をログ
+                    free_mem_gb = get_cuda_free_memory_gb(gpu)
+                    print(translate("\nテキストエンコード後の空きVRAM {0} GB").format(free_mem_gb))
+                    
+                    # メモリクリーンアップ
+                    torch.cuda.empty_cache()
+                
+                # エンコード結果をキャッシュ
+                print(translate("\nエンコード結果をキャッシュします"))
+                cached_prompt = prompt
+                cached_n_prompt = n_prompt
+                
+                # エンコード処理後にキャッシュを更新
+                llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
+                llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
+                
+                # キャッシュを更新
+                cached_llama_vec = llama_vec
+                cached_llama_vec_n = llama_vec_n
+                cached_clip_l_pooler = clip_l_pooler
+                cached_clip_l_pooler_n = clip_l_pooler_n
+                cached_llama_attention_mask = llama_attention_mask
+                cached_llama_attention_mask_n = llama_attention_mask_n
+                
+            except Exception as e:
+                print(translate("テキストエンコードエラー: {0}").format(e))
+                raise e
         
-        llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
-        llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
+        # キャッシュを使用する場合は既にcrop_or_pad_yield_maskが適用済み
+        if not use_cache:
+            # キャッシュを使用しない場合のみ適用
+            llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
+            llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
         
         # データ型変換
         llama_vec = llama_vec.to(transformer.dtype)
