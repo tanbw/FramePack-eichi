@@ -730,6 +730,15 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         clip_l_pooler_n = clip_l_pooler_n.to(transformer.dtype)
         image_encoder_last_hidden_state = image_encoder_last_hidden_state.to(transformer.dtype)
         
+        # endframe_ichiと同様に、テキストエンコーダーのメモリを完全に解放
+        if not high_vram:
+            print(translate("\nテキストエンコーダを完全に解放します"))
+            # テキストエンコーダーを完全に解放（endframe_ichiと同様に）
+            text_encoder, text_encoder_2 = None, None
+            text_encoder_manager.dispose_text_encoders()
+            # 明示的なキャッシュクリア
+            torch.cuda.empty_cache()
+        
         # 1フレームモード用の設定
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Start sampling ...'))))
         
@@ -1008,6 +1017,14 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             # この値は保存されますが、実際のモデル内部には適用されません（テンソルサイズエラー回避のため）
             print(translate("[INFO] sample_hunyuan関数を呼び出します"))
             
+            # サンプリング前の最終メモリクリア（endframe_ichiと同様）
+            print(translate("\nサンプリング前の最終メモリ最適化を実行"))
+            # 不要な変数を明示的に解放
+            image_encoder = None
+            vae = None
+            # 明示的なキャッシュクリア
+            torch.cuda.empty_cache()
+            
             # sample_hunyuan関数呼び出し部分
             try:
                 generated_latents = sample_hunyuan(
@@ -1047,6 +1064,15 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     print(translate("[DEBUG] バッチ内処理を完了します"))
                 else:
                     print(translate("[INFO] 生成は正常に完了しました"))
+                
+                # サンプリング直後のメモリクリーンアップ（重要）
+                # transformerの中間状態を明示的にクリア（KVキャッシュに相当）
+                if hasattr(transformer, 'enable_teacache'):
+                    transformer.enable_teacache = False
+                    print(translate("[INFO] transformerのキャッシュをクリア"))
+                
+                # 不要なモデル変数を積極的に解放
+                torch.cuda.empty_cache()
                 
             except KeyboardInterrupt:
                 print(translate("[INFO] キーボード割り込みを検出しました - 安全に停止します"))
