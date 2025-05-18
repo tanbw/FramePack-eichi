@@ -2220,7 +2220,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             print(translate("[INFO] lora_dropdown3 = {0}").format(lora_dropdown3))
         print(translate("[INFO] lora_scales_text = {0}").format(lora_scales_text))
     
-    yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True)
+    yield gr.update(), None, '', '', gr.update(interactive=False), gr.update(interactive=True)
     
     # バッチ処理用の変数 - 各フラグをリセット
     batch_stopped = False
@@ -2267,7 +2267,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         if batch_stopped:
             print(translate("\nバッチ処理がユーザーによって中止されました"))
             yield (
-                None,
+                gr.update(),
                 gr.update(visible=False),
                 translate("バッチ処理が中止されました。"),
                 '',
@@ -2281,7 +2281,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
             print(f"\n{batch_info}")
             # UIにもバッチ情報を表示
-            yield None, gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True)
+            yield gr.update(), gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True)
 
         # 今回処理用のプロンプトとイメージを取得（キュー機能対応）
         current_prompt = prompt
@@ -2401,7 +2401,14 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                     
                     if flag == 'file':
                         output_filename = data
-                        yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True)
+                        yield (
+                            output_filename if output_filename is not None else gr.update(),
+                            gr.update(),
+                            gr.update(),
+                            gr.update(),
+                            gr.update(interactive=False),
+                            gr.update(interactive=True),
+                        )
                     
                     if flag == 'progress':
                         preview, desc, html = data
@@ -2418,7 +2425,14 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                                 completion_message = translate("バッチ処理が完了しました（{0}/{1}）").format(batch_count, batch_count)
                             
                             # 完了メッセージでUIを更新
-                            yield output_filename, gr.update(visible=False), completion_message, '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
+                            yield (
+                                output_filename if output_filename is not None else gr.update(),
+                                gr.update(visible=False),
+                                completion_message,
+                                '',
+                                gr.update(interactive=True, value=translate("Start Generation")),
+                                gr.update(interactive=False, value=translate("End Generation")),
+                            )
                         break
                         
                     # ユーザーが中断した場合
@@ -2427,7 +2441,14 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                         # 処理ループ内での中断検出（デバッグログ削除）
                         print(translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count))
                         # endframe_ichiと同様のシンプルな実装に戻す
-                        yield output_filename, gr.update(visible=False), translate("バッチ処理が中断されました"), '', gr.update(interactive=True), gr.update(interactive=False, value=translate("End Generation"))
+                        yield (
+                            output_filename if output_filename is not None else gr.update(),
+                            gr.update(visible=False),
+                            translate("バッチ処理が中断されました"),
+                            '',
+                            gr.update(interactive=True),
+                            gr.update(interactive=False, value=translate("End Generation")),
+                        )
                         return
                         
                 except Exception as e:
