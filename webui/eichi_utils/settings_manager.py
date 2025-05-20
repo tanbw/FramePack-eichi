@@ -32,7 +32,8 @@ def initialize_settings():
         # 初期デフォルト設定（アプリケーション設定を含む）
         default_settings = {
             'output_folder': 'outputs',
-            'app_settings_eichi': get_default_app_settings()
+            'app_settings_eichi': get_default_app_settings(),
+            'log_settings': {'log_enabled': False, 'log_folder': 'logs'}
         }
         try:
             os.makedirs(settings_dir, exist_ok=True)
@@ -102,8 +103,44 @@ def open_output_folder(folder_path):
         print(translate("フォルダを開く際にエラーが発生しました: {0}").format(e))
         return False
 
-def get_default_app_settings():
-    """eichiのデフォルト設定を返す"""
+def get_localized_default_value(key, current_lang="ja"):
+    """言語に応じたデフォルト値を返す
+    
+    Args:
+        key (str): 設定キー
+        current_lang (str): 現在の言語コード
+        
+    Returns:
+        適切な言語に翻訳されたデフォルト値
+    """
+    # 特別な翻訳が必要な値のマッピング
+    localized_values = {
+        "frame_save_mode": {
+            "ja": "保存しない",
+            "en": "Do not save",
+            "zh-tw": "不保存",
+            "ru": "Не сохранять"
+        }
+        # 必要に応じて他の値も追加可能
+    }
+    
+    # キーが存在するか確認し、言語に応じた値を返す
+    if key in localized_values:
+        # 指定された言語が存在しない場合はjaをデフォルトとして使用
+        return localized_values[key].get(current_lang, localized_values[key]["ja"])
+    
+    # 特別な翻訳が必要ない場合は None を返す
+    return None
+
+def get_default_app_settings(current_lang="ja"):
+    """eichiのデフォルト設定を返す
+    
+    Args:
+        current_lang (str, optional): 現在の言語コード. Defaults to "ja".
+    """
+    # フレーム保存モードのデフォルト値を言語に応じて設定
+    frame_save_mode_default = get_localized_default_value("frame_save_mode", current_lang)
+    
     return {
         # 基本設定
         "resolution": 640,
@@ -130,7 +167,7 @@ def get_default_app_settings():
         "keep_section_videos": False,
         "save_section_frames": False,
         "save_tensor_data": False,
-        "frame_save_mode": "保存しない",
+        "frame_save_mode": frame_save_mode_default if frame_save_mode_default else "保存しない",
         
         # 自動保存設定
         "save_settings_on_start": False,
@@ -139,8 +176,15 @@ def get_default_app_settings():
         "alarm_on_completion": True
     }
 
-def get_default_app_settings_f1():
-    """F1のデフォルト設定を返す"""
+def get_default_app_settings_f1(current_lang="ja"):
+    """F1のデフォルト設定を返す
+    
+    Args:
+        current_lang (str, optional): 現在の言語コード. Defaults to "ja".
+    """
+    # フレーム保存モードのデフォルト値を言語に応じて設定
+    frame_save_mode_default = get_localized_default_value("frame_save_mode", current_lang)
+    
     return {
         # 基本設定
         "resolution": 640,
@@ -162,7 +206,7 @@ def get_default_app_settings_f1():
         "keep_section_videos": False,
         "save_section_frames": False,
         "save_tensor_data": False,
-        "frame_save_mode": "保存しない",
+        "frame_save_mode": frame_save_mode_default if frame_save_mode_default else "保存しない",
         
         # 自動保存・アラーム設定
         "save_settings_on_start": False,

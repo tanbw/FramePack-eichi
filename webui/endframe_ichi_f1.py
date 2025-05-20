@@ -95,6 +95,13 @@ from eichi_utils.settings_manager import (
     open_output_folder
 )
 
+# ログ管理モジュールをインポート
+from eichi_utils.log_manager import (
+    enable_logging, disable_logging, is_logging_enabled, 
+    get_log_folder, set_log_folder, open_log_folder,
+    get_default_log_settings, load_log_settings, apply_log_settings
+)
+
 # プリセット管理モジュールをインポート
 from eichi_utils.preset_manager import (
     initialize_presets,
@@ -232,6 +239,17 @@ base_path = os.path.dirname(os.path.abspath(__file__))
 app_settings = load_settings()
 output_folder_name = app_settings.get('output_folder', 'outputs')
 print(translate("設定から出力フォルダを読み込み: {0}").format(output_folder_name))
+
+# ログ設定を読み込み適用
+log_settings = app_settings.get('log_settings', get_default_log_settings())
+print(translate("ログ設定を読み込み: 有効={0}, フォルダ={1}").format(
+    log_settings.get('log_enabled', False), 
+    log_settings.get('log_folder', 'logs')
+))
+if log_settings.get('log_enabled', False):
+    # 現在のファイル名を渡す
+    enable_logging(log_settings.get('log_folder', 'logs'), source_name="endframe_ichi_f1")
+    print(translate("✅ ログ出力を有効化しました"))
 
 # キュー関連のグローバル変数
 queue_enabled = False  # キュー機能の有効/無効フラグ
@@ -3656,6 +3674,37 @@ with block:
                     interactive=True
                 )
                 
+                # ログ設定
+                gr.Markdown("### " + translate("ログ設定"))
+                
+                # 設定からログ設定を読み込む
+                all_settings = load_settings()
+                log_settings = all_settings.get('log_settings', {'log_enabled': False, 'log_folder': 'logs'})
+                
+                # ログ有効/無効設定
+                log_enabled = gr.Checkbox(
+                    label=translate("コンソールログを出力する"),
+                    value=log_settings.get('log_enabled', False),
+                    info=translate("チェックをオンにすると、コンソール出力をログファイルにも保存します"),
+                    elem_classes="saveable-setting",
+                    interactive=True
+                )
+                
+                # ログ出力先設定
+                log_folder = gr.Textbox(
+                    label=translate("ログ出力先"),
+                    value=log_settings.get('log_folder', 'logs'),
+                    info=translate("ログファイルの保存先フォルダを指定します"),
+                    elem_classes="saveable-setting",
+                    interactive=True
+                )
+                
+                # ログフォルダを開くボタン
+                open_log_folder_btn = gr.Button(value=translate("📂 ログフォルダを開く"), size="sm")
+                
+                # ログフォルダを開くボタンのクリックイベント
+                open_log_folder_btn.click(fn=open_log_folder)
+                
                 # 設定状態の表示
                 settings_status = gr.Markdown("")
             
@@ -3680,11 +3729,15 @@ with block:
                 frame_save_mode_val,
                 # 自動保存設定
                 save_settings_on_start_val,
-                alarm_on_completion_val
+                alarm_on_completion_val,
+                # ログ設定項目
+                log_enabled_val,
+                log_folder_val
             ):
                 """現在の設定を保存"""
                 from eichi_utils.settings_manager import save_app_settings_f1
                 
+                # アプリ設定用の設定辞書を作成
                 current_settings = {
                     # 基本設定
                     "resolution": resolution_val,
@@ -3708,37 +3761,108 @@ with block:
                     "alarm_on_completion": alarm_on_completion_val
                 }
                 
+                # アプリ設定を保存
                 try:
-                    save_app_settings_f1(current_settings)
-                    return translate("設定を保存しました")
+                    app_success = save_app_settings_f1(current_settings)
                 except Exception as e:
                     return translate("設定の保存に失敗しました: {0}").format(str(e))
+                
+                # ログ設定も保存 - 値の型を確認
+                # log_enabledはbooleanに確実に変換
+                is_log_enabled = False
+                if isinstance(log_enabled_val, bool):
+                    is_log_enabled = log_enabled_val
+                elif hasattr(log_enabled_val, 'value'):
+                    is_log_enabled = bool(log_enabled_val.value)
+                
+                # log_folderは文字列に確実に変換
+                log_folder_path = "logs"
+                if log_folder_val and isinstance(log_folder_val, str):
+                    log_folder_path = log_folder_val
+                elif hasattr(log_folder_val, 'value') and log_folder_val.value:
+                    log_folder_path = str(log_folder_val.value)
+                
+                print(f"[DEBUG] 保存するログ設定: 有効={is_log_enabled}, フォルダ={log_folder_path}")
+                
+                log_settings = {
+                    "log_enabled": is_log_enabled,
+                    "log_folder": log_folder_path
+                }
+                
+                # 全体設定を取得し、ログ設定を更新
+                all_settings = load_settings()
+                all_settings['log_settings'] = log_settings
+                log_success = save_settings(all_settings)
+                
+                # ログ設定を適用（設定保存後、すぐに新しいログ設定を反映）
+                if log_success:
+                    # 一旦ログを無効化
+                    disable_logging()
+                    # 新しい設定でログを再開（有効な場合）
+                    apply_log_settings(log_settings, source_name="endframe_ichi_f1")
+                    print(translate("✅ ログ設定を更新しました: 有効={0}, フォルダ={1}").format(
+                        log_enabled_val, log_folder_val))
+                
+                if app_success and log_success:
+                    return translate("設定を保存しました")
+                else:
+                    return translate("設定の一部保存に失敗しました")
 
             def reset_app_settings_handler():
                 """設定をデフォルトに戻す"""
                 from eichi_utils.settings_manager import get_default_app_settings_f1
+                from locales import i18n
                 
-                default_settings = get_default_app_settings_f1()
+                # 現在の言語設定を取得して、その言語用のデフォルト設定を取得
+                current_lang = i18n.lang
+                print(f"[DEBUG] F1リセット関数: 現在の言語設定 = {current_lang}")
+                
+                # デバッグ出力
+                print("[DEBUG] リセット関数が呼ばれました")
+                
+                # 言語設定を考慮したデフォルト設定を取得
+                default_settings = get_default_app_settings_f1(current_lang)
                 updates = []
                 
                 # 各UIコンポーネントのデフォルト値を設定（F1の順序に合わせる）
-                updates.append(gr.update(value=default_settings.get("resolution", 640)))
-                updates.append(gr.update(value=default_settings.get("mp4_crf", 16)))
-                updates.append(gr.update(value=default_settings.get("steps", 25)))
-                updates.append(gr.update(value=default_settings.get("cfg", 2.5)))
-                updates.append(gr.update(value=default_settings.get("use_teacache", True)))
-                updates.append(gr.update(value=default_settings.get("gpu_memory_preservation", 6)))
-                updates.append(gr.update(value=default_settings.get("gs", 10)))
+                updates.append(gr.update(value=default_settings.get("resolution", 640)))  # 1
+                updates.append(gr.update(value=default_settings.get("mp4_crf", 16)))  # 2
+                updates.append(gr.update(value=default_settings.get("steps", 25)))  # 3
+                updates.append(gr.update(value=default_settings.get("cfg", 2.5)))  # 4
+                updates.append(gr.update(value=default_settings.get("use_teacache", True)))  # 5
+                updates.append(gr.update(value=default_settings.get("gpu_memory_preservation", 6)))  # 6
+                updates.append(gr.update(value=default_settings.get("gs", 10)))  # 7
                 # F1独自
-                updates.append(gr.update(value=default_settings.get("image_strength", 1.0)))
-                updates.append(gr.update(value=default_settings.get("keep_section_videos", False)))
-                updates.append(gr.update(value=default_settings.get("save_section_frames", False)))
-                updates.append(gr.update(value=default_settings.get("save_tensor_data", False)))
-                updates.append(gr.update(value=default_settings.get("frame_save_mode", translate("保存しない"))))
-                updates.append(gr.update(value=default_settings.get("save_settings_on_start", False)))
-                updates.append(gr.update(value=default_settings.get("alarm_on_completion", True)))
+                updates.append(gr.update(value=default_settings.get("image_strength", 1.0)))  # 8
+                updates.append(gr.update(value=default_settings.get("keep_section_videos", False)))  # 9
+                updates.append(gr.update(value=default_settings.get("save_section_frames", False)))  # 10
+                updates.append(gr.update(value=default_settings.get("save_tensor_data", False)))  # 11
+                updates.append(gr.update(value=default_settings.get("frame_save_mode", translate("保存しない"))))  # 12
+                updates.append(gr.update(value=default_settings.get("save_settings_on_start", False)))  # 13
+                updates.append(gr.update(value=default_settings.get("alarm_on_completion", True)))  # 14
                 
-                # 設定状態メッセージ
+                # ログ設定 (15番目め16番目の要素)
+                # ログ設定は固定値を使用 - 絶対に文字列とbooleanを使用
+                updates.append(gr.update(value=False))  # log_enabled (15)
+                updates.append(gr.update(value="logs"))  # log_folder (16)
+                
+                # ログ設定をアプリケーションに適用
+                default_log_settings = {
+                    "log_enabled": False,
+                    "log_folder": "logs"
+                }
+                
+                print("[DEBUG] リセット時のログ設定: enabled=False, folder=logs")
+                
+                # 設定ファイルを更新
+                all_settings = load_settings()
+                all_settings['log_settings'] = default_log_settings
+                save_settings(all_settings)
+                
+                # ログ設定を適用 (既存のログファイルを閉じて、設定に従って再設定)
+                disable_logging()  # 既存のログを閉じる
+                
+                # 設定状態メッセージ (17番目の要素)
                 updates.append(translate("設定をデフォルトに戻しました"))
                 
                 return updates
@@ -4010,7 +4134,10 @@ with block:
             save_tensor_data,
             frame_save_mode,
             save_settings_on_start,
-            alarm_on_completion
+            alarm_on_completion,
+            # ログ設定を追加
+            log_enabled,
+            log_folder
         ],
         outputs=[settings_status]
     )
@@ -4020,21 +4147,23 @@ with block:
         fn=reset_app_settings_handler,
         inputs=[],
         outputs=[
-            resolution,
-            mp4_crf,
-            steps,
-            cfg,
-            use_teacache,
-            gpu_memory_preservation,
-            gs,
-            image_strength,
-            keep_section_videos,
-            save_section_frames,
-            save_tensor_data,
-            frame_save_mode,
-            save_settings_on_start,
-            alarm_on_completion,
-            settings_status
+            resolution,            # 1
+            mp4_crf,              # 2
+            steps,                # 3
+            cfg,                  # 4
+            use_teacache,         # 5
+            gpu_memory_preservation, # 6
+            gs,                   # 7
+            image_strength,       # 8
+            keep_section_videos,  # 9
+            save_section_frames,  # 10
+            save_tensor_data,     # 11
+            frame_save_mode,      # 12
+            save_settings_on_start, # 13
+            alarm_on_completion,  # 14
+            log_enabled,          # 15
+            log_folder,           # 16
+            settings_status       # 17
         ]
     )
 

@@ -130,6 +130,13 @@ from eichi_utils.settings_manager import (
     save_app_settings_oichi
 )
 
+# ログ管理モジュールをインポート
+from eichi_utils.log_manager import (
+    enable_logging, disable_logging, is_logging_enabled, 
+    get_log_folder, set_log_folder, open_log_folder,
+    get_default_log_settings, load_log_settings, apply_log_settings
+)
+
 # LoRAプリセット管理モジュールをインポート
 from eichi_utils.lora_preset_manager import (
     initialize_lora_presets,
@@ -309,6 +316,17 @@ initialize_lora_presets()
 app_settings = load_settings()
 output_folder_name = app_settings.get('output_folder', 'outputs')
 print(translate("設定から出力フォルダを読み込み: {0}").format(output_folder_name))
+
+# ログ設定を読み込み適用
+log_settings = app_settings.get('log_settings', get_default_log_settings())
+print(translate("ログ設定を読み込み: 有効={0}, フォルダ={1}").format(
+    log_settings.get('log_enabled', False), 
+    log_settings.get('log_folder', 'logs')
+))
+if log_settings.get('log_enabled', False):
+    # 現在のファイル名を渡す
+    enable_logging(log_settings.get('log_folder', 'logs'), source_name="oneframe_ichi")
+    print(translate("✅ ログ出力を有効化しました"))
 
 # 出力フォルダのフルパスを生成
 outputs_folder = get_output_folder_path(output_folder_name)
@@ -3568,6 +3586,37 @@ with block:
                     interactive=True
                 )
                 
+                # ログ設定
+                gr.Markdown("### " + translate("ログ設定"))
+                
+                # 設定からログ設定を読み込む
+                all_settings = load_settings()
+                log_settings = all_settings.get('log_settings', {'log_enabled': False, 'log_folder': 'logs'})
+                
+                # ログ有効/無効設定
+                log_enabled = gr.Checkbox(
+                    label=translate("コンソールログを出力する"),
+                    value=log_settings.get('log_enabled', False),
+                    info=translate("チェックをオンにすると、コンソール出力をログファイルにも保存します"),
+                    elem_classes="saveable-setting",
+                    interactive=True
+                )
+                
+                # ログ出力先設定
+                log_folder = gr.Textbox(
+                    label=translate("ログ出力先"),
+                    value=log_settings.get('log_folder', 'logs'),
+                    info=translate("ログファイルの保存先フォルダを指定します"),
+                    elem_classes="saveable-setting",
+                    interactive=True
+                )
+                
+                # ログフォルダを開くボタン
+                open_log_folder_btn = gr.Button(value=translate("📂 ログフォルダを開く"), size="sm")
+                
+                # ログフォルダを開くボタンのクリックイベント
+                open_log_folder_btn.click(fn=open_log_folder)
+                
                 # 設定状態の表示
                 settings_status = gr.Markdown("")
             
@@ -3588,7 +3637,10 @@ with block:
                 target_index_val,
                 history_index_val,
                 save_settings_on_start_val,
-                alarm_on_completion_val
+                alarm_on_completion_val,
+                # ログ設定項目
+                log_enabled_val,
+                log_folder_val
             ):
                 """現在の設定を保存"""
                 current_settings = {
@@ -3609,37 +3661,102 @@ with block:
                     'alarm_on_completion': alarm_on_completion_val
                 }
                 
+                # アプリ設定を保存
                 try:
-                    save_app_settings_oichi(current_settings)
-                    return translate("設定を保存しました")
+                    app_success = save_app_settings_oichi(current_settings)
                 except Exception as e:
                     return translate("設定の保存に失敗しました: {0}").format(str(e))
+                
+                # ログ設定も保存 - 値の型を確認
+                # log_enabledはbooleanに確実に変換
+                is_log_enabled = False
+                if isinstance(log_enabled_val, bool):
+                    is_log_enabled = log_enabled_val
+                elif hasattr(log_enabled_val, 'value'):
+                    is_log_enabled = bool(log_enabled_val.value)
+                
+                # log_folderは文字列に確実に変換
+                log_folder_path = "logs"
+                if log_folder_val and isinstance(log_folder_val, str):
+                    log_folder_path = log_folder_val
+                elif hasattr(log_folder_val, 'value') and log_folder_val.value:
+                    log_folder_path = str(log_folder_val.value)
+                
+                print(f"[DEBUG] 保存するログ設定: 有効={is_log_enabled}, フォルダ={log_folder_path}")
+                
+                log_settings = {
+                    "log_enabled": is_log_enabled,
+                    "log_folder": log_folder_path
+                }
+                
+                # 全体設定を取得し、ログ設定を更新
+                all_settings = load_settings()
+                all_settings['log_settings'] = log_settings
+                log_success = save_settings(all_settings)
+                
+                # ログ設定を適用（設定保存後、すぐに新しいログ設定を反映）
+                if log_success:
+                    # 一旦ログを無効化
+                    disable_logging()
+                    # 新しい設定でログを再開（有効な場合）
+                    apply_log_settings(log_settings, source_name="oneframe_ichi")
+                    print(translate("✅ ログ設定を更新しました: 有効={0}, フォルダ={1}").format(
+                        log_enabled_val, log_folder_val))
+                
+                if app_success and log_success:
+                    return translate("設定を保存しました")
+                else:
+                    return translate("設定の一部保存に失敗しました")
 
             def reset_app_settings_handler():
                 """設定をデフォルトに戻す"""
                 from eichi_utils.settings_manager import get_default_app_settings_oichi
                 
+                # デバッグ出力
+                print("[DEBUG] リセット関数が呼ばれました")
+                
                 default_settings = get_default_app_settings_oichi()
                 updates = []
                 
                 # 各UIコンポーネントのデフォルト値を設定
-                updates.append(gr.update(value=default_settings.get("resolution", 640)))
-                updates.append(gr.update(value=default_settings.get("steps", 25)))
-                updates.append(gr.update(value=default_settings.get("cfg", 2.5)))
-                updates.append(gr.update(value=default_settings.get("use_teacache", True)))
-                updates.append(gr.update(value=default_settings.get("gpu_memory_preservation", 6)))
-                updates.append(gr.update(value=default_settings.get("gs", 10)))
-                updates.append(gr.update(value=default_settings.get("latent_window_size", 9)))
-                updates.append(gr.update(value=default_settings.get("latent_index", 0)))
-                updates.append(gr.update(value=default_settings.get("use_clean_latents_2x", True)))
-                updates.append(gr.update(value=default_settings.get("use_clean_latents_4x", True)))
-                updates.append(gr.update(value=default_settings.get("use_clean_latents_post", True)))
-                updates.append(gr.update(value=default_settings.get("target_index", 1)))
-                updates.append(gr.update(value=default_settings.get("history_index", 16)))
-                updates.append(gr.update(value=default_settings.get("save_settings_on_start", False)))
-                updates.append(gr.update(value=default_settings.get("alarm_on_completion", True)))
+                updates.append(gr.update(value=default_settings.get("resolution", 640)))  # 1
+                updates.append(gr.update(value=default_settings.get("steps", 25)))  # 2
+                updates.append(gr.update(value=default_settings.get("cfg", 2.5)))  # 3
+                updates.append(gr.update(value=default_settings.get("use_teacache", True)))  # 4
+                updates.append(gr.update(value=default_settings.get("gpu_memory_preservation", 6)))  # 5
+                updates.append(gr.update(value=default_settings.get("gs", 10)))  # 6
+                updates.append(gr.update(value=default_settings.get("latent_window_size", 9)))  # 7
+                updates.append(gr.update(value=default_settings.get("latent_index", 0)))  # 8
+                updates.append(gr.update(value=default_settings.get("use_clean_latents_2x", True)))  # 9
+                updates.append(gr.update(value=default_settings.get("use_clean_latents_4x", True)))  # 10
+                updates.append(gr.update(value=default_settings.get("use_clean_latents_post", True)))  # 11
+                updates.append(gr.update(value=default_settings.get("target_index", 1)))  # 12
+                updates.append(gr.update(value=default_settings.get("history_index", 16)))  # 13
+                updates.append(gr.update(value=default_settings.get("save_settings_on_start", False)))  # 14
+                updates.append(gr.update(value=default_settings.get("alarm_on_completion", True)))  # 15
                 
-                # 設定状態メッセージ
+                # ログ設定 (16番目め17番目の要素)
+                # ログ設定は固定値を使用 - 絶対に文字列とbooleanを使用
+                updates.append(gr.update(value=False))  # log_enabled (16)
+                updates.append(gr.update(value="logs"))  # log_folder (17)
+                
+                # ログ設定をアプリケーションに適用
+                default_log_settings = {
+                    "log_enabled": False,
+                    "log_folder": "logs"
+                }
+                
+                print("[DEBUG] リセット時のログ設定: enabled=False, folder=logs")
+                
+                # 設定ファイルを更新
+                all_settings = load_settings()
+                all_settings['log_settings'] = default_log_settings
+                save_settings(all_settings)
+                
+                # ログ設定を適用 (既存のログファイルを閉じて、設定に従って再設定)
+                disable_logging()  # 既存のログを閉じる
+                
+                # 設定状態メッセージ (18番目の要素)
                 updates.append(translate("設定をデフォルトに戻しました"))
                 
                 return updates
@@ -3815,7 +3932,10 @@ with block:
             target_index,
             history_index,
             save_settings_on_start,
-            alarm_on_completion
+            alarm_on_completion,
+            # ログ設定を追加
+            log_enabled,
+            log_folder
         ],
         outputs=[settings_status]
     )
@@ -3825,22 +3945,24 @@ with block:
         fn=reset_app_settings_handler,
         inputs=[],
         outputs=[
-            resolution,
-            steps,
-            cfg,
-            use_teacache,
-            gpu_memory_preservation,
-            gs,
-            latent_window_size,
-            latent_index,
-            use_clean_latents_2x,
-            use_clean_latents_4x,
-            use_clean_latents_post,
-            target_index,
-            history_index,
-            save_settings_on_start,
-            alarm_on_completion,
-            settings_status
+            resolution,            # 1
+            steps,                # 2
+            cfg,                  # 3
+            use_teacache,         # 4
+            gpu_memory_preservation, # 5
+            gs,                   # 6
+            latent_window_size,   # 7
+            latent_index,         # 8
+            use_clean_latents_2x, # 9
+            use_clean_latents_4x, # 10
+            use_clean_latents_post, # 11
+            target_index,         # 12
+            history_index,        # 13
+            save_settings_on_start, # 14
+            alarm_on_completion,  # 15
+            log_enabled,          # 16
+            log_folder,           # 17
+            settings_status       # 18
         ]
     )
     
