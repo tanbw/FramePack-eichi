@@ -103,7 +103,7 @@ def open_output_folder(folder_path):
         return False
 
 def get_default_app_settings():
-    """アプリケーションのデフォルト設定を返す"""
+    """eichiのデフォルト設定を返す"""
     return {
         # 基本設定
         "resolution": 640,
@@ -139,8 +139,85 @@ def get_default_app_settings():
         "alarm_on_completion": True
     }
 
+def get_default_app_settings_f1():
+    """F1のデフォルト設定を返す"""
+    return {
+        # 基本設定
+        "resolution": 640,
+        "mp4_crf": 16,
+        "steps": 25,
+        "cfg": 2.5,
+        
+        # パフォーマンス設定
+        "use_teacache": True,
+        "gpu_memory_preservation": 6,
+        
+        # 詳細設定
+        "gs": 10,
+        
+        # F1独自設定
+        "image_strength": 1.0,
+        
+        # 保存設定
+        "keep_section_videos": False,
+        "save_section_frames": False,
+        "save_tensor_data": False,
+        "frame_save_mode": "保存しない",
+        
+        # 自動保存・アラーム設定
+        "save_settings_on_start": False,
+        "alarm_on_completion": True
+    }
+
+def get_default_app_settings_oichi():
+    """oichiのデフォルト設定を返す"""
+    return {
+        # 基本設定
+        "resolution": 640,
+        "steps": 25,
+        "cfg": 2.5,
+        
+        # パフォーマンス設定
+        "use_teacache": True,
+        "gpu_memory_preservation": 6,
+        
+        # 詳細設定
+        "gs": 10,
+        
+        # oneframe固有設定
+        "latent_window_size": 9,
+        "latent_index": 0,
+        "use_clean_latents_2x": True,
+        "use_clean_latents_4x": True,
+        "use_clean_latents_post": True,
+        
+        # インデックス設定
+        "target_index": 1,
+        "history_index": 16,
+        
+        # LoRA設定
+        "use_lora": False,
+        "lora_mode": "ディレクトリから選択",
+        
+        # 最適化設定
+        "fp8_optimization": True,
+        
+        # バッチ設定
+        "batch_count": 1,
+        
+        # RoPE設定
+        "use_rope_batch": False,
+        
+        # キュー設定
+        "use_queue": False,
+        
+        # 自動保存・アラーム設定
+        "save_settings_on_start": False,
+        "alarm_on_completion": True
+    }
+
 def load_app_settings():
-    """アプリケーション設定を読み込む"""
+    """eichiのアプリケーション設定を読み込む"""
     settings = load_settings()
     # 旧キーからの移行処理
     if 'app_settings' in settings and 'app_settings_eichi' not in settings:
@@ -169,7 +246,7 @@ def load_app_settings():
     return app_settings
 
 def save_app_settings(app_settings):
-    """アプリケーション設定を保存"""
+    """eichiのアプリケーション設定を保存"""
     settings = load_settings()
     
     # 不要なキーを除外してコピー（手動保存と自動保存の一貫性のため）
@@ -177,4 +254,85 @@ def save_app_settings(app_settings):
                         if k not in ['rs', 'output_dir', 'frame_size_radio']}
     
     settings['app_settings_eichi'] = filtered_settings
+    return save_settings(settings)
+
+def load_app_settings_f1():
+    """F1のアプリケーション設定を読み込む"""
+    settings = load_settings()
+    
+    # F1の設定が存在しない場合はデフォルト値を設定
+    if 'app_settings_f1' not in settings:
+        settings['app_settings_f1'] = get_default_app_settings_f1()
+        save_settings(settings)
+    
+    # 既存の設定にデフォルト値をマージ（新しいキーのため）
+    app_settings = settings.get('app_settings_f1', {})
+    default_settings = get_default_app_settings_f1()
+    
+    # 存在しないキーにはデフォルト値を使用
+    for key, default_value in default_settings.items():
+        if key not in app_settings:
+            app_settings[key] = default_value
+            print(f"[INFO] F1: 新しい設定項目 '{key}' をデフォルト値 {default_value} で追加")
+    
+    # マージした設定を保存
+    if app_settings != settings.get('app_settings_f1', {}):
+        settings['app_settings_f1'] = app_settings
+        save_settings(settings)
+    
+    return app_settings
+
+def save_app_settings_f1(app_settings):
+    """F1のアプリケーション設定を保存"""
+    settings = load_settings()
+    
+    # 保存すべきキーのみを含める（許可リスト方式）
+    allowed_keys = [
+        'resolution', 'mp4_crf', 'steps', 'cfg', 'use_teacache',
+        'gpu_memory_preservation', 'gs', 'image_strength',
+        'keep_section_videos', 'save_section_frames', 'save_tensor_data',
+        'frame_save_mode', 'save_settings_on_start', 'alarm_on_completion'
+    ]
+    
+    filtered_settings = {k: v for k, v in app_settings.items() 
+                        if k in allowed_keys}
+    
+    settings['app_settings_f1'] = filtered_settings
+    return save_settings(settings)
+
+def load_app_settings_oichi():
+    """oichiのアプリケーション設定を読み込む"""
+    settings = load_settings()
+    
+    # oichiの設定が存在しない場合はデフォルト値を設定
+    if 'app_settings_oichi' not in settings:
+        settings['app_settings_oichi'] = get_default_app_settings_oichi()
+        save_settings(settings)
+    
+    # 既存の設定にデフォルト値をマージ（新しいキーのため）
+    app_settings = settings.get('app_settings_oichi', {})
+    default_settings = get_default_app_settings_oichi()
+    
+    # 存在しないキーにはデフォルト値を使用
+    for key, default_value in default_settings.items():
+        if key not in app_settings:
+            app_settings[key] = default_value
+            print(f"[INFO] oichi: 新しい設定項目 '{key}' をデフォルト値 {default_value} で追加")
+    
+    # マージした設定を保存
+    if app_settings != settings.get('app_settings_oichi', {}):
+        settings['app_settings_oichi'] = app_settings
+        save_settings(settings)
+    
+    return app_settings
+
+def save_app_settings_oichi(app_settings):
+    """oichiのアプリケーション設定を保存"""
+    settings = load_settings()
+    
+    # 不要なキーを除外してコピー
+    filtered_settings = {k: v for k, v in app_settings.items() 
+                        if k not in ['rs', 'output_dir']}
+    
+    settings['app_settings_oichi'] = filtered_settings
     return save_settings(settings)
