@@ -300,7 +300,7 @@ class TransformerManager:
                         use_scaled_mm = False  # 品質が大幅に劣化するので無効化
                         apply_fp8_monkey_patch(self.transformer, state_dict, use_scaled_mm=use_scaled_mm)
                         
-                        print(translate("FP8最適化が適用されました！"))
+                        print(translate("FP8最適化が適用されました"))
                     except Exception as e:
                         print(translate("FP8最適化エラー: {0}").format(e))
                         traceback.print_exc()

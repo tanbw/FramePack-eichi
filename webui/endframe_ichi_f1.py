@@ -448,17 +448,17 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         
         # 実際に使用されるプロンプトを必ず表示
         actual_prompt = prompt  # 実際に使用するプロンプト
-        prompt_source = "共通プロンプト"  # プロンプトの種類
+        prompt_source = translate("共通プロンプト")  # プロンプトの種類
 
         # プロンプトソースの判定
         if queue_enabled and queue_type == "prompt" and batch_index is not None:
             # プロンプトキューの場合
-            prompt_source = "プロンプトキュー"
+            prompt_source = translate("プロンプトキュー")
             print(translate("プロンプトキューからのプロンプトをエンコードしています..."))
         elif using_custom_txt:
             # イメージキューのカスタムプロンプトの場合
             actual_prompt = prompt  # カスタムプロンプトを使用
-            prompt_source = "カスタムプロンプト(イメージキュー)"
+            prompt_source = translate("カスタムプロンプト(イメージキュー)")
             print(translate("カスタムプロンプトをエンコードしています..."))
         else:
             # 通常の共通プロンプトの場合
@@ -1599,8 +1599,8 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     # どちらの画像もない場合はエラー
     error_html = f"""
     <div style="padding: 15px; border-radius: 10px; background-color: #ffebee; border: 1px solid #f44336; margin: 10px 0;">
-        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{translate('❗️ 画像が選択されていません')}</h3>
-        <p>{translate('生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これはあまねく叡智の始発点となる重要な画像です。')}</p>
+        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{translate('画像が選択されていません')}</h3>
+        <p>{translate('生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これは叡智の始発点となる重要な画像です。')}</p>
     </div>
     """
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
@@ -1633,13 +1633,13 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
     # バッチ処理回数を確認し、詳細を出力
     batch_count = max(1, min(int(batch_count), 100))  # 1〜100の間に制限
-    print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+    print(translate("バッチ処理回数: {0}回").format(batch_count))
 
     # 解像度を安全な値に丸めてログ表示
     from diffusers_helper.bucket_tools import SAFE_RESOLUTIONS
 
     # 解像度値を表示
-    print(translate("\u25c6 UIから受け取った解像度値: {0}（型: {1}）").format(resolution, type(resolution).__name__))
+    print(translate("UIから受け取った解像度値: {0}（型: {1}）").format(resolution, type(resolution).__name__))
 
     # 安全な値に丸める
     if resolution not in SAFE_RESOLUTIONS:

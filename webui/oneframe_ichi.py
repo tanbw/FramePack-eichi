@@ -826,17 +826,17 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 # テキストエンコーディング実行
                 # 実際に使用されるプロンプトを必ず表示
                 full_prompt = prompt  # 実際に使用するプロンプト
-                prompt_source = "共通プロンプト" # プロンプトの種類
+                prompt_source = translate("共通プロンプト") # プロンプトの種類
 
                 # プロンプトソースの判定
                 if queue_enabled and queue_type == "prompt" and batch_index is not None:
                     # プロンプトキューの場合
-                    prompt_source = "プロンプトキュー"
+                    prompt_source = translate("プロンプトキュー")
                     print(translate("プロンプトキューからのプロンプトをエンコードしています..."))
                 elif using_custom_prompt:
                     # イメージキューのカスタムプロンプトの場合
                     full_prompt = current_prompt  # カスタムプロンプトを使用
-                    prompt_source = "カスタムプロンプト"
+                    prompt_source = translate("カスタムプロンプト")
                     print(translate("カスタムプロンプトをエンコードしています..."))
                 else:
                     # 通常の共通プロンプトの場合

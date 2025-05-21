@@ -577,7 +577,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     total_sections = len(latent_paddings_list)
     latent_paddings = latent_paddings_list  # リストに変換したものを使用
 
-    print(translate("\u25a0 セクション生成詳細:"))
+    print(translate("セクション生成詳細:"))
     print(translate("  - 生成予定セクション: {0}").format(latent_paddings))
     frame_count = latent_window_size * 4 - 3
     print(translate("  - 各セクションのフレーム数: 約{0}フレーム (latent_window_size: {1})").format(frame_count, latent_window_size))
@@ -713,18 +713,18 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             
             # 実際に使用するプロンプトを表示するための変数
             actual_prompt = prompt
-            prompt_source = "共通プロンプト"
+            prompt_source = translate("共通プロンプト")
             
             if using_custom_prompt:
                 # イメージキューのカスタムプロンプトを使用している場合
                 print(translate("セクション{0}はイメージキュー画像「{1}」の専用プロンプトを使用します").format(i_section, img_name))
                 actual_prompt = current_prompt
-                prompt_source = "カスタムプロンプト(イメージキュー)"
+                prompt_source = translate("カスタムプロンプト(イメージキュー)")
             elif 'current_prompt' in globals() and current_prompt != prompt:
                 # プロンプトキューを使用している場合
                 print(translate("セクション{0}は共通プロンプトを使用します（プロンプトキュー: {1}...）").format(i_section, current_prompt[:30]))
                 actual_prompt = current_prompt
-                prompt_source = "カスタムプロンプト(プロンプトキュー)"
+                prompt_source = translate("カスタムプロンプト(プロンプトキュー)")
             else:
                 # 通常の共通プロンプトを使用している場合
                 print(translate("セクション{0}は共通プロンプトを使用します").format(i_section))
@@ -2392,8 +2392,8 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
     # どちらの画像もない場合はエラー
     error_html = f"""
     <div style="padding: 15px; border-radius: 10px; background-color: #ffebee; border: 1px solid #f44336; margin: 10px 0;">
-        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{translate('❗️ 画像が選択されていません')}</h3>
-        <p>{translate('生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これはあまねく叡智の始発点となる重要な画像です。')}</p>
+        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">{translate('画像が選択されていません')}</h3>
+        <p>{translate('生成を開始する前に「Image」欄または表示されている最後のキーフレーム画像に画像をアップロードしてください。これは叡智の始発点となる重要な画像です。')}</p>
     </div>
     """
     error_bar = make_progress_bar_html(100, translate('画像がありません'))
@@ -2620,16 +2620,16 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # LoRAファイル情報を出力
         if len(all_lora_files) == 1:
             # 単一ファイル
-            print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(all_lora_files[0].name)))
-            print(translate("\u25c6 LoRA適用強度: {0}").format(scales[0]))
+            print(translate("LoRAファイル: {0}").format(os.path.basename(all_lora_files[0].name)))
+            print(translate("LoRA適用強度: {0}").format(scales[0]))
         elif len(all_lora_files) > 1:
             # 複数ファイル
-            print(translate("\u25c6 LoRAファイル (複数):"))
+            print(translate("LoRAファイル (複数):"))
             for i, file in enumerate(all_lora_files):
                 print(translate("   - {0} (スケール: {1})").format(os.path.basename(file.name), scales[i]))
         else:
             # LoRAファイルなし
-            print(translate("\u25c6 LoRA: 使用しない"))
+            print(translate("LoRA: 使用しない"))
 
     # セクションごとのキーフレーム画像の使用状況をログに出力
     valid_sections = []

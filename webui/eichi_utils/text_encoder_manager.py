@@ -64,7 +64,7 @@ class TextEncoderManager:
     def dispose_text_encoders(self):
         """text_encoderとtext_encoder_2のインスタンスを破棄し、メモリを完全に解放"""
         try:
-            print(translate("\ntext_encoderとtext_encoder_2のメモリを解放します..."))
+            print(translate("text_encoderとtext_encoder_2のメモリを解放します..."))
             
             # text_encoderの破棄
             if hasattr(self, 'text_encoder') and self.text_encoder is not None:
