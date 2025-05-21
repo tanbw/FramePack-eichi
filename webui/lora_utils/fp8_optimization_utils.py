@@ -353,9 +353,8 @@ def check_fp8_support():
     has_scaled_mm = hasattr(torch, '_scaled_mm')
 
     if has_e4m3 and has_e5m2:
-        print(translate("FP8サポート検出: E4M3およびE5M2フォーマットが利用可能です"))
         if has_scaled_mm:
-            print(translate("scaled_mmサポート検出: RTX 40シリーズのGPUでFP8の高速化が可能です"))
+            print(translate("RTX 40シリーズのGPUでFP8の高速化が可能です"))
     else:
         print(translate("警告: FP8サポートが検出されませんでした。PyTorch 2.1以上が必要です"))
 

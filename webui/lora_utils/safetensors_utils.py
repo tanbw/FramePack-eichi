@@ -91,7 +91,6 @@ class MemoryEfficientSafeOpen:
         elif dtype_str == "F8_E4M3" and hasattr(torch, "float8_e4m3fn"):
             return byte_tensor.view(torch.float8_e4m3fn).reshape(shape)
         else:
-            # # convert to float16 if float8 is not supported
-            # print(f"Warning: {dtype_str} is not supported in this PyTorch version. Converting to float16.")
+            # convert to float16 if float8 is not supported
             # return byte_tensor.view(torch.uint8).to(torch.float16).reshape(shape)
             raise ValueError(f"Unsupported float8 type: {dtype_str} (upgrade PyTorch to support float8 types)")

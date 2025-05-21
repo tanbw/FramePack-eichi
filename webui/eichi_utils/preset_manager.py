@@ -117,7 +117,6 @@ def load_presets():
                     continue
 
                 data = json.loads(file_contents)
-                print(translate("プリセットファイル読み込み成功: {0}件").format(len(data.get('presets', []))))
                 return data
 
         except (json.JSONDecodeError, UnicodeDecodeError) as e:

@@ -233,30 +233,3 @@ def unified_input_image_change_handler(img, mode, length, enable_copy=True):
 
     return updates
 
-# 4. デバッグ情報表示関数
-def print_keyframe_debug_info():
-    """キーフレーム設定の詳細情報を表示"""
-    # print("\n[INFO] =========== キーフレーム設定デバッグ情報 ===========")
-    #
-    # # 設定内容の確認表示
-    # print("\n[INFO] 動画モード設定の確認:")
-    # for mode_key in VIDEO_MODE_SETTINGS:
-    #     mode_info = VIDEO_MODE_SETTINGS[mode_key]
-    #     print(translate("  - {0}: {1}秒, {2}フレーム").format(mode_key, mode_info['display_seconds'], mode_info['frames']))
-    #
-    #     # 重要キーフレームの表示（UIインデックスに変換）
-    #     important_kfs = mode_info['important_keyframes']
-    #     important_kfs_ui = [code_to_ui_index(kf) for kf in important_kfs]
-    #     print(translate("    重要キーフレーム: {0}").format(important_kfs_ui))
-    #
-    #     # コピーパターンの表示
-    #     for mode_type in ["通常", "ループ"]:
-    #         if mode_type in mode_info["copy_patterns"]:
-    #             print(translate("    {0}モードのコピーパターン:").format(mode_type))
-    #             for src, targets in mode_info["copy_patterns"][mode_type].items():
-    #                 src_ui = code_to_ui_index(int(src))
-    #                 targets_ui = [code_to_ui_index(t) for t in targets]
-    #                 print(translate("      キーフレーム{0} → {1}").format(src_ui, targets_ui))
-    #
-    # print("[INFO] =================================================\n")
-    pass

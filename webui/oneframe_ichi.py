@@ -33,7 +33,7 @@ from diffusers_helper.hf_login import login
 import os
 import random  # ランダムシード生成用
 import time
-import traceback  # デバッグログ出力用
+import traceback  # ログ出力用
 import yaml
 import argparse
 import json
@@ -80,9 +80,9 @@ first_run = True  # 通常は初回起動として扱う
 # ポートが使用中の場合は警告を表示
 if is_port_in_use(args.port):
     print(translate("警告: ポート {0} はすでに使用されています。他のインスタンスが実行中かもしれません。").format(args.port))
-    print(translate("5秒後に処理を続行します..."))
+    print(translate("10秒後に処理を続行します..."))
     first_run = False  # 初回実行ではない
-    time.sleep(5)  # 5秒待機して続行
+    time.sleep(10) # 10秒待機して続行
 
 try:
     import winsound
@@ -109,8 +109,7 @@ try:
     has_fp8_support = has_e4m3 and has_e5m2
     
     if has_fp8_support:
-        print(translate("LoRAサポートとFP8最適化が有効です"))
-        print(translate("FP8最適化は実際のモデルロード時に適用されます"))
+        pass
         # FP8最適化のモンキーパッチはLoRA適用時に使用される
         # apply_fp8_monkey_patch()は引数が必要なため、ここでは呼び出さない
     else:
@@ -326,7 +325,6 @@ print(translate("ログ設定を読み込み: 有効={0}, フォルダ={1}").for
 if log_settings.get('log_enabled', False):
     # 現在のファイル名を渡す
     enable_logging(log_settings.get('log_folder', 'logs'), source_name="oneframe_ichi")
-    print(translate("✅ ログ出力を有効化しました"))
 
 # 出力フォルダのフルパスを生成
 outputs_folder = get_output_folder_path(output_folder_name)
@@ -377,10 +375,6 @@ def get_image_queue_files():
 
     print(translate("入力ディレクトリから画像ファイル{0}個を読み込みました").format(len(image_files)))
 
-    # デバッグ - 読み込んだファイルのリストを確認
-    if len(image_files) > 0:
-        print(translate("[DEBUG] イメージキュー: 最初の画像ファイル = {0}").format(image_files[0]))
-
     image_queue_files = image_files
     return image_files
 
@@ -407,13 +401,13 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
     use_queue_flag = bool(use_queue)
     queue_type_flag = queue_type
     if use_queue_flag:
-        print(translate("[DEBUG] worker: キュー状態: {0}, タイプ: {1}").format(use_queue_flag, queue_type_flag))
+        print(translate("キュー状態: {0}, タイプ: {1}").format(use_queue_flag, queue_type_flag))
 
         if queue_type_flag == "prompt" and prompt_queue_file_path is not None:
-            print(translate("[DEBUG] worker: プロンプトキューファイルパス: {0}").format(prompt_queue_file_path))
+            print(translate("プロンプトキューファイルパス: {0}").format(prompt_queue_file_path))
 
         elif queue_type_flag == "image" and len(image_queue_files) > 0:
-            print(translate("[DEBUG] worker: イメージキュー詳細: 画像数={0}, batch_index={1}").format(
+            print(translate("イメージキュー詳細: 画像数={0}, batch_index={1}").format(
                 len(image_queue_files), batch_index))
 
     job_id = generate_timestamp()
@@ -421,15 +415,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
     # 1フレームモード固有の設定
     total_latent_sections = 1  # 1セクションに固定
     frame_count = 1  # 1フレームモード
-    
-    # 詳細設定のログ出力
-    print(translate("\n[詳細設定]"))
-    print(translate("RoPE値 (latent_window_size): {0}").format(latent_window_size))
-    print(translate("レイテントインデックス: {0}").format(latent_index))
-    print(translate("clean_latents_2xを使用: {0}").format(use_clean_latents_2x))
-    print(translate("clean_latents_4xを使用: {0}").format(use_clean_latents_4x))
-    print(translate("clean_latents_postを使用: {0}").format(use_clean_latents_post))
-    
     # 出力フォルダの設定
     if output_dir:
         outputs_folder = output_dir
@@ -451,13 +436,13 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         current_lora_scales = []
         
         if use_lora and has_lora_support:
-            print(translate("\u25c6 LoRA情報: use_lora = {0}, has_lora_support = {1}").format(use_lora, has_lora_support))
-            print(translate("\u25c6 LoRAモード: {0}").format(lora_mode))
+            print(translate("LoRA情報: use_lora = {0}, has_lora_support = {1}").format(use_lora, has_lora_support))
+            print(translate("LoRAモード: {0}").format(lora_mode))
             
             if lora_mode == translate("ディレクトリから選択"):
                 # ディレクトリから選択モードの場合
                 lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
-                print(translate("\u25c6 LoRAディレクトリ: {0}").format(lora_dir))
+                print(translate("LoRAディレクトリ: {0}").format(lora_dir))
                 
                 # ドロップダウンの選択項目を処理
                 dropdown_paths = []
@@ -467,10 +452,10 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     dropdown_name = f"LoRA{dropdown_idx+1}"
                     if dropdown_value and dropdown_value != translate("なし"):
                         lora_path = os.path.join(lora_dir, dropdown_value)
-                        print(translate("\u25c6 {name}のロード試行: パス={path}").format(name=dropdown_name, path=lora_path))
+                        print(translate("{name}のロード試行: パス={path}").format(name=dropdown_name, path=lora_path))
                         if os.path.exists(lora_path):
                             current_lora_paths.append(lora_path)
-                            print(translate("\u25c6 {name}を選択: {path}").format(name=dropdown_name, path=lora_path))
+                            print(translate("{name}を選択: {path}").format(name=dropdown_name, path=lora_path))
                         else:
                             # パスを修正して再試行（単なるファイル名の場合）
                             if os.path.dirname(lora_path) == lora_dir and not os.path.isabs(dropdown_value):
@@ -479,12 +464,12 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                             else:
                                 # 直接ファイル名だけで試行
                                 lora_path_retry = os.path.join(lora_dir, os.path.basename(str(dropdown_value)))
-                                print(translate("\u25c6 {name}を再試行: {path}").format(name=dropdown_name, path=lora_path_retry))
+                                print(translate("{name}を再試行: {path}").format(name=dropdown_name, path=lora_path_retry))
                                 if os.path.exists(lora_path_retry):
                                     current_lora_paths.append(lora_path_retry)
-                                    print(translate("\u25c6 {name}を選択 (パス修正後): {path}").format(name=dropdown_name, path=lora_path_retry))
+                                    print(translate("{name}を選択 (パス修正後): {path}").format(name=dropdown_name, path=lora_path_retry))
                                 else:
-                                    print(translate("\u25c6 選択された{name}が見つかりません: {file}").format(name=dropdown_name, file=dropdown_value))
+                                    print(translate("選択された{name}が見つかりません: {file}").format(name=dropdown_name, file=dropdown_value))
             else:
                 # ファイルアップロードモードの場合
                 # 全LoRAファイルを収集
@@ -496,19 +481,19 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         continue
                         
                     file_name = f"LoRAファイル{file_idx+1}"
-                    print(translate("\u25c6 {name}の処理").format(name=file_name))
+                    print(translate("{name}の処理").format(name=file_name))
                     
                     if isinstance(lora_file_obj, list):
                         # 複数のファイルが含まれている場合
                         for file in lora_file_obj:
                             if hasattr(file, 'name') and file.name:
                                 current_lora_paths.append(file.name)
-                                print(translate("\u25c6 {name}: {file}").format(name=file_name, file=os.path.basename(file.name)))
+                                print(translate("{name}: {file}").format(name=file_name, file=os.path.basename(file.name)))
                     else:
                         # 単一のファイル
                         if hasattr(lora_file_obj, 'name') and lora_file_obj.name:
                             current_lora_paths.append(lora_file_obj.name)
-                            print(translate("\u25c6 {name}: {file}").format(name=file_name, file=os.path.basename(lora_file_obj.name)))
+                            print(translate("{name}: {file}").format(name=file_name, file=os.path.basename(lora_file_obj.name)))
             
             # スケール値を処理
             if current_lora_paths:  # LoRAパスがある場合のみ解析
@@ -518,40 +503,29 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     current_lora_scales = scales
                     
                     if len(current_lora_scales) < len(current_lora_paths):
-                        print(translate("[INFO] LoRAスケールの数が不足しているため、デフォルト値で補完します"))
+                        print(translate("LoRAスケールの数が不足しているため、デフォルト値で補完します"))
                         current_lora_scales.extend([0.8] * (len(current_lora_paths) - len(current_lora_scales)))
                     elif len(current_lora_scales) > len(current_lora_paths):
-                        print(translate("[INFO] LoRAスケールの数が多すぎるため、不要なものを切り捨てます"))
+                        print(translate("LoRAスケールの数が多すぎるため、不要なものを切り捨てます"))
                         current_lora_scales = current_lora_scales[:len(current_lora_paths)]
                         
                     # 最終的なLoRAとスケールの対応を表示
                     for i, (path, scale) in enumerate(zip(current_lora_paths, current_lora_scales)):
-                        print(translate("\u25c6 LoRA {0}: {1} (スケール: {2})").format(i+1, os.path.basename(path), scale))
+                        print(translate("LoRA {0}: {1} (スケール: {2})").format(i+1, os.path.basename(path), scale))
                 except Exception as e:
-                    print(translate("[ERROR] LoRAスケール解析エラー: {0}").format(e))
+                    print(translate("LoRAスケール解析エラー: {0}").format(e))
                     # デフォルト値で埋める
                     current_lora_scales = [0.8] * len(current_lora_paths)
                     for i, (path, scale) in enumerate(zip(current_lora_paths, current_lora_scales)):
-                        print(translate("\u25c6 LoRA {0}: {1} (デフォルトスケール: {2})").format(i+1, os.path.basename(path), scale))
+                        print(translate("LoRA {0}: {1} (デフォルトスケール: {2})").format(i+1, os.path.basename(path), scale))
         
         # -------- LoRA 設定 START ---------
         # UI設定のuse_loraフラグ値を保存
         original_use_lora = use_lora
-        print(f"[DEBUG] UI設定のuse_loraフラグの値: {original_use_lora}")
 
         # UIでLoRA使用が有効になっていた場合、ファイル選択に関わらず強制的に有効化
         if original_use_lora:
             use_lora = True
-            print(translate("[INFO] UIでLoRA使用が有効化されているため、LoRA使用を有効にします"))
-
-        print(f"[DEBUG] 最終的なuse_loraフラグ: {use_lora}")
-
-        # LoRA設定を更新（リロードは行わない）
-        print(translate("\n[INFO] LoRA設定を更新します："))
-        print(translate("  - LoRAパス: {0}").format(current_lora_paths))
-        print(translate("  - LoRAスケール: {0}").format(current_lora_scales))
-        print(translate("  - 高VRAM: {0}").format(high_vram))
-        print(translate("  - FP8最適化: {0}").format(fp8_optimization))
 
         # LoRA設定のみを更新
         transformer_manager.set_next_settings(
@@ -562,14 +536,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             force_dict_split=True  # 常に辞書分割処理を行う
         )
         # -------- LoRA 設定 END ---------
-
-        # -------- FP8 設定 START ---------
-        # FP8設定（既にLoRA設定に含めたので不要）
-        # この行は削除しても問題ありません
-        # -------- FP8 設定 END ---------
         
         # セクション処理開始前にtransformerの状態を確認
-        print(translate("\nLoRA適用前のtransformer状態チェック..."))
+        print(translate("LoRA適用前のtransformer状態チェック..."))
         try:
             # transformerの状態を確認し、必要に応じてリロード
             if not transformer_manager.ensure_transformer_state():
@@ -588,14 +557,14 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         
         # 入力画像がNoneの場合はデフォルトの黒い画像を作成
         if input_image is None:
-            print(translate("[INFO] 入力画像が指定されていないため、黒い画像を生成します"))
+            print(translate("入力画像が指定されていないため、黒い画像を生成します"))
             # 指定された解像度の黒い画像を生成（デフォルトは640x640）
             height = width = resolution
             input_image = np.zeros((height, width, 3), dtype=np.uint8)
             input_image_np = input_image
         elif isinstance(input_image, str):
             # 文字列（ファイルパス）の場合は画像をロード
-            print(translate("[INFO] 入力画像がファイルパスのため、画像をロードします: {0}").format(input_image))
+            print(translate("入力画像がファイルパスのため、画像をロードします: {0}").format(input_image))
             try:
                 from PIL import Image
                 import numpy as np
@@ -609,7 +578,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 height, width = find_nearest_bucket(H, W, resolution=resolution)
                 input_image_np = resize_and_center_crop(input_image, target_width=width, target_height=height)
             except Exception as e:
-                print(translate("[ERROR] 画像のロードに失敗しました: {0}").format(e))
+                print(translate("画像のロードに失敗しました: {0}").format(e))
                 # エラーが発生した場合はデフォルトの黒い画像を使用
                 import numpy as np
                 height = width = resolution
@@ -621,7 +590,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             height, width = find_nearest_bucket(H, W, resolution=resolution)
             input_image_np = resize_and_center_crop(input_image, target_width=width, target_height=height)
         
-        # 入力画像は必要な場合のみ保存（デバッグ用）
+        # 入力画像は必要な場合のみ保存
         # Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}_input.png'))
         
         input_image_pt = torch.from_numpy(input_image_np).float() / 127.5 - 1
@@ -633,11 +602,11 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         try:
             # エンコード前のメモリ状態を記録
             free_mem_before_encode = get_cuda_free_memory_gb(gpu)
-            print(translate("\nVAEエンコード前の空きVRAM: {0} GB").format(free_mem_before_encode))
+            print(translate("VAEエンコード前の空きVRAM: {0} GB").format(free_mem_before_encode))
             
             # VAEモデルのロード（未ロードの場合）
             if vae is None:
-                print(translate("\nVAEモデルを初めてロードします..."))
+                print(translate("VAEモデルを初めてロードします..."))
                 try:
                     vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
                     setup_vae_if_loaded()  # VAEの設定を適用
@@ -652,7 +621,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             
             # ハイVRAM以外では明示的にモデルをGPUにロード
             if not high_vram:
-                print(translate("\nVAEモデルをGPUにロード..."))
+                print(translate("VAEモデルをGPUにロード..."))
                 load_model_as_complete(vae, target_device=gpu)
             
             # VAEエンコード実行
@@ -671,8 +640,8 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 
                 # メモリ状態をログ
                 free_mem_after_encode = get_cuda_free_memory_gb(gpu)
-                print(translate("\nVAEエンコード後の空きVRAM: {0} GB").format(free_mem_after_encode))
-                print(translate("\nVAEエンコードで使用したVRAM: {0} GB").format(free_mem_before_encode - free_mem_after_encode))
+                print(translate("VAEエンコード後の空きVRAM: {0} GB").format(free_mem_after_encode))
+                print(translate("VAEエンコードで使用したVRAM: {0} GB").format(free_mem_before_encode - free_mem_after_encode))
                 
                 # メモリクリーンアップ
                 torch.cuda.empty_cache()
@@ -689,19 +658,12 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         # 1フレームモード用の設定（sample_num_framesを早期に定義）
         sample_num_frames = 1  # 1フレームモード（one_frame_inferenceが有効なため）
         num_frames = sample_num_frames
-        
-        # 1フレームモードの場合、latent_window_sizeも調整が必要かもしれない
-        if sample_num_frames == 1:
-            print(translate("[DEBUG] 元のlatent_window_size: {0}").format(latent_window_size))
-            # 1フレームモードの場合、latent_window_sizeを小さくする
-            # latent_window_size = 1  # これは試験的な変更
-        
         # Kisekaeichi機能: 参照画像の処理
         reference_latent = None
         reference_encoder_output = None
         
         if use_reference_image and reference_image is not None:
-            print(translate("[INFO] 着せ替え参照画像を処理します: {0}").format(reference_image))
+            print(translate("着せ替え参照画像を処理します: {0}").format(reference_image))
             stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Processing reference image ...'))))
             
             try:
@@ -742,22 +704,13 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 
                 reference_encoder_output = hf_clip_vision_encode(ref_image_np, feature_extractor, image_encoder)
                 
-                # 参照画像のCLIPエンコーダ出力の形状を確認
-                print(translate("[DEBUG] 参照画像CLIP出力形状: {0}").format(reference_encoder_output.last_hidden_state.shape))
-                print(translate("[DEBUG] 参照画像のサイズ: {0}").format(ref_image_np.shape))
-                
-                # 1フレームモードでの特別な処理を確認
-                if sample_num_frames == 1:
-                    print(translate("[DEBUG] 1フレームモード: 参照画像CLIP Vision形状確認"))
-                    # PRの実装に従い、batch_repeatは1を使用
-                
                 if not high_vram:
                     image_encoder.to('cpu')
                 
-                print(translate("[INFO] 参照画像の処理が完了しました"))
+                print(translate("参照画像の処理が完了しました"))
                 
             except Exception as e:
-                print(translate("[ERROR] 参照画像の処理に失敗しました: {0}").format(e))
+                print(translate("参照画像の処理に失敗しました: {0}").format(e))
                 reference_latent = None
                 reference_encoder_output = None
         
@@ -767,7 +720,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         try:
             # 画像エンコーダのロード（未ロードの場合）
             if image_encoder is None:
-                print(translate("\n画像エンコーダを初めてロードします..."))
+                print(translate("画像エンコーダを初めてロードします..."))
                 try:
                     image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
                     setup_image_encoder_if_loaded()  # 画像エンコーダの設定を適用
@@ -780,21 +733,12 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     setup_image_encoder_if_loaded()  # 画像エンコーダの設定を適用
             
             if not high_vram:
-                print(translate("\n画像エンコーダをGPUにロード..."))
+                print(translate("画像エンコーダをGPUにロード..."))
                 load_model_as_complete(image_encoder, target_device=gpu)
             
             # CLIP Vision エンコード実行
             image_encoder_output = hf_clip_vision_encode(input_image_np, feature_extractor, image_encoder)
             image_encoder_last_hidden_state = image_encoder_output.last_hidden_state
-            
-            # 入力画像のCLIPエンコーダ出力の形状を確認
-            print(translate("[DEBUG] 入力画像CLIP出力形状: {0}").format(image_encoder_last_hidden_state.shape))
-            print(translate("[DEBUG] 入力画像のサイズ: {0}").format(input_image_np.shape))
-            
-            # 1フレームモードの場合のCLIPエンコーダ出力調整を確認
-            if sample_num_frames == 1:
-                print(translate("[DEBUG] 1フレームモード: CLIP Vision形状確認"))
-                print(translate("[DEBUG] batch_repeat=1でエンコード済み"))
             
             # ローVRAMモードでは使用後すぐにCPUに戻す
             if not high_vram:
@@ -802,7 +746,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 
                 # メモリ状態をログ
                 free_mem_gb = get_cuda_free_memory_gb(gpu)
-                print(translate("\nCLIP Vision エンコード後の空きVRAM {0} GB").format(free_mem_gb))
+                print(translate("CLIP Vision エンコード後の空きVRAM {0} GB").format(free_mem_gb))
                 
                 # メモリクリーンアップ
                 torch.cuda.empty_cache()
@@ -833,9 +777,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         
                         img_name = os.path.basename(queue_img_path)
                         using_custom_prompt = True
-                        print(translate("[カスタムプロンプト情報] イメージキュー画像「{0}」の専用プロンプトを使用しています").format(img_name))
+                        print(translate("カスタムプロンプト情報: イメージキュー画像「{0}」の専用プロンプトを使用しています").format(img_name))
                     except Exception as e:
-                        print(translate("[エラー] カスタムプロンプトファイルの読み込みに失敗しました: {0}").format(e))
+                        print(translate("カスタムプロンプトファイルの読み込みに失敗しました: {0}").format(e))
                         using_custom_prompt = False  # エラーが発生した場合は共通プロンプトを使用
 
         # キャッシュの使用判断
@@ -848,7 +792,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         
         if use_cache:
             # キャッシュを使用
-            print(translate("\nキャッシュされたテキストエンコード結果を使用します"))
+            print(translate("キャッシュされたテキストエンコード結果を使用します"))
             llama_vec = cached_llama_vec
             clip_l_pooler = cached_clip_l_pooler
             llama_vec_n = cached_llama_vec_n
@@ -859,7 +803,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             # キャッシュなし - 新規エンコード
             try:
                 # 常にtext_encoder_managerから最新のテキストエンコーダーを取得する
-                print(translate("\nテキストエンコーダを初期化します..."))
+                print(translate("テキストエンコーダを初期化します..."))
                 try:
                     # text_encoder_managerを使用して初期化
                     if not text_encoder_manager.ensure_text_encoder_state():
@@ -875,7 +819,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     raise e
                 
                 if not high_vram:
-                    print(translate("\nテキストエンコーダをGPUにロード..."))
+                    print(translate("テキストエンコーダをGPUにロード..."))
                     fake_diffusers_current_device(text_encoder, gpu)
                     load_model_as_complete(text_encoder_2, target_device=gpu)
                 
@@ -888,27 +832,26 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 if queue_enabled and queue_type == "prompt" and batch_index is not None:
                     # プロンプトキューの場合
                     prompt_source = "プロンプトキュー"
-                    print(translate("\nプロンプトキューからのプロンプトをエンコードしています..."))
-                    print(translate("[DEBUG] プロンプトキュー使用: queue_enabled={0}, queue_type={1}, batch_index={2}").format(queue_enabled, queue_type, batch_index))
+                    print(translate("プロンプトキューからのプロンプトをエンコードしています..."))
                 elif using_custom_prompt:
                     # イメージキューのカスタムプロンプトの場合
                     full_prompt = current_prompt  # カスタムプロンプトを使用
                     prompt_source = "カスタムプロンプト"
-                    print(translate("\nカスタムプロンプトをエンコードしています..."))
+                    print(translate("カスタムプロンプトをエンコードしています..."))
                 else:
                     # 通常の共通プロンプトの場合
-                    print(translate("\n共通プロンプトをエンコードしています..."))
+                    print(translate("共通プロンプトをエンコードしています..."))
                 
                 # プロンプトの内容とソースを表示
                 print(translate("プロンプトソース: {0}").format(prompt_source))
                 print(translate("プロンプト全文: {0}").format(full_prompt))
-                print(translate("\nプロンプトをエンコードしています..."))
+                print(translate("プロンプトをエンコードしています..."))
                 llama_vec, clip_l_pooler = encode_prompt_conds(full_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
                 
                 if cfg == 1:
                     llama_vec_n, clip_l_pooler_n = torch.zeros_like(llama_vec), torch.zeros_like(clip_l_pooler)
                 else:
-                    print(translate("\nネガティブプロンプトをエンコードしています..."))
+                    print(translate("ネガティブプロンプトをエンコードしています..."))
                     llama_vec_n, clip_l_pooler_n = encode_prompt_conds(n_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
                 
                 # ローVRAMモードでは使用後すぐにCPUに戻す
@@ -920,13 +863,13 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     
                     # メモリ状態をログ
                     free_mem_gb = get_cuda_free_memory_gb(gpu)
-                    print(translate("\nテキストエンコード後の空きVRAM {0} GB").format(free_mem_gb))
+                    print(translate("テキストエンコード後の空きVRAM {0} GB").format(free_mem_gb))
                     
                     # メモリクリーンアップ
                     torch.cuda.empty_cache()
                 
                 # エンコード結果をキャッシュ
-                print(translate("\nエンコード結果をキャッシュします"))
+                print(translate("エンコード結果をキャッシュします"))
                 cached_prompt = prompt
                 cached_n_prompt = n_prompt
                 
@@ -961,7 +904,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         
         # endframe_ichiと同様に、テキストエンコーダーのメモリを完全に解放
         if not high_vram:
-            print(translate("\nテキストエンコーダを完全に解放します"))
+            print(translate("テキストエンコーダを完全に解放します"))
             # テキストエンコーダーを完全に解放（endframe_ichiと同様に）
             text_encoder, text_encoder_2 = None, None
             text_encoder_manager.dispose_text_encoders()
@@ -972,7 +915,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Start sampling ...'))))
         
         rnd = torch.Generator("cpu").manual_seed(seed)
-        print(translate("[INFO] one_frame_inference有効: sample_num_framesを{0}に設定しました").format(sample_num_frames))
         
         # history_latentsを確実に新規作成（前回実行の影響を排除）
         history_latents = torch.zeros(size=(1, 16, 1 + 2 + 16, height // 8, width // 8), dtype=torch.float32, device='cpu')
@@ -981,7 +923,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
         
         # 1フレームモード用に特別に設定
         latent_paddings = [0] * total_latent_sections
-        print(translate("[INFO] 1フレームモード: latent_paddings = {0}に設定しました").format(latent_paddings))
         
         for latent_padding in latent_paddings:
             is_last_section = latent_padding == 0  # 常にTrue
@@ -997,9 +938,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             # 1フレームモードでは通常: [0(clean_pre), 1(latent), 2(clean_post), 3,4(clean_2x), 5-20(clean_4x)]
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             split_sizes = [1, latent_padding_size, latent_window_size, 1, 2, 16]
-            print(translate("[DEBUG] PRの実装に基づくindices設定:"))
-            print(translate("[DEBUG] indices: {0}").format(indices))
-            print(translate("[DEBUG] split_sizes: {0}").format(split_sizes))
             
             # latent_padding_sizeが0の場合、空のテンソルになる可能性があるため処理を調整
             if latent_padding_size == 0:
@@ -1016,8 +954,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             # 公式実装に完全に合わせたone_frame_inference処理
             if sample_num_frames == 1:
                 # 1フレームモードの特別な処理
-                print(translate("\n[INFO] 1フレームモード: インデックスを設定"))
-                
                 if use_reference_image:
                     # kisekaeichi用の設定（公式実装）
                     one_frame_inference = set()
@@ -1032,31 +968,24 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         if one_frame_param.startswith("target_index="):
                             target_idx = int(one_frame_param.split("=")[1])
                             latent_indices[:, 0] = target_idx
-                            print(translate("[INFO] target_indexを{0}に設定").format(target_idx))
                         
                         elif one_frame_param.startswith("history_index="):
                             history_idx = int(one_frame_param.split("=")[1])
                             clean_latent_indices_post[:, 0] = history_idx
-                            print(translate("[INFO] history_indexを{0}に設定").format(history_idx))
                 else:
                     # 通常モード（参照画像なし）- 以前の動作を復元
                     # 正常動作版と同じように、latent_window_size内の最後のインデックスを使用
                     all_indices = torch.arange(0, latent_window_size).unsqueeze(0)
                     latent_indices = all_indices[:, -1:]
-                    print(translate("[DEBUG] 通常モード: デフォルトの最後のインデックスを使用: {0}").format(latent_indices))
                     
-                    # 通常モードではclean_latent_indicesは既に適切に設定されているため調整不要
-                    print(translate("[DEBUG] 通常モード: clean_latent_indices_postはデフォルト値を使用"))
             else:
                 # 通常のモード（複数フレーム）
                 # 詳細設定のlatent_indexに基づいたインデックス処理
                 all_indices = torch.arange(0, latent_window_size).unsqueeze(0)
                 if latent_index > 0 and latent_index < latent_window_size:
-                    print(translate("\n[INFO] カスタムレイテントインデックス {0} を使用します").format(latent_index))
                     # ユーザー指定のインデックスを使用
                     latent_indices = all_indices[:, latent_index:latent_index+1]
                 else:
-                    print(translate("\n[INFO] デフォルトの最後のインデックスを使用します"))
                     # デフォルトは最後のインデックス
                     latent_indices = all_indices[:, -1:]
             
@@ -1067,31 +996,15 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             if not use_reference_image and sample_num_frames == 1:
                 # 通常モードではすべてのインデックスを単純化
                 clean_latent_indices = torch.tensor([[0]], dtype=clean_latent_indices.dtype, device=clean_latent_indices.device)
-                print(translate("[DEBUG] 通常モード: clean_latent_indices単純化: {0}").format(clean_latent_indices))
                 
                 # clean_latents_2xとclean_latents_4xも調整
                 if clean_latent_2x_indices.shape[1] > 0:
                     # clean_latents_2xの最初の要素のみを使用
                     clean_latent_2x_indices = clean_latent_2x_indices[:, :1]
-                    print(translate("[DEBUG] 通常モード: clean_latent_2x_indices調整: {0}").format(clean_latent_2x_indices))
-                    
+                
                 if clean_latent_4x_indices.shape[1] > 0:
                     # clean_latents_4xの最初の要素のみを使用
                     clean_latent_4x_indices = clean_latent_4x_indices[:, :1]
-                    print(translate("[DEBUG] 通常モード: clean_latent_4x_indices調整: {0}").format(clean_latent_4x_indices))
-            
-            # PRの実装に基づき、特定の条件下でindexを調整
-            # 1フレームモードでは異なる処理が必要な可能性
-            if num_frames == 1 and latent_padding_size == 0:
-                # 1フレームモードの特別な処理
-                print(translate("[DEBUG] 1フレームモードのためインデックスを調整"))
-                # clean_latent_indicesの初期値を保持（変更しない）
-                # デバッグ情報を追加
-                print(translate("[DEBUG] 初期clean_latent_indices: {0}").format(clean_latent_indices))
-            
-            # 形状の確認と修正
-            print(translate("[DEBUG] start_latent形状: {0}").format(start_latent.shape))
-            print(translate("[DEBUG] history_latents形状: {0}").format(history_latents.shape))
             
             # start_latentの形状を確認
             if len(start_latent.shape) < 5:  # バッチとフレーム次元がない場合
@@ -1099,8 +1012,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 clean_latents_pre = start_latent.unsqueeze(2).to(history_latents.dtype).to(history_latents.device)
             else:
                 clean_latents_pre = start_latent.to(history_latents.dtype).to(history_latents.device)
-            
-            print(translate("[DEBUG] clean_latents_pre形状(変換後): {0}").format(clean_latents_pre.shape))
             
             # history_latentsからデータを適切に分割
             try:
@@ -1112,12 +1023,11 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
                 else:
                     # フレーム数が不足している場合は適切なサイズで初期化
-                    print(translate("[WARN] フレーム数が不足しているため、ゼロで初期化します"))
                     clean_latents_post = torch.zeros(1, 16, 1, height // 8, width // 8, dtype=history_latents.dtype, device=history_latents.device)
                     clean_latents_2x = torch.zeros(1, 16, 2, height // 8, width // 8, dtype=history_latents.dtype, device=history_latents.device)
                     clean_latents_4x = torch.zeros(1, 16, 16, height // 8, width // 8, dtype=history_latents.dtype, device=history_latents.device)
             except Exception as e:
-                print(translate("[ERROR] history_latentsの分割中にエラー: {0}").format(e))
+                print(translate("history_latentsの分割中にエラー: {0}").format(e))
                 # エラー発生時はゼロで初期化
                 clean_latents_post = torch.zeros(1, 16, 1, height // 8, width // 8, dtype=torch.float32, device='cpu')
                 clean_latents_2x = torch.zeros(1, 16, 2, height // 8, width // 8, dtype=torch.float32, device='cpu')
@@ -1135,44 +1045,32 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     if option == "no_2x":
                         clean_latents_2x = None
                         clean_latent_2x_indices = None
-                        print(translate("[INFO] no_2x: clean_latents_2xを無効化"))
                     
                     elif option == "no_4x":
                         clean_latents_4x = None
                         clean_latent_4x_indices = None
-                        print(translate("[INFO] no_4x: clean_latents_4xを無効化"))
             
             # 詳細設定のオプションに基づいて処理
             if use_clean_latents_post:
                 try:
-                    # 次元確認のためのログ出力
-                    print(translate("\n[DEBUG] clean_latents_pre形状: {0}").format(clean_latents_pre.shape))
-                    print(translate("[DEBUG] clean_latents_post形状: {0}").format(clean_latents_post.shape))
-                    
                     # 正しい形状に変換して結合
                     if len(clean_latents_pre.shape) != len(clean_latents_post.shape):
-                        print(translate("[DEBUG] 形状が異なるため次元調整を行います"))
                         # 形状を合わせる
                         if len(clean_latents_pre.shape) < len(clean_latents_post.shape):
                             clean_latents_pre = clean_latents_pre.unsqueeze(2)
                         else:
                             clean_latents_post = clean_latents_post.unsqueeze(1)
                     
-                    # 次元調整後の形状確認
-                    print(translate("[DEBUG] 調整後 clean_latents_pre形状: {0}").format(clean_latents_pre.shape))
-                    print(translate("[DEBUG] 調整後 clean_latents_post形状: {0}").format(clean_latents_post.shape))
-                    
                     # 結合
                     clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
-                    print(translate("[DEBUG] 結合後 clean_latents形状: {0}").format(clean_latents.shape))
                 except Exception as e:
-                    print(translate("\n[ERROR] clean_latentsの結合中にエラーが発生しました: {0}").format(e))
-                    print(translate("[FALLBACK] 前処理のみを使用します"))
+                    print(translate("clean_latentsの結合中にエラーが発生しました: {0}").format(e))
+                    print(translate("前処理のみを使用します"))
                     clean_latents = clean_latents_pre
                     if len(clean_latents.shape) == 4:  # [B, C, H, W]
                         clean_latents = clean_latents.unsqueeze(2)  # [B, C, 1, H, W]
             else:
-                print(translate("\n[OPTIMIZE] clean_latents_postは無効化されています。生成が高速化されますが、ノイズが増える可能性があります"))
+                print(translate("clean_latents_postは無効化されています。生成が高速化されますが、ノイズが増える可能性があります"))
                 # clean_latents_postを使用しない場合、前処理+空白レイテント（ゼロテンソル）を結合
                 # これはオリジナルの実装をできるだけ維持しつつ、エラーを回避するためのアプローチ
                 clean_latents_pre_shaped = clean_latents_pre
@@ -1186,7 +1084,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 
                 # 結合して形状を維持
                 clean_latents = torch.cat([clean_latents_pre_shaped, empty_latent], dim=2)
-                print(translate("[DEBUG] 代替手法による結合後 clean_latents形状: {0}").format(clean_latents.shape))
             
             # no_post処理をclean_latentsが定義された後に実行
             if sample_num_frames == 1 and use_reference_image and 'one_frame_inference' in locals():
@@ -1195,11 +1092,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         if clean_latents is not None:
                             clean_latents = clean_latents[:, :, :1, :, :]
                             clean_latent_indices = clean_latent_indices[:, :1]
-                        print(translate("[INFO] no_post: clean_latents_postを無効化"))
             
             # transformerの初期化とロード（未ロードの場合）
             if transformer is None:
-                print(translate("\ntransformerモデルを初めてロードします..."))
                 try:
                     # transformerの状態を確認
                     if not transformer_manager.ensure_transformer_state():
@@ -1207,14 +1102,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         
                     # transformerインスタンスを取得
                     transformer = transformer_manager.get_transformer()
-                    print(translate("transformerの初期化が完了しました"))
                 except Exception as e:
                     print(translate("transformerのロードに失敗しました: {0}").format(e))
                     traceback.print_exc()
-                    
-                    # 再試行
-                    print(translate("transformerのロードを再試行します..."))
-                    time.sleep(5)
                     
                     if not transformer_manager.ensure_transformer_state():
                         raise Exception(translate("transformer状態の再確認に失敗しました"))
@@ -1233,12 +1123,10 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 if transformer not in gpu_complete_modules:
                     # endframe_ichiと同様に、unload_complete_modulesで確実に解放されるようにする
                     gpu_complete_modules.append(transformer)
-                    print(translate("transformerをgpu_complete_modulesに登録しました"))
 
                 # メモリ確保した上でGPUへ移動
                 # GPUメモリ保存値を明示的に浮動小数点に変換
                 preserved_memory = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
-                print(translate('Setting transformer memory preservation to: {0} GB').format(preserved_memory))
                 move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=preserved_memory)
             else:
                 # ハイVRAMモードでも正しくロードしてgpu_complete_modulesに追加
@@ -1267,7 +1155,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         # 通知は一度だけ行うようにする - user_abort_notifiedが設定されていない場合のみ表示
                         # 通常は既にend_process()内で設定済みなのでここでは表示されない
                         if not user_abort_notified:
-                            print(translate("\n[INFO] 開始前または現在の処理完了後に停止します..."))
                             user_abort_notified = True
                         
                         # 中断検出をoutput_queueに通知
@@ -1282,79 +1169,45 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     desc = translate('1フレームモード: サンプリング中...')
                     stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 except KeyboardInterrupt:
-                    print(f"[DEBUG] コールバック中のKeyboardInterrupt: 安全に停止処理")
                     # 例外を再スローしない - 戻り値で制御
                     return {'user_interrupt': True}
                 except Exception as e:
                     import traceback
-                    print(f"[DEBUG] コールバック内でエラー: {type(e).__name__} - {e}")
-                    print(f"[DEBUG] コールバックエラースタック: {traceback.format_exc()}")
             
-            # 詳細設定に基づいてパラメータを準備
-            # 形状チェックのデバッグ
-            print(translate("\n[DEBUG] clean_latents_2x形状: {0}").format(clean_latents_2x.shape))
-            print(translate("[DEBUG] clean_latents_4x形状: {0}").format(clean_latents_4x.shape))
-            
-            # clean_latent_indices形状のデバッグ（tensor size mismatchの調査）
-            print(translate("\n[DEBUG] 分割前のindices形状: {0}").format(indices.shape))
-            print(translate("[DEBUG] clean_latent_indices_pre形状: {0}").format(clean_latent_indices_pre.shape))
-            print(translate("[DEBUG] clean_latent_indices_post形状: {0}").format(clean_latent_indices_post.shape))
-            print(translate("[DEBUG] clean_latent_indices形状: {0}").format(clean_latent_indices.shape))
-
             # 異常な次元数を持つテンソルを処理
             try:
                 if len(clean_latents_2x.shape) > 5:
-                    print(translate("[DEBUG] clean_latents_2xの形状を修正します"))
                     # エラーメッセージは[1, 16, 1, 1, 96, 64]のような6次元テンソルを示しています
                     # 必要なのは5次元テンソル[B, C, T, H, W]です
                     if clean_latents_2x.shape[2] == 1 and clean_latents_2x.shape[3] == 1:
                         # 余分な次元を削除
                         clean_latents_2x = clean_latents_2x.squeeze(2)  # [1, 16, 1, 96, 64]
-                        print(translate("[DEBUG] 調整後 clean_latents_2x形状: {0}").format(clean_latents_2x.shape))
             except Exception as e:
-                print(translate("[ERROR] clean_latents_2xの形状調整中にエラー: {0}").format(e))
+                print(translate("clean_latents_2xの形状調整中にエラー: {0}").format(e))
             
             try:
                 if len(clean_latents_4x.shape) > 5:
-                    print(translate("[DEBUG] clean_latents_4xの形状を修正します"))
                     if clean_latents_4x.shape[2] == 1 and clean_latents_4x.shape[3] == 1:
                         # 余分な次元を削除
                         clean_latents_4x = clean_latents_4x.squeeze(2)  # [1, 16, 1, 96, 64]
-                        print(translate("[DEBUG] 調整後 clean_latents_4x形状: {0}").format(clean_latents_4x.shape))
             except Exception as e:
-                print(translate("[ERROR] clean_latents_4xの形状調整中にエラー: {0}").format(e))
+                print(translate("clean_latents_4xの形状調整中にエラー: {0}").format(e))
             
             # 通常モードの処理（参照画像なし）
-            if not use_reference_image:
-                # 通常モードでは入力画像をそのまま使用
-                print(translate("\n[INFO] 通常モード: 入力画像のみを使用します"))
-                print(translate("[DEBUG] clean_latents形状: {0}").format(clean_latents.shape))
-                
+            if not use_reference_image:             
                 # 入力画像がindex 0にあることを確認
                 if clean_latents.shape[2] > 0:
-                    print(translate("[INFO] clean_latents[0]は入力画像です"))
+                    pass
             
             # Kisekaeichi機能: 参照画像latentの設定
             elif use_reference_image and reference_latent is not None:
-                print(translate("\n[INFO] 着せ替え参照画像のlatentを使用します"))
-                print(translate("[DEBUG] latent_indices形状（参照前）: {0}").format(latent_indices.shape))
-                print(translate("[DEBUG] clean_latent_indices形状（参照前）: {0}").format(clean_latent_indices.shape))
-                
-                # デバッグ: clean_latentsの構成を確認
-                print(translate("[DEBUG] clean_latents形状（参照前）: {0}").format(clean_latents.shape))
-                print(translate("[DEBUG] clean_latents[0]は入力画像、clean_latents[1]は履歴フレーム"))
                 
                 # kisekaeichi仕様：入力画像からサンプリングし、参照画像の特徴を使用
                 # clean_latentsの形状が [B, C, 2, H, W] の場合
                 if clean_latents.shape[2] >= 2:
-                    print(translate("[DEBUG] clean_latentsの初期状態を確認"))
-                    print(translate("[DEBUG] clean_latents[:, :, 0].shape（index 0）: {0}").format(clean_latents[:, :, 0].shape))
-                    print(translate("[DEBUG] clean_latents[:, :, 1].shape（index 1）: {0}").format(clean_latents[:, :, 1].shape))
-                    
                     # clean_latentsの配置を確実にする
                     # index 0: サンプリング開始点（入力画像）
                     # index 1: 参照画像（特徴転送用）
-                    print(translate("[INFO] kisekaeichi: 入力画像をindex 0、参照画像をindex 1に配置"))
                     
                     # すでにclean_latents_preが入力画像なので、index 0は変更不要
                     # index 1に参照画像を設定
@@ -1364,26 +1217,15 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     # ブレンドではなく、denoisingプロセス中にAttention機構で転送される
                     # マスクがある場合のみ、マスクに基づいた潜在空間の調整を行う
                     
-                    print(translate("[INFO] clean_latentsの配置完了"))
-                    print(translate("[DEBUG] index 0: 入力画像（開始点）"))
-                    print(translate("[DEBUG] index 1: 参照画像（特徴転送元）"))
-                    print(translate("[DEBUG] index 1: 参照画像（特徴転送用）"))
                 else:
-                    print(translate("[WARN] clean_latentsの形状が予期しない形式です: {0}").format(clean_latents.shape))
+                    print(translate("clean_latentsの形状が予期しない形式です: {0}").format(clean_latents.shape))
                 
-                # clean_latent_indicesも更新する必要がある
-                # 形状を確認してから更新
-                print(translate("[DEBUG] clean_latent_indices更新前の形状: {0}").format(clean_latent_indices.shape))
-                print(translate("[DEBUG] clean_latent_indices更新前の値: {0}").format(clean_latent_indices))
-                
+                # clean_latent_indicesも更新する必要がある                
                 if clean_latent_indices.shape[1] > 1:
                     # PRの実装に従い、history_indexをそのまま使用
                     clean_latent_indices[:, 1] = history_index
-                    print(translate("[INFO] 履歴インデックスを{0}に設定しました").format(history_index))
-                    print(translate("[DEBUG] clean_latent_indices更新後の値: {0}").format(clean_latent_indices))
                 else:
-                    print(translate("[WARN] clean_latent_indicesの形状が予期しない形式です: {0}").format(clean_latent_indices.shape))
-                    print(translate("[INFO] history_indexのデフォルト値を使用します: {0}").format(history_index))
+                    print(translate("clean_latent_indicesの形状が予期しない形式です: {0}").format(clean_latent_indices.shape))
                 
                 # 公式実装に従い、target_indexを設定
                 if latent_indices.shape[1] > 0:
@@ -1391,18 +1233,18 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     max_latent_index = latent_window_size - 1
                     target_index_actual = min(target_index, max_latent_index)  # 範囲内に制限
                     latent_indices[:, 0] = target_index_actual
-                    print(translate("[INFO] target_indexを{0}に設定しました（最大値: {1}）").format(target_index_actual, max_latent_index))
+                    print(translate("target_indexを{0}に設定しました（最大値: {1}）").format(target_index_actual, max_latent_index))
                 else:
-                    print(translate("[WARN] latent_indicesが空です"))
+                    print(translate("latent_indicesが空です"))
                     
                 # 参照画像のCLIP Vision出力は直接使用しない（エラー回避のため）
                 # latentレベルでの変更のみ適用
                 if reference_encoder_output is not None:
-                    print(translate("[INFO] 参照画像の特徴はlatentのみで反映されます"))
+                    print(translate("参照画像の特徴はlatentのみで反映されます"))
                 
                 # マスクの適用（kisekaeichi仕様）
                 if input_mask is not None or reference_mask is not None:
-                    print(translate("\n[INFO] kisekaeichi: マスクを適用します"))
+                    print(translate("kisekaeichi: マスクを適用します"))
                     try:
                         from PIL import Image
                         import numpy as np
@@ -1420,7 +1262,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                             
                             # 入力画像のマスクを適用（黒い部分をゼロ化）
                             clean_latents[:, :, 0:1] = clean_latents[:, :, 0:1] * input_mask_tensor
-                            print(translate("[INFO] 入力画像マスクを適用しました（黒い領域をゼロ化）"))
+                            print(translate("入力画像マスクを適用しました（黒い領域をゼロ化）"))
                         
                         # 参照画像マスクの処理
                         if reference_mask is not None:
@@ -1433,17 +1275,16 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                             # 参照画像のマスクを適用（黒い部分をゼロ化）
                             if clean_latents.shape[2] >= 2:
                                 clean_latents[:, :, 1:2] = clean_latents[:, :, 1:2] * reference_mask_tensor
-                                print(translate("[INFO] 参照画像マスクを適用しました（黒い領域をゼロ化）"))
+                                print(translate("参照画像マスクを適用しました（黒い領域をゼロ化）"))
                             else:
-                                print(translate("[WARN] 参照画像が設定されていません"))
+                                print(translate("参照画像が設定されていません"))
                         
-                        print(translate("[INFO] マスク適用完了"))
-                        print(translate("[DEBUG] Attention機構による特徴転送がdenoisingで行われます"))
+                        print(translate("マスク適用完了"))
                         
                     except Exception as e:
-                        print(translate("[ERROR] マスクの適用に失敗しました: {0}").format(e))
+                        print(translate("マスクの適用に失敗しました: {0}").format(e))
                 else:
-                    print(translate("[INFO] kisekaeichi: マスクが指定されていません"))
+                    print(translate("kisekaeichi: マスクが指定されていません"))
                 
                 # 公式実装のzero_post処理（固定値として実装）
                 if sample_num_frames == 1:
@@ -1457,24 +1298,20 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     # zero_post処理（公式実装と完全同一）
                     if "zero_post" in one_frame_inference:
                         clean_latents[:, :, 1:, :, :] = torch.zeros_like(clean_latents[:, :, 1:, :, :])
-                        print(translate("[INFO] zero_post: clean_latentsのインデックス1以降をゼロ化（公式実装）"))
                     
                     # 他のオプションも処理
                     for option in one_frame_inference:
                         if option == "no_2x":
                             if 'clean_latents_2x_param' in locals():
                                 clean_latents_2x_param = None
-                                print(translate("[INFO] no_2x: clean_latents_2xを無効化"))
                         
                         elif option == "no_4x":
                             if 'clean_latents_4x_param' in locals():
                                 clean_latents_4x_param = None
-                                print(translate("[INFO] no_4x: clean_latents_4xを無効化"))
                         
                         elif option == "no_post":
                             if clean_latents.shape[2] > 1:
                                 clean_latents = clean_latents[:, :, :1, :, :]
-                                print(translate("[INFO] no_post: clean_latents_postを無効化"))
             
             # clean_latents_2xとclean_latents_4xの設定に応じて変数を調整
             # 1フレームモードの調整後の値を使用
@@ -1487,39 +1324,35 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             
             # 最適化オプションのログ
             if not use_clean_latents_2x:
-                print(translate("\n[INFO] clean_latents_2xは無効化されています。出力画像に変化が発生します"))
+                print(translate("clean_latents_2xは無効化されています。出力画像に変化が発生します"))
             if not use_clean_latents_4x:
-                print(translate("\n[INFO] clean_latents_4xは無効化されています。出力画像に変化が発生します"))
+                print(translate("clean_latents_4xは無効化されています。出力画像に変化が発生します"))
                 
             # RoPE値を設定 - transformer内部のmax_positionを設定してみる
-            print(translate("\n[INFO] 設定されたRoPE値(latent_window_size): {0}").format(latent_window_size))
+            print(translate("設定されたRoPE値(latent_window_size): {0}").format(latent_window_size))
             
             try:
                 # transformerモデルの内部パラメータを調整
                 # HunyuanVideoTransformerモデル内部のmax_positionに相当する値を変更する
                 if hasattr(transformer, 'max_pos_embed_window_size'):
                     original_value = transformer.max_pos_embed_window_size
-                    print(translate("[INFO] 元のmax_pos_embed_window_size: {0}").format(original_value))
+                    print(translate("元のmax_pos_embed_window_size: {0}").format(original_value))
                     transformer.max_pos_embed_window_size = latent_window_size
-                    print(translate("[INFO] max_pos_embed_window_sizeを{0}に設定しました").format(latent_window_size))
+                    print(translate("max_pos_embed_window_sizeを{0}に設定しました").format(latent_window_size))
                 
                 # RoFormerなどのRoPE実装を探して調整
                 if hasattr(transformer, 'attn_processors'):
-                    print(translate("[INFO] attn_processorsが見つかりました、RoPE関連設定を探します"))
+                    print(translate("attn_processorsが見つかりました、RoPE関連設定を探します"))
                     # 詳細は出力しない
                 
                 # HunyuanVideo特有の実装を探す
                 if hasattr(transformer, 'create_image_rotary_emb'):
-                    print(translate("[INFO] create_image_rotary_embを調整中..."))
+                    print(translate("create_image_rotary_embを調整中..."))
             except Exception as e:
-                print(translate("[WARN] RoPE値の設定中にエラーが発生しました: {0}").format(e))
-                print(translate("[INFO] デフォルト値を使用します"))
-            
-            # この値は保存されますが、実際のモデル内部には適用されません（テンソルサイズエラー回避のため）
-            print(translate("[INFO] sample_hunyuan関数を呼び出します"))
+                print(translate("RoPE値の設定中にエラーが発生しました: {0}").format(e))
+                print(translate("デフォルト値を使用します"))
             
             # サンプリング前の最終メモリクリア（endframe_ichiと同様）
-            print(translate("\nサンプリング前の最終メモリ最適化を実行"))
             # 不要な変数を明示的に解放
             image_encoder = None
             vae = None
@@ -1531,72 +1364,31 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 # BFloat16に変換（通常の処理）
                 if image_encoder_last_hidden_state is not None:
                     image_encoder_last_hidden_state = image_encoder_last_hidden_state.to(dtype=torch.bfloat16)
-                
-                # デバッグ: sample_hunyuan呼び出し前のテンソル形状を確認
-                print(translate("\n[DEBUG] sample_hunyuan呼び出し前の形状確認:"))
-                print(translate("[DEBUG] num_frames: {0}").format(num_frames))
-                print(translate("[DEBUG] sample_num_frames: {0}").format(sample_num_frames))
-                print(translate("[DEBUG] latent_indices: {0}").format(latent_indices))
-                print(translate("[DEBUG] clean_latents形状: {0}").format(clean_latents.shape))
-                print(translate("[DEBUG] clean_latent_indices: {0}").format(clean_latent_indices))
-                print(translate("[DEBUG] clean_latents_2x形状: {0}").format(clean_latents_2x_param.shape if clean_latents_2x_param is not None else "None"))
-                print(translate("[DEBUG] clean_latents_4x形状: {0}").format(clean_latents_4x_param.shape if clean_latents_4x_param is not None else "None"))
-                print(translate("[DEBUG] transformerの入力形状: width={0}, height={1}, frames={2}").format(width, height, sample_num_frames))
-                print(translate("[DEBUG] latent_window_size: {0}").format(latent_window_size))
-                print(translate("[DEBUG] image_encoder_last_hidden_state形状: {0}").format(image_encoder_last_hidden_state.shape))
-                
-                # PRの実装に基づき、1フレームモードの特別な処理を追加
-                if num_frames == 1:
-                    # PRの推奨値に基づいて調整
-                    # target_index=1, history_index=13が推奨されているが、
-                    # これらは特定のフレームレイアウトを前提としている可能性がある
-                    print(translate("[DEBUG] 1フレームモード: 特別な処理を適用"))
-                    print(translate("[DEBUG] latent_window_size: {0}").format(latent_window_size))
-                
+                                
                 # 参照画像のCLIP Vision特徴を使用する場合は、注意深く処理
                 # 現在の実装では参照画像のCLIP特徴を使用しない（latentのみ使用）
                 # これはエラーを避けるための一時的な対策
                 if use_reference_image and reference_encoder_output is not None:
-                    print(translate("\n[INFO] 参照画像のCLIP Vision特徴は潜在空間で処理されます"))
                     # 参照画像のCLIP特徴は直接使用せず、latentでのみ反映
                     # これによりrotary embedding関連のエラーを回避
+                    pass
                 
                 # PRの実装に従い、one_frame_inferenceモードではsample_num_framesをサンプリングに使用
                 if sample_num_frames == 1:
-                    print(translate("[DEBUG] 1フレームモード: 特別な処理を適用"))
-                    # latent_indicesのデバッグ出力
-                    print(translate("[DEBUG] 現在のlatent_indices: {0}").format(latent_indices))
-                    
-                    # 1フレームモードでテンソルサイズ不一致を回避するための調整
-                    # frames=1のとき、モデルが期待する形状に合わせる
-                    print(translate("[DEBUG] 1フレームモード: clean_latentsの調整を実施"))
-                    
                     # latent_indicesと同様に、clean_latent_indicesも調整する必要がある
-                    if clean_latent_indices.shape[1] > 1:
-                        print(translate("[DEBUG] 調整前のclean_latent_indices: {0}").format(clean_latent_indices))
-                        if use_reference_image:
-                            # kisekaeichi: 入力画像と参照画像の両方のインデックスを保持
-                            print(translate("[INFO] kisekaeichi: clean_latent_indicesを保持（入力画像と参照画像）"))
-                            # clean_latent_indicesはそのまま維持（index 0とindex 1）
-                        else:
-                            clean_latent_indices = clean_latent_indices[:, 0:1]  # 入力画像（最初の1要素）のみ
-                            print(translate("[INFO] clean_latent_indicesを入力画像（index 0）に調整"))
-                        print(translate("[DEBUG] 調整後のclean_latent_indices: {0}").format(clean_latent_indices))
+                    # 参照画像を使用しない場合のみ、最初の1要素に制限
+                    if clean_latent_indices.shape[1] > 1 and not use_reference_image:
+                        clean_latent_indices = clean_latent_indices[:, 0:1]  # 入力画像（最初の1要素）のみ
+                    # 参照画像使用時は両方のインデックスを保持（何もしない）
                     
                     # clean_latentsも調整（最後の1フレームのみ）
                     # ただし、kisekaeichi機能の場合は、参照画像も保持する必要がある
-                    if clean_latents.shape[2] > 1:
-                        print(translate("[DEBUG] 調整前のclean_latents形状: {0}").format(clean_latents.shape))
-                        if use_reference_image:
-                            # kisekaeichi: 参照画像（index 1）と入力画像（index 0）を保持
-                            # PRの実装では複数フレームを保持している
-                            print(translate("[INFO] kisekaeichi: clean_latentsの参照画像と入力画像を保持"))
-                            # 形状を維持（参照画像のlatentを保持）
-                        else:
-                            clean_latents = clean_latents[:, :, 0:1]  # 入力画像（最初の1フレーム）のみ
-                            print(translate("[INFO] clean_latentsを入力画像（index 0）に調整"))
-                            
-                        print(translate("[DEBUG] 調整後のclean_latents形状: {0}").format(clean_latents.shape))
+                    # clean_latentsの調整 - 複数フレームがある場合の処理
+                    if clean_latents.shape[2] > 1 and not use_reference_image:
+                        # 参照画像を使用しない場合のみ、最初の1フレームに制限
+                        clean_latents = clean_latents[:, :, 0:1]  # 入力画像（最初の1フレーム）のみ
+                        
+                    # 参照画像使用時は、両方のフレームを保持するため何もしない
                     
                     # clean_latentsの処理
                     if use_reference_image:
@@ -1607,61 +1399,30 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                         if not use_clean_latents_2x:  # PRの"no_2x"オプション
                             clean_latents_2x = None
                             clean_latent_2x_indices = None
-                            print(translate("[INFO] clean_latents_2xを無効化"))
                             
                         if not use_clean_latents_4x:  # PRの"no_4x"オプション
                             clean_latents_4x = None
                             clean_latent_4x_indices = None
-                            print(translate("[INFO] clean_latents_4xを無効化"))
                         
-                        
-                        # PRの実装に基づく処理
-                        print(translate("[DEBUG] clean_latents形状（kisekaeichi適用後）: {0}").format(clean_latents.shape))
-                        print(translate("[DEBUG] clean_latent_indices（kisekaeichi適用後）: {0}").format(clean_latent_indices))
-                    
                     # clean_latents_2xとclean_latents_4xも必要に応じて調整
                     if clean_latents_2x is not None and clean_latents_2x.shape[2] > 1:
-                        print(translate("[DEBUG] 調整前のclean_latents_2x形状: {0}").format(clean_latents_2x.shape))
                         clean_latents_2x = clean_latents_2x[:, :, -1:]  # 最後の1フレームのみ
-                        print(translate("[INFO] clean_latents_2xを最後の1フレームに調整"))
-                        print(translate("[DEBUG] 調整後のclean_latents_2x形状: {0}").format(clean_latents_2x.shape))
                     
                     if clean_latents_4x is not None and clean_latents_4x.shape[2] > 1:
-                        print(translate("[DEBUG] 調整前のclean_latents_4x形状: {0}").format(clean_latents_4x.shape))
                         clean_latents_4x = clean_latents_4x[:, :, -1:]  # 最後の1フレームのみ
-                        print(translate("[INFO] clean_latents_4xを最後の1フレームに調整"))
-                        print(translate("[DEBUG] 調整後のclean_latents_4x形状: {0}").format(clean_latents_4x.shape))
                     
                     # clean_latent_2x_indicesとclean_latent_4x_indicesも調整
                     if clean_latent_2x_indices is not None and clean_latent_2x_indices.shape[1] > 1:
                         clean_latent_2x_indices = clean_latent_2x_indices[:, -1:]
-                        print(translate("[INFO] clean_latent_2x_indicesを最後の1要素に調整"))
                     
                     if clean_latent_4x_indices is not None and clean_latent_4x_indices.shape[1] > 1:
                         clean_latent_4x_indices = clean_latent_4x_indices[:, -1:]
-                        print(translate("[INFO] clean_latent_4x_indicesを最後の1要素に調整"))
-                
-                # 1フレームモードのパラメータ調整
-                # sample_hunyuanには元の画像サイズを渡す必要がある（latentサイズではない）
-                # sample_hunyuanにはworker関数で設定されたwidthとheightをそのまま使用
-                print(translate("[DEBUG] 元の解像度: {0}").format(resolution))
-                print(translate("[DEBUG] worker関数で設定されたサイズ: width={0}, height={1}").format(width, height))
-                print(translate("[DEBUG] latentサイズ: width={0}, height={1}").format(clean_latents.shape[-1], clean_latents.shape[-2]))
-                print(translate("[DEBUG] clean_latents形状: {0}").format(clean_latents.shape))
-                print(translate("[DEBUG] latent_indices: {0}").format(latent_indices))
-                print(translate("[DEBUG] clean_latent_indices: {0}").format(clean_latent_indices))
-                print(translate("[DEBUG] image_encoder_last_hidden_state形状（調整前）: {0}").format(image_encoder_last_hidden_state.shape))
-                
+                                
                 # 最も重要な問題：widthとheightが間違っている可能性
                 # エラーログから、widthが60、heightが104になっているのが問題
                 # これらはlatentサイズであり、実際の画像サイズではない
-                print(translate("[CRITICAL] 実際の画像サイズを再確認"))
-                print(translate("[CRITICAL] 入力画像のサイズ: {0}").format(input_image_np.shape))
-                
-                # 重要な発見：width=60, height=104は縦横が逆になっている可能性
-                # 入力画像は832x480だが、latentは104x60になっている
-                # つまり、width=480, height=832が正しい値のはず
-                print(translate("[CRITICAL] widthとheightの値を確認"))
+                print(translate("実際の画像サイズを再確認"))
+                print(translate("入力画像のサイズ: {0}").format(input_image_np.shape))
                 
                 # find_nearest_bucketの結果が間違っている可能性
                 # 入力画像のサイズから正しい値を計算
@@ -1669,13 +1430,11 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     # 実際の画像サイズを使用
                     actual_width = 480
                     actual_height = 832
-                    print(translate("[INFO] 実際の画像サイズを使用: width={0}, height={1}").format(actual_width, actual_height))
+                    print(translate("実際の画像サイズを使用: width={0}, height={1}").format(actual_width, actual_height))
                 else:
                     # find_nearest_bucketの結果を使用
                     actual_width = width
                     actual_height = height
-                
-                print(translate("[DEBUG] 最終的なサイズ: width={0}, height={1}, frames={2}").format(actual_width, actual_height, sample_num_frames))
                 
                 generated_latents = sample_hunyuan(
                     transformer=transformer,
@@ -1711,21 +1470,21 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 if isinstance(generated_latents, dict) and generated_latents.get('user_interrupt'):
                     # ユーザーが中断したことを検出したが、メッセージは出さない（既に表示済み）
                     # 現在のバッチは完了させる（KeyboardInterruptは使わない）
-                    print(translate("[DEBUG] バッチ内処理を完了します"))
+                    print(translate("バッチ内処理を完了します"))
                 else:
-                    print(translate("[INFO] 生成は正常に完了しました"))
+                    print(translate("生成は正常に完了しました"))
                 
                 # サンプリング直後のメモリクリーンアップ（重要）
                 # transformerの中間状態を明示的にクリア（KVキャッシュに相当）
                 if hasattr(transformer, 'enable_teacache'):
                     transformer.enable_teacache = False
-                    print(translate("[INFO] transformerのキャッシュをクリア"))
+                    print(translate("transformerのキャッシュをクリア"))
                 
                 # 不要なモデル変数を積極的に解放
                 torch.cuda.empty_cache()
                 
             except KeyboardInterrupt:
-                print(translate("[INFO] キーボード割り込みを検出しました - 安全に停止します"))
+                print(translate("キーボード割り込みを検出しました - 安全に停止します"))
                 # リソースのクリーンアップ
                 del llama_vec, llama_vec_n, llama_attention_mask, llama_attention_mask_n
                 del clip_l_pooler, clip_l_pooler_n
@@ -1737,7 +1496,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     # GPUキャッシュをクリア
                     torch.cuda.empty_cache()
                 except Exception as cleanup_e:
-                    print(translate("[WARN] 停止時のクリーンアップでエラー: {0}").format(cleanup_e))
+                    print(translate("停止時のクリーンアップでエラー: {0}").format(cleanup_e))
                 # バッチ停止フラグを設定
                 batch_stopped = True
                 return None
@@ -1745,12 +1504,8 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             except RuntimeError as e:
                 error_msg = str(e)
                 if "size of tensor" in error_msg:
-                    print(translate("\n[ERROR] テンソルサイズの不一致エラーが発生しました: {0}").format(error_msg))
-                    print(translate("[ERROR] 現在の実装ではこのエラーは発生しないはずです。開発者に報告してください。"))
-                    
-                    # デバッグ情報を提供
-                    print(translate("[DEBUG] clean_latents形状: {0}").format(clean_latents.shape if 'clean_latents' in locals() else "未定義"))
-                    print(translate("[DEBUG] latent_indices形状: {0}").format(latent_indices.shape if 'latent_indices' in locals() else "未定義"))
+                    print(translate("テンソルサイズの不一致エラーが発生しました: {0}").format(error_msg))
+                    print(translate("開発者に報告してください。"))
                     raise e
                 else:
                     # その他のランタイムエラーはそのまま投げる
@@ -1762,7 +1517,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             # 生成完了後のメモリ最適化 - 軽量な処理に変更
             if not high_vram:
                 # transformerのメモリを軽量に解放（辞書リセットなし）
-                print(translate("\n生成完了 - transformerをアンロード中..."))
+                print(translate("生成完了 - transformerをアンロード中..."))
 
                 # 元の方法に戻す - 軽量なオフロードで速度とメモリのバランスを取る
                 offload_model_from_device_for_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=8)
@@ -1805,16 +1560,11 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             
             # 1フレームモードではVAEデコードを行い、画像を直接保存
             try:
-                print(translate("[INFO] 1フレームモード: 生成されたラテントから直接画像を保存します"))
-                print(translate("[INFO] 現在のラテント形状: {0}").format(real_history_latents.shape))
-                
                 # VAEデコード処理前にメモリを確認
                 free_mem_before_decode = get_cuda_free_memory_gb(gpu)
-                print(translate("[INFO] VAEデコード前の空きVRAM: {0} GB").format(free_mem_before_decode))
                 
                 # VAEが解放されていた場合は再ロード
                 if vae is None:
-                    print(translate("VAEモデルを最終デコード用に再ロードします..."))
                     try:
                         vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
                         setup_vae_if_loaded()  # VAEの設定を適用
@@ -1843,7 +1593,6 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 
                 # デコード後のメモリを確認
                 free_mem_after_decode = get_cuda_free_memory_gb(gpu)
-                print(translate("[INFO] VAEデコード後の空きVRAM: {0} GB").format(free_mem_after_decode))
                 
                 # 単一フレームを抽出
                 frame = decoded_image[0, :, 0, :, :]
@@ -1872,17 +1621,17 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                 try:
                     # 関数は2つの引数しか取らないので修正
                     embed_metadata_to_png(output_filename, metadata)
-                    print(translate("[INFO] 画像メタデータを埋め込みました"))
+                    print(translate("画像メタデータを埋め込みました"))
                 except Exception as e:
-                    print(translate("[WARNING] メタデータ埋め込みエラー: {0}").format(e))
+                    print(translate("メタデータ埋め込みエラー: {0}").format(e))
                 
-                print(translate("[INFO] 1フレーム画像を保存しました: {0}").format(output_filename))
+                print(translate("1フレーム画像を保存しました: {0}").format(output_filename))
                 
                 # MP4保存はスキップして、画像ファイルパスを返す
                 stream.output_queue.push(('file', output_filename))
                 
             except Exception as e:
-                print(translate("[ERROR] 1フレームの画像保存中にエラーが発生しました: {0}").format(e))
+                print(translate("1フレームの画像保存中にエラーが発生しました: {0}").format(e))
                 traceback.print_exc()
                 
                 # エラー発生時のメモリ解放を試みる
@@ -1897,13 +1646,13 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             break  # 1フレーム生成は1回のみ
             
     except Exception as e:
-        print(translate("\n処理中にエラーが発生しました: {0}").format(e))
+        print(translate("処理中にエラーが発生しました: {0}").format(e))
         traceback.print_exc()
         
         # エラー時の詳細なメモリクリーンアップ
         try:
             if not high_vram:
-                print(translate("\nエラー発生時のメモリクリーンアップを実行..."))
+                print(translate("エラー発生時のメモリクリーンアップを実行..."))
                 
                 # 効率的なクリーンアップのために、重いモデルから順にアンロード
                 models_to_unload = [
@@ -1978,7 +1727,7 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
             print(translate("メモリクリーンアップ中にエラー: {0}").format(cleanup_error))
     
     # 処理完了を通知（個別バッチの完了）
-    print(translate("\n処理が完了しました"))
+    print(translate("処理が完了しました"))
     
     # worker関数内では効果音を鳴らさない（バッチ処理全体の完了時のみ鳴らす）
     
@@ -2075,13 +1824,6 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
     global batch_stopped, user_abort, user_abort_notified
     global queue_enabled, queue_type, prompt_queue_file_path, image_queue_files
 
-    # 引数の型確認
-    print(translate("[DEBUG] process: キュー設定 - use_queue = {0} (型: {1})").format(use_queue, type(use_queue).__name__))
-    if prompt_queue_file is not None:
-        print(translate("[DEBUG] process: prompt_queue_file = {0} (型: {1})").format(
-            prompt_queue_file.name if hasattr(prompt_queue_file, 'name') else "ファイル名なし",
-            type(prompt_queue_file).__name__))
-
     # 新たな処理開始時にグローバルフラグをリセット
     user_abort = False
     user_abort_notified = False
@@ -2095,7 +1837,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         batch_count_val = int(batch_count)
         batch_count = max(1, min(batch_count_val, 100))  # 1〜100の間に制限
     except (ValueError, TypeError):
-        print(translate("[WARN] バッチ処理回数が無効です。デフォルト値の1を使用します: {0}").format(batch_count))
+        print(translate("バッチ処理回数が無効です。デフォルト値の1を使用します: {0}").format(batch_count))
         batch_count = 1  # デフォルト値
         
     # キュー関連の設定を保存
@@ -2115,28 +1857,24 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                     prompt_count = len(prompt_lines)
                     if prompt_count > 0:
                         if batch_count > prompt_count:
-                            print(translate("\u25c6 バッチ処理回数: {0}回（プロンプトキュー行を優先: {1}行、残りは共通プロンプトで実施）").format(batch_count, prompt_count))
+                            print(translate("バッチ処理回数: {0}回（プロンプトキュー行を優先: {1}行、残りは共通プロンプトで実施）").format(batch_count, prompt_count))
                         else:
-                            print(translate("\u25c6 バッチ処理回数: {0}回（プロンプトキュー行を優先: {1}行）").format(batch_count, prompt_count))
+                            print(translate("バッチ処理回数: {0}回（プロンプトキュー行を優先: {1}行）").format(batch_count, prompt_count))
                     else:
-                        print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+                        print(translate("バッチ処理回数: {0}回").format(batch_count))
             except Exception as e:
                 print(translate("プロンプトファイル読み込みエラー: {0}").format(str(e)))
-                print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+                print(translate("バッチ処理回数: {0}回").format(batch_count))
         else:
             print(translate("警告: プロンプトキューファイルが存在しません: {0}").format(
                 prompt_queue_file.name if hasattr(prompt_queue_file, 'name') else "不明なファイル"))
-            print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+            print(translate("バッチ処理回数: {0}回").format(batch_count))
     else:
-        print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+        print(translate("バッチ処理回数: {0}回").format(batch_count))
 
     # キュー機能の設定を更新
     queue_ui_value = bool(use_queue)
     queue_enabled = queue_ui_value
-
-    # キュー設定のログ出力
-    print(translate("[DEBUG] キュー関連: use_queue_ui={0}, グローバル変数queue_enabled={1}").format(
-        queue_ui_value, queue_enabled))
 
     # プロンプトキューの処理
     if queue_enabled and prompt_queue_file is not None:
@@ -2147,7 +1885,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             prompt_queue_file_path = prompt_queue_file.name
             print(translate("プロンプトキューファイルパスを設定: {0}").format(prompt_queue_file_path))
 
-            # ファイルの内容を確認（デバッグ用）
+            # ファイルの内容を確認
             try:
                 with open(prompt_queue_file_path, 'r', encoding='utf-8') as f:
                     lines = [line.strip() for line in f.readlines() if line.strip()]
@@ -2219,27 +1957,13 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
     
     # バッチ処理のパラメータチェック
     batch_count = max(1, min(int(batch_count), 100))  # 1〜100の間に制限
-    print(translate("\u25c6 バッチ処理回数: {0}回").format(batch_count))
+    print(translate("バッチ処理回数: {0}回").format(batch_count))
     
     # 入力画像チェック - 厳格なチェックを避け、エラーを出力するだけに変更
     if input_image is None:
-        print(translate("[WARN] 入力画像が指定されていません。デフォルトの画像を生成します。"))
+        print(translate("入力画像が指定されていません。デフォルトの画像を生成します。"))
         # 空の入力画像を生成
         # ここではNoneのままとし、実際のworker関数内でNoneの場合に対応する
-    
-    # LoRAの状態をログ出力
-    if use_lora and has_lora_support:
-        print(translate("[INFO] LoRAの使用設定: use_lora = {0}, has_lora_support = {1}").format(use_lora, has_lora_support))
-        print(translate("[INFO] lora_mode = {0}").format(lora_mode))
-        if lora_mode == translate("ファイルアップロード"):
-            print(translate("[INFO] lora_files = {0}, 型: {1}").format(lora_files, type(lora_files)))
-            print(translate("[INFO] lora_files2 = {0}, 型: {1}").format(lora_files2, type(lora_files2)))
-            print(translate("[INFO] lora_files3 = {0}, 型: {1}").format(lora_files3, type(lora_files3)))
-        else:
-            print(translate("[INFO] lora_dropdown1 = {0}").format(lora_dropdown1))
-            print(translate("[INFO] lora_dropdown2 = {0}").format(lora_dropdown2))
-            print(translate("[INFO] lora_dropdown3 = {0}").format(lora_dropdown3))
-        print(translate("[INFO] lora_scales_text = {0}").format(lora_scales_text))
     
     yield gr.skip(), None, '', '', gr.update(interactive=False), gr.update(interactive=True)
     
@@ -2273,9 +1997,9 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         
         # 設定を保存
         if save_app_settings_oichi(current_settings):
-            print(translate("✅ アプリケーション設定を保存しました"))
+            print(translate("アプリケーション設定を保存しました"))
         else:
-            print(translate("❌ アプリケーション設定の保存に失敗しました"))
+            print(translate("アプリケーション設定の保存に失敗しました"))
     
     # バッチ処理ループ
     # バッチ処理のサマリーを出力
@@ -2286,11 +2010,11 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                 with open(prompt_queue_file_path, 'r', encoding='utf-8') as f:
                     queue_lines = [line.strip() for line in f.readlines() if line.strip()]
                     queue_lines_count = len(queue_lines)
-                    print(translate("\n◆ バッチ処理情報: 合計{0}回").format(batch_count))
-                    print(translate("◆ プロンプトキュー: 有効, プロンプト行数={0}行").format(queue_lines_count))
+                    print(translate("バッチ処理情報: 合計{0}回").format(batch_count))
+                    print(translate("プロンプトキュー: 有効, プロンプト行数={0}行").format(queue_lines_count))
 
                     # 各プロンプトの概要を出力
-                    print(translate("\n◆ プロンプトキュー内容:"))
+                    print(translate("プロンプトキュー内容:"))
                     for i in range(min(batch_count, queue_lines_count)):
                         prompt_preview = queue_lines[i][:50] + "..." if len(queue_lines[i]) > 50 else queue_lines[i]
                         print(translate("   └ バッチ{0}: {1}").format(i+1, prompt_preview))
@@ -2298,23 +2022,23 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                 pass
         elif queue_type == "image" and len(image_queue_files) > 0:
             # イメージキュー情報をログに出力
-            print(translate("\n◆ バッチ処理情報: 合計{0}回").format(batch_count))
-            print(translate("◆ イメージキュー: 有効, 画像ファイル数={0}個").format(len(image_queue_files)))
+            print(translate("バッチ処理情報: 合計{0}回").format(batch_count))
+            print(translate("イメージキュー: 有効, 画像ファイル数={0}個").format(len(image_queue_files)))
 
             # 各画像ファイルの概要を出力
-            print(translate("\n◆ イメージキュー内容:"))
+            print(translate("イメージキュー内容:"))
             print(translate("   └ バッチ1: 入力画像 (最初のバッチは常に入力画像を使用)"))
             for i, img_path in enumerate(image_queue_files[:min(batch_count-1, len(image_queue_files))]):
                 img_name = os.path.basename(img_path)
                 print(translate("   └ バッチ{0}: {1}").format(i+2, img_name))
     else:
-        print(translate("\n◆ バッチ処理情報: 合計{0}回").format(batch_count))
-        print(translate("◆ キュー機能: 無効"))
+        print(translate("バッチ処理情報: 合計{0}回").format(batch_count))
+        print(translate("キュー機能: 無効"))
 
     for batch_index in range(batch_count):
         # 停止フラグが設定されている場合は全バッチ処理を中止
         if batch_stopped:
-            print(translate("\nバッチ処理がユーザーによって中止されました"))
+            print(translate("バッチ処理がユーザーによって中止されました"))
             yield (
                 gr.skip(),
                 gr.update(visible=False),
@@ -2328,7 +2052,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         # バッチ情報をログ出力
         if batch_count > 1:
             batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
-            print(f"\n{batch_info}")
+            print(f"{batch_info}")
             # UIにもバッチ情報を表示
             yield gr.skip(), gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True)
 
@@ -2347,18 +2071,18 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                             if batch_index < len(lines):
                                 # プロンプトキューからプロンプトを取得
                                 current_prompt = lines[batch_index]
-                                print(f"◆ プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count}")
+                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count}")
                                 print(f"  └ プロンプト: 「{current_prompt[:50]}...」")
                             else:
-                                print(f"◆ プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count} はプロンプト行数を超えているため元のプロンプトを使用")
+                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count} はプロンプト行数を超えているため元のプロンプトを使用")
                     except Exception as e:
-                        print(f"◆ プロンプトキューファイル読み込みエラー: {str(e)}")
+                        print(f"プロンプトキューファイル読み込みエラー: {str(e)}")
 
             elif queue_type == "image" and len(image_queue_files) > 0:
                 # イメージキューの処理
                 # 最初のバッチは入力画像を使用
                 if batch_index == 0:
-                    print(f"◆ イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は入力画像を使用")
+                    print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は入力画像を使用")
                 elif batch_index > 0:
                     # 2回目以降はイメージキューの画像を順番に使用
                     image_index = batch_index - 1  # 0回目（入力画像）の分を引く
@@ -2366,7 +2090,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                     if image_index < len(image_queue_files):
                         current_image = image_queue_files[image_index]
                         image_filename = os.path.basename(current_image)
-                        print(f"◆ イメージキュー実行中: バッチ {batch_index+1}/{batch_count} の画像「{image_filename}」")
+                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} の画像「{image_filename}」")
                         print(f"  └ 画像ファイルパス: {current_image}")
                         
                         # 同名のテキストファイルがあるか確認し、あれば内容をプロンプトとして使用
@@ -2385,7 +2109,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                                 print(translate("イメージキュー: テキストファイル読み込みエラー: {0}").format(e))
                     else:
                         # 画像数が足りない場合は入力画像に戻る
-                        print(f"◆ イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は画像数を超えているため入力画像を使用")
+                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は画像数を超えているため入力画像を使用")
 
         # RoPE値バッチ処理の場合はRoPE値をインクリメント、それ以外は通常のシードインクリメント
         current_seed = original_seed
@@ -2397,16 +2121,16 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
             
             # RoPE値が64を超えたら処理を終了
             if new_rope_value > 64:
-                print(translate("\u25c6 RoPE値が上限（64）に達したため、処理を終了します"))
+                print(translate("RoPE値が上限（64）に達したため、処理を終了します"))
                 break
                 
             current_latent_window_size = new_rope_value
-            print(translate("\u25c6 現在のRoPE値: {0}").format(current_latent_window_size))
+            print(translate("RoPE値: {0}").format(current_latent_window_size))
         else:
             # 通常のバッチ処理：シード値をインクリメント
             current_seed = original_seed + batch_index
             if batch_count > 1:
-                print(translate("\u25c6 初期シード値: {0}").format(current_seed))
+                print(translate("初期シード値: {0}").format(current_seed))
         
         if batch_stopped:
             break
@@ -2414,14 +2138,12 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         try:
             # 新しいストリームを作成
             stream = AsyncStream()
-            # 新しいストリームを作成（デバッグログ削除）
             
             # バッチインデックスをジョブIDに含める
             batch_suffix = f"{batch_index}" if batch_index > 0 else ""
             
             # 中断フラグの再確認
             if batch_stopped:
-                print(f"[DEBUG] バッチ開始前に中断フラグが検出されました: batch_index={batch_index}")
                 break
                 
             # ワーカー実行 - 詳細設定パラメータを含む（キュー機能対応）
@@ -2436,14 +2158,12 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                      target_index, history_index, input_mask, reference_mask)
         except Exception as e:
             import traceback
-            print(f"[DEBUG] バッチ{batch_index+1}の実行中にエラー発生: {type(e).__name__} - {e}")
-            print(f"[DEBUG] エラースタック: {traceback.format_exc()}")
         
         output_filename = None
         
         # ジョブ完了まで監視
         try:
-            # ストリーム待機開始（デバッグログは削除）
+            # ストリーム待機開始
             while True:
                 try:
                     flag, data = stream.output_queue.next()
@@ -2464,7 +2184,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                         yield gr.skip(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True)
                     
                     if flag == 'end':
-                        # endフラグを受信（デバッグログ削除）
+                        # endフラグを受信
                         # バッチ処理中は最後の画像のみを表示
                         if batch_index == batch_count - 1 or batch_stopped:  # 最後のバッチまたは中断された場合
                             completion_message = ""
@@ -2487,7 +2207,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                     # ユーザーが中断した場合
                     if stream.input_queue.top() == 'end' or batch_stopped:
                         batch_stopped = True
-                        # 処理ループ内での中断検出（デバッグログ削除）
+                        # 処理ループ内での中断検出
                         print(translate("バッチ処理が中断されました（{0}/{1}）").format(batch_index + 1, batch_count))
                         # endframe_ichiと同様のシンプルな実装に戻す
                         yield (
@@ -2502,13 +2222,10 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                         
                 except Exception as e:
                     import traceback
-                    print(f"[DEBUG] ストリーム処理中にエラー: {type(e).__name__} - {e}")
-                    print(f"[DEBUG] ストリームエラースタック: {traceback.format_exc()}")
                     # エラー後はループを抜ける
                     break
                     
         except KeyboardInterrupt:
-            print(f"[DEBUG] ストリーム待機中にKeyboardInterrupt: 中断して資源を解放します")
             # 明示的なリソースクリーンアップ
             try:
                 # グローバルモデル変数のクリーンアップ
@@ -2537,17 +2254,15 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                 
                 # GPUキャッシュの完全クリア
                 torch.cuda.empty_cache()
-                print(f"[DEBUG] リソースのクリーンアップが完了しました")
             except Exception as cleanup_e:
-                print(f"[DEBUG] リソースクリーンアップ中にエラー: {cleanup_e}")
+                # クリーンアップ中のエラーを無視
+                pass
             
             # UIをリセット
             yield None, gr.update(visible=False), translate("キーボード割り込みにより処理が中断されました"), '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
             return
         except Exception as e:
             import traceback
-            print(f"[DEBUG] バッチ処理外部ループでエラー: {type(e).__name__} - {e}")
-            print(f"[DEBUG] 外部エラースタック: {traceback.format_exc()}")
             # UIをリセット
             yield None, gr.update(visible=False), translate("エラーにより処理が中断されました"), '', gr.update(interactive=True, value=translate("Start Generation")), gr.update(interactive=False, value=translate("End Generation"))
             return
@@ -2555,11 +2270,11 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
     # すべてのバッチ処理が正常に完了した場合と中断された場合で表示メッセージを分ける
     if batch_stopped:
         if user_abort:
-            print(translate("\n[INFO] ユーザーの指示により処理を停止しました"))
+            print(translate("ユーザーの指示により処理を停止しました"))
         else:
-            print(translate("\n[INFO] バッチ処理が中断されました"))
+            print(translate("バッチ処理が中断されました"))
     else:
-        print(translate("\n[INFO] 全てのバッチ処理が完了しました"))
+        print(translate("全てのバッチ処理が完了しました"))
     
     # バッチ処理終了後は必ずフラグをリセット
     batch_stopped = False
@@ -2571,19 +2286,19 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
         try:
             # Windows環境では完了音を鳴らす
             winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
-            print(translate("[INFO] Windows完了通知音を再生しました"))
+            print(translate("Windows完了通知音を再生しました"))
         except Exception as e:
-            print(translate("[WARN] 完了通知音の再生に失敗しました: {0}").format(e))
+            print(translate("完了通知音の再生に失敗しました: {0}").format(e))
     
     # 処理状態に応じてメッセージを表示
     if batch_stopped or user_abort:
-        print("\n" + "-" * 50)
+        print("-" * 50)
         print(translate("【ユーザー中断】処理は正常に中断されました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
-        print("-" * 50 + "\n")
+        print("-" * 50)
     else:
-        print("\n" + "*" * 50)
+        print("*" * 50)
         print(translate("【全バッチ処理完了】プロセスが完了しました - ") + time.strftime("%Y-%m-%d %H:%M:%S"))
-        print("*" * 50 + "\n")
+        print("*" * 50)
             
     return
 
@@ -2599,7 +2314,7 @@ def end_process():
         user_abort = True
         
         # 通知は一度だけ表示（ここで表示してフラグを設定）
-        print(translate("\n停止ボタンが押されました。開始前または現在の処理完了後に停止します..."))
+        print(translate("停止ボタンが押されました。開始前または現在の処理完了後に停止します..."))
         user_abort_notified = True  # 通知フラグを設定
         
         # 現在実行中のバッチを停止
@@ -2614,14 +2329,10 @@ css = get_app_css()  # eichi_utilsのスタイルを使用
 saved_app_settings = load_app_settings_oichi()
 
 # 読み込んだ設定をログに出力
-print(translate("=== アプリケーション設定を読み込みます ==="))
 if saved_app_settings:
-    print(translate("✅ 保存された設定を適用します"))
-    # デバッグ用に設定内容を表示
-    for key, value in saved_app_settings.items():
-        print(f"  {key}: {value}")
+    pass
 else:
-    print(translate("ℹ️ 保存された設定が見つかりません。デフォルト値を使用します"))
+    print(translate("保存された設定が見つかりません。デフォルト値を使用します"))
 
 block = gr.Blocks(css=css).queue()
 with block:
@@ -2757,9 +2468,6 @@ with block:
                             # グローバル変数を使用
                             global queue_enabled, queue_type
 
-                            # デバッグ情報
-                            print(f"トグル関数: チェックボックスの型={type(use_queue_val).__name__}, 値={use_queue_val}")
-
                             # チェックボックスの値をブール値に確実に変換
                             is_enabled = False
 
@@ -2775,8 +2483,6 @@ with block:
 
                             if is_enabled:
                                 # キューが有効の場合
-                                print(translate("[DEBUG] キュー機能を有効化しました"))
-
                                 # キュータイプセレクタとキュータイプに応じたグループを表示
                                 if queue_type == "prompt":
                                     return [
@@ -2794,7 +2500,6 @@ with block:
                                     ]
                             else:
                                 # キューが無効の場合、すべて非表示
-                                print(translate("[DEBUG] キュー機能を無効化しました"))
                                 queue_enabled = False
                                 return [
                                     gr.update(visible=False),  # queue_type_selector
@@ -3151,7 +2856,7 @@ with block:
                         # ディレクトリが存在しない場合は作成
                         if not os.path.exists(lora_dir):
                             os.makedirs(lora_dir, exist_ok=True)
-                            print(translate("[INFO] LoRAディレクトリが存在しなかったため作成しました: {0}").format(lora_dir))
+                            print(translate("LoRAディレクトリが存在しなかったため作成しました: {0}").format(lora_dir))
                         
                         # ディレクトリ内のファイルをリストアップ
                         for filename in os.listdir(lora_dir):
@@ -3171,7 +2876,7 @@ with block:
                                 # 明示的に文字列に変換
                                 choices[i] = str(choice)
                         
-                        print(translate("[INFO] LoRAディレクトリから{0}個のモデルを検出しました").format(len(choices) - 1))
+                        print(translate("LoRAディレクトリから{0}個のモデルを検出しました").format(len(choices) - 1))
                         return choices
 
                     # チェックボックスの状態によってLoRA設定の表示/非表示を切り替える関数
@@ -3190,7 +2895,6 @@ with block:
                         # LoRAが無効化される場合、現在のモードを記憶
                         if not use_lora and current_mode:
                             previous_lora_mode = current_mode
-                            print(translate("[DEBUG] 前回のLoRAモードを保存: {0}").format(previous_lora_mode))
 
                         if use_lora:
                             # LoRA使用時は前回のモードを復元
@@ -3223,7 +2927,6 @@ with block:
                         # 前回のモードを更新
                         global previous_lora_mode
                         previous_lora_mode = mode
-                        print(translate("[DEBUG] LoRAモードを変更: {0}").format(mode))
                         
                         if mode == translate("ディレクトリから選択"):
                             # ディレクトリから選択モードの場合
@@ -3682,8 +3385,6 @@ with block:
                 elif hasattr(log_folder_val, 'value') and log_folder_val.value:
                     log_folder_path = str(log_folder_val.value)
                 
-                print(f"[DEBUG] 保存するログ設定: 有効={is_log_enabled}, フォルダ={log_folder_path}")
-                
                 log_settings = {
                     "log_enabled": is_log_enabled,
                     "log_folder": log_folder_path
@@ -3700,7 +3401,7 @@ with block:
                     disable_logging()
                     # 新しい設定でログを再開（有効な場合）
                     apply_log_settings(log_settings, source_name="oneframe_ichi")
-                    print(translate("✅ ログ設定を更新しました: 有効={0}, フォルダ={1}").format(
+                    print(translate("ログ設定を更新しました: 有効={0}, フォルダ={1}").format(
                         log_enabled_val, log_folder_val))
                 
                 if app_success and log_success:
@@ -3711,9 +3412,6 @@ with block:
             def reset_app_settings_handler():
                 """設定をデフォルトに戻す"""
                 from eichi_utils.settings_manager import get_default_app_settings_oichi
-                
-                # デバッグ出力
-                print("[DEBUG] リセット関数が呼ばれました")
                 
                 default_settings = get_default_app_settings_oichi()
                 updates = []
@@ -3745,8 +3443,6 @@ with block:
                     "log_enabled": False,
                     "log_folder": "logs"
                 }
-                
-                print("[DEBUG] リセット時のログ設定: enabled=False, folder=logs")
                 
                 # 設定ファイルを更新
                 all_settings = load_settings()
@@ -3933,7 +3629,6 @@ with block:
             history_index,
             save_settings_on_start,
             alarm_on_completion,
-            # ログ設定を追加
             log_enabled,
             log_folder
         ],
@@ -3945,7 +3640,7 @@ with block:
         fn=reset_app_settings_handler,
         inputs=[],
         outputs=[
-            resolution,            # 1
+            resolution,           # 1
             steps,                # 2
             cfg,                  # 3
             use_teacache,         # 4

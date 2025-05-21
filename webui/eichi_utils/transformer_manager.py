@@ -98,16 +98,6 @@ class TransformerManager:
             'is_loaded': self.current_state['is_loaded'],
             'use_f1_model': actual_use_f1_model
         }
-        print(translate("次回のtransformer設定を設定しました:"))
-        if lora_paths and len(lora_paths) > 0:
-            for i, (path, scale) in enumerate(zip(lora_paths, lora_scales)):
-                print(f"  - LoRA {i+1}: {os.path.basename(path)} (スケール: {scale})")
-        else:
-            print(translate("  - LoRA: None"))
-        print(f"  - FP8 optimization: {actual_fp8_enabled}")
-        print(f"  - Force dict split: {force_dict_split}")
-        print(f"  - High-VRAM mode: {high_vram_mode}")
-        print(f"  - F1 Model: {actual_use_f1_model}")
     
     def _needs_reload(self):
         """現在の状態と次回の設定を比較し、リロードが必要かどうかを判断"""
@@ -168,7 +158,6 @@ class TransformerManager:
     def ensure_transformer_state(self):
         """transformerの状態を確認し、必要に応じてリロード"""
         if self._needs_reload():
-            print(translate("transformerをリロードします"))
             return self._reload_transformer()        
         print(translate("ロード済みのtransformerを再度利用します"))
         return True
@@ -330,7 +319,8 @@ class TransformerManager:
                     state_dict_size = sum(param.numel() * param.element_size() for param in state_dict.values() if hasattr(param, 'numel'))
                     print(translate("解放される状態辞書サイズ: {0:.2f} GB").format(state_dict_size / (1024**3)))
                 except:
-                    pass
+                    # 状態辞書のサイズ計算に失敗してもプログラムの実行は継続
+                    print(translate("状態辞書のサイズ計算に失敗しました"))
 
                 # ここで参照を明示的に削除
                 # 注: メインの参照は本メソッド終了時に自動解放されるが、
@@ -358,7 +348,7 @@ class TransformerManager:
             # 状態辞書のコピーを保持する前に不要な参照を削除
             if 'temp_dict' in locals():
                 del temp_dict
-            if 'state_dict' in locals() and state_dict is not None:
+            if 'state_dict' in locals():
                 print(translate("大きな状態辞書参照を解放します"))
                 # 参照カウントを減らす
                 del state_dict
@@ -379,7 +369,8 @@ class TransformerManager:
                 ram_usage = process.memory_info().rss / (1024 * 1024 * 1024)  # GB単位
                 print(translate("現在のRAM使用量: {0:.2f} GB").format(ram_usage))
             except:
-                pass
+                # psutilがインストールされていない場合や、その他のエラーが発生した場合は無視
+                print(translate("RAM使用量の取得に失敗しました"))
             
             print(translate("transformerのリロードが完了しました"))
             return True

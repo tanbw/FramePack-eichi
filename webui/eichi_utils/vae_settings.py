@@ -75,8 +75,7 @@ def debug_vae_properties(vae):
     if vae is None:
         print("VAEがロードされていません")
         return
-        
-    print("[VAE DEBUG] VAEオブジェクトのタイリング/スライシング関連プロパティとメソッド:")
+    
     # classの基本情報
     print(f"VAEクラス: {vae.__class__.__name__}")
     
@@ -108,7 +107,6 @@ def debug_vae_properties(vae):
     
     # configプロパティの確認（重要な設定情報がここにある可能性）
     if hasattr(vae, 'config'):
-        print("[VAE DEBUG] config内のタイリング/スライシング関連プロパティ:")
         config_props = []
         for key, value in vars(vae.config).items():
             if 'tile' in key.lower() or 'slice' in key.lower() or 'slic' in key.lower():

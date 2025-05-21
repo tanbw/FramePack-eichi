@@ -13,6 +13,9 @@ _log_enabled = False
 _log_folder = "logs"  # デフォルトのログフォルダ
 _log_file = None  # ログファイルのハンドル
 _original_stdout = sys.stdout  # 元のstdoutを保存
+_original_stderr = sys.stderr  # 元のstderrを保存
+_last_progress_percent = None  # 最後に記録した進捗率
+_progress_log_interval = 10    # 進捗率の記録間隔（%単位）
 
 # webuiディレクトリのパスを取得
 _webui_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,12 +39,61 @@ class LoggerWriter:
         self.log_file = log_file
 
     def write(self, text):
-        # 元のストリームに書き込む
+        # 元のストリームに書き込む - コンソールには元のテキストをそのまま表示
         self.original_stream.write(text)
         
-        # ログファイルにも書き込む
+        # ログファイルにも書き込む（タイムスタンプ付き）
         if self.log_file and not self.log_file.closed:
-            self.log_file.write(text)
+            # 空の文字列はスキップ
+            if not text.strip():
+                return
+                
+            # プログレスバーチェック - 単純なパターンマッチング
+            is_progress_bar = False
+            if '\r' in text or '%' in text and ('|' in text or '/' in text):
+                is_progress_bar = True
+                
+            # タイムスタンプを生成
+            timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+            
+            if is_progress_bar:
+                # プログレスバー処理
+                global _last_progress_percent, _progress_log_interval
+                
+                # テキストからパーセンテージを抽出
+                import re
+                progress_match = re.search(r'(\d+)%', text)
+                if progress_match:
+                    percent = int(progress_match.group(1))
+                    
+                    # 進捗率の間引き処理
+                    should_log = (
+                        _last_progress_percent is None or  # 最初の進捗
+                        percent == 0 or  # 開始
+                        percent == 100 or  # 完了
+                        _last_progress_percent is not None and 
+                        (abs(percent - _last_progress_percent) >= _progress_log_interval)  # 間隔を超えた
+                    )
+                    
+                    if should_log:
+                        _last_progress_percent = percent
+                        # 追加情報を抽出（例: 25/100）
+                        count_match = re.search(r'(\d+)/(\d+)', text)
+                        if count_match:
+                            current, total = count_match.groups()
+                            self.log_file.write(f"{timestamp} [PROGRESS] {percent}% ({current}/{total})\n")
+                        else:
+                            self.log_file.write(f"{timestamp} [PROGRESS] {percent}%\n")
+                else:
+                    # パーセンテージが見つからない場合はシンプルにログ
+                    progress_text = text.strip().replace('\r', '').split('\n')[-1][:50]
+                    self.log_file.write(f"{timestamp} [PROGRESS] {progress_text}\n")
+            else:
+                # 通常のテキスト - 改行で分割して各行にタイムスタンプを付与
+                for line in text.split('\n'):
+                    if line.strip():  # 空行をスキップ
+                        self.log_file.write(f"{timestamp} {line}\n")
+            
             self.log_file.flush()  # すぐに書き込みを反映
     
     def flush(self):
@@ -64,7 +116,7 @@ def enable_logging(log_folder=None, source_name="endframe_ichi"):
         log_folder: ログフォルダのパス
         source_name: ソースファイル名（拡張子無し）。デフォルトは"endframe_ichi"
     """
-    global _log_enabled, _log_folder, _log_file, _original_stdout
+    global _log_enabled, _log_folder, _log_file, _original_stdout, _original_stderr, _last_progress_percent
     
     if log_folder:
         # 相対パスを絶対パスに変換
@@ -107,6 +159,10 @@ def enable_logging(log_folder=None, source_name="endframe_ichi"):
         _original_stdout = sys.stdout
         sys.stdout = LoggerWriter(_original_stdout, _log_file)
         
+        # 標準エラー出力もリダイレクト（プログレスバーはstderrに出力されることが多い）
+        _original_stderr = sys.stderr
+        sys.stderr = LoggerWriter(_original_stderr, _log_file)
+        
         _log_enabled = True
         print(translate("ログ出力を有効化しました: {0}").format(log_filepath))
         return True
@@ -118,9 +174,9 @@ def enable_logging(log_folder=None, source_name="endframe_ichi"):
 
 def disable_logging():
     """
-    ログ機能を無効化し、標準出力を元に戻す
+    ログ機能を無効化し、標準出力と標準エラー出力を元に戻す
     """
-    global _log_enabled, _log_file, _original_stdout
+    global _log_enabled, _log_file, _original_stdout, _original_stderr, _last_progress_percent
     
     if not _log_enabled:
         return
@@ -128,6 +184,12 @@ def disable_logging():
     try:
         # 標準出力を元に戻す
         sys.stdout = _original_stdout
+        
+        # 標準エラー出力を元に戻す
+        sys.stderr = _original_stderr
+        
+        # 進捗情報をリセット
+        _last_progress_percent = None
         
         # ログファイルを閉じる
         if _log_file and not _log_file.closed:

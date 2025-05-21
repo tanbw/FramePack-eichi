@@ -361,7 +361,6 @@ def load_app_settings_oichi():
     for key, default_value in default_settings.items():
         if key not in app_settings:
             app_settings[key] = default_value
-            print(f"[INFO] oichi: 新しい設定項目 '{key}' をデフォルト値 {default_value} で追加")
     
     # マージした設定を保存
     if app_settings != settings.get('app_settings_oichi', {}):

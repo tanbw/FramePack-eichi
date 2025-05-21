@@ -13,7 +13,7 @@ import os
 import random
 import time
 import subprocess
-import traceback  # デバッグログ出力用
+import traceback  # ログ出力用
 # クロスプラットフォーム対応のための条件付きインポート
 import yaml
 import zipfile
@@ -61,7 +61,6 @@ has_lora_support = False
 try:
     import lora_utils
     has_lora_support = True
-    print(translate("LoRAサポートが有効です"))
 except ImportError:
     print(translate("LoRAサポートが無効です（lora_utilsモジュールがインストールされていません）"))
 
@@ -70,11 +69,10 @@ from eichi_utils.settings_manager import load_app_settings_f1
 saved_app_settings = load_app_settings_f1()
 
 # 読み込んだ設定をログに出力
-print(translate("=== アプリケーション設定を読み込みます ==="))
 if saved_app_settings:
-    print(translate("✅ 保存された設定を適用します"))
+    pass
 else:
-    print(translate("⚠️ 保存された設定が見つかりません。デフォルト設定を使用します"))
+    print(translate(" 保存された設定が見つかりません。デフォルト設定を使用します"))
 
 # 設定モジュールをインポート（ローカルモジュール）
 import os.path
@@ -116,8 +114,7 @@ from eichi_utils.keyframe_handler import (
     ui_to_code_index,
     code_to_ui_index,
     unified_keyframe_change_handler,
-    unified_input_image_change_handler,
-    print_keyframe_debug_info
+    unified_input_image_change_handler
 )
 
 # 拡張キーフレーム処理モジュールをインポート
@@ -282,13 +279,8 @@ def get_image_queue_files():
         if file.lower().endswith(('.png', '.jpg', '.jpeg')):
             image_path = os.path.join(input_dir, file)
             image_files.append(image_path)
-            print(translate("[DEBUG] イメージキュー: 追加した画像ファイル = {0}").format(image_path))
 
     print(translate("入力ディレクトリから画像ファイル{0}個を読み込みました").format(len(image_files)))
-
-    # デバッグ - 読み込んだファイルのリストを確認
-    if len(image_files) > 0:
-        print(translate("[DEBUG] イメージキュー: 最初の画像ファイル = {0}").format(image_files[0]))
 
     image_queue_files = image_files
     return image_files
@@ -304,16 +296,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         save_latent_frames = True
     elif frame_save_mode == translate("最終セクションのみ全フレーム画像保存"):
         save_last_section_frames = True
-    
-    print(translate("[DEBUG] worker内 - save_latent_frames: {0}, save_last_section_frames: {1}").format(save_latent_frames, save_last_section_frames))
 
     # 入力画像または表示されている最後のキーフレーム画像のいずれかが存在するか確認
-    print(translate("[DEBUG] worker内 input_imageの型: {0}").format(type(input_image)))
     if isinstance(input_image, str):
-        print(translate("[DEBUG] input_imageはファイルパスです: {0}").format(input_image))
         has_any_image = (input_image is not None)
     else:
-        print(translate("[DEBUG] input_imageはファイルパス以外です").format())
         has_any_image = (input_image is not None)
     last_visible_section_image = None
     last_visible_section_num = -1
@@ -332,9 +319,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # セクション数を計算
             total_frames = int(seconds * 30)
             total_display_sections = int(max(round(total_frames / frame_count), 1))
-            print(translate("[DEBUG] worker内の現在の設定によるセクション数: {0}").format(total_display_sections))
         except Exception as e:
-            print(translate("[ERROR] worker内のセクション数計算エラー: {0}").format(e))
+            print(translate("セクション数計算エラー: {0}").format(e))
 
         # 有効なセクション番号を収集
         valid_sections = []
@@ -354,7 +340,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             valid_sections.sort(key=lambda x: x[0])
             # 最後のセクションを取得
             last_visible_section_num, last_visible_section_image = valid_sections[-1]
-            print(translate("[DEBUG] worker内の最後のキーフレーム確認: セクション{0} (画像あり)").format(last_visible_section_num))
 
     has_any_image = has_any_image or (last_visible_section_image is not None)
     if not has_any_image:
@@ -362,7 +347,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
     # 入力画像がない場合はキーフレーム画像を使用
     if input_image is None and last_visible_section_image is not None:
-        print(translate("[INFO] 入力画像が指定されていないため、セクション{0}のキーフレーム画像を使用します").format(last_visible_section_num))
+        print(translate("入力画像が指定されていないため、セクション{0}のキーフレーム画像を使用します").format(last_visible_section_num))
         input_image = last_visible_section_image
 
     # 出力フォルダの設定
@@ -419,13 +404,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     # 正確なセクション数の再計算と確認（トラブルシューティング用）
     if total_second_length > 0:
         sections_by_frames = int(max(round((total_second_length * 30) / (latent_window_size * 4 - 3)), 1))
-        print(translate("[DEBUG] セクション数再計算チェック: 秒数={0}, フレーム計算={1}, 設定値={2}").format(
-            total_second_length, sections_by_frames, total_sections))
         if sections_by_frames != total_sections:
-            print(translate("[WARN] セクション数に不一致があります！計算値を優先します"))
+            print(translate("セクション数に不一致があります！計算値を優先します"))
             total_sections = sections_by_frames
 
-    print(translate("\u25a0 セクション生成詳細 (F1モード):"))
+    print(translate("セクション生成詳細 (F1モード):"))
     print(translate("  - 合計セクション数: {0} (最終確定値)").format(total_sections))
     frame_count = latent_window_size * 4 - 3
     print(translate("  - 各セクションのフレーム数: 約{0}フレーム (latent_window_size: {1})").format(frame_count, latent_window_size))
@@ -471,20 +454,19 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if queue_enabled and queue_type == "prompt" and batch_index is not None:
             # プロンプトキューの場合
             prompt_source = "プロンプトキュー"
-            print(translate("\nプロンプトキューからのプロンプトをエンコードしています..."))
-            print(translate("[DEBUG] プロンプトキュー使用: queue_enabled={0}, queue_type={1}, batch_index={2}").format(queue_enabled, queue_type, batch_index))
+            print(translate("プロンプトキューからのプロンプトをエンコードしています..."))
         elif using_custom_txt:
             # イメージキューのカスタムプロンプトの場合
             actual_prompt = prompt  # カスタムプロンプトを使用
             prompt_source = "カスタムプロンプト(イメージキュー)"
-            print(translate("\nカスタムプロンプトをエンコードしています..."))
+            print(translate("カスタムプロンプトをエンコードしています..."))
         else:
             # 通常の共通プロンプトの場合
-            print(translate("\n共通プロンプトをエンコードしています..."))
+            print(translate("共通プロンプトをエンコードしています..."))
         
         # プロンプトの内容とソースを表示
-        print(translate("[プロンプト情報] ソース: {0}").format(prompt_source))
-        print(translate("[プロンプト情報] 内容: {0}").format(actual_prompt))
+        print(translate("プロンプト情報: ソース: {0}").format(prompt_source))
+        print(translate("プロンプト情報: 内容: {0}").format(actual_prompt))
         
         llama_vec, clip_l_pooler = encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
 
@@ -541,8 +523,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         def preprocess_image(img_path_or_array, resolution=640):
             """Pathまたは画像配列を処理して適切なサイズに変換する"""
-            print(translate("[DEBUG] preprocess_image: img_path_or_array型 = {0}").format(type(img_path_or_array)))
-
             if img_path_or_array is None:
                 # 画像がない場合は指定解像度の黒い画像を生成
                 img = np.zeros((resolution, resolution, 3), dtype=np.uint8)
@@ -555,7 +535,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             # Pathの場合はPILで画像を開く
             if isinstance(img_path_or_array, str) and os.path.exists(img_path_or_array):
-                print(translate("[DEBUG] ファイルから画像を読み込み: {0}").format(img_path_or_array))
                 img = np.array(Image.open(img_path_or_array).convert('RGB'))
             else:
                 # NumPy配列の場合はそのまま使う
@@ -571,11 +550,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # バッチ処理で対応するために入力画像を使用
         # worker関数に渡される入力画像を直接使用（input_image）
-        print(translate("[DEBUG] 現在処理中の画像: {0}（型: {1}）").format(
-            input_image if isinstance(input_image, str) else "画像データ",
-            type(input_image).__name__
-        ))
-
         input_image_np, input_image_pt, height, width = preprocess_image(input_image, resolution=resolution)
 
         # 入力画像にメタデータを埋め込んで保存
@@ -584,14 +558,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         Image.fromarray(input_image_np).save(initial_image_path)
 
         # メタデータの埋め込み
-        # print(translate("\n[DEBUG] 入力画像へのメタデータ埋め込み開始: {0}").format(initial_image_path))
-        # print(f"[DEBUG] prompt: {prompt}")
-        # print(f"[DEBUG] seed: {seed}")
         metadata = {
             PROMPT_KEY: prompt,
             SEED_KEY: seed
         }
-        # print(translate("[DEBUG] 埋め込むメタデータ: {0}").format(metadata))
         embed_metadata_to_png(initial_image_path, metadata)
 
         # VAE encoding
@@ -678,7 +648,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
         # UI設定のuse_loraフラグ値を保存
         original_use_lora = use_lora
-        print(f"[DEBUG] UI設定のuse_loraフラグの値: {original_use_lora}")
 
         # LoRAの環境変数設定（PYTORCH_CUDA_ALLOC_CONF）
         if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
@@ -693,7 +662,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if use_lora and has_lora_support:
             # モードに応じてLoRAファイルを処理
             if lora_mode == translate("ディレクトリから選択"):
-                print(translate("[INFO] ディレクトリから選択モードでLoRAを処理します"))
+                print(translate("ディレクトリから選択モードでLoRAを処理します"))
                 # ドロップダウンの値を取得
                 for dropdown in [lora_dropdown1, lora_dropdown2, lora_dropdown3]:
                     if dropdown is not None and dropdown != translate("なし") and dropdown != 0:
@@ -702,33 +671,23 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         lora_path = os.path.join(lora_dir, dropdown)
                         if os.path.exists(lora_path):
                             current_lora_paths.append(lora_path)
-                            print(translate("[INFO] LoRAファイルを追加: {0}").format(lora_path))
+                            print(translate("LoRAファイルを追加: {0}").format(lora_path))
                         else:
-                            print(translate("[WARN] LoRAファイルが見つかりません: {0}").format(lora_path))
-                
-                # ドロップダウンの型と値を詳細ログ
-                print(translate("[DEBUG] LoRAドロップダウン値の型:"))
-                print(f"  lora_dropdown1 = {lora_dropdown1}, 型: {type(lora_dropdown1).__name__}")
-                print(f"  lora_dropdown2 = {lora_dropdown2}, 型: {type(lora_dropdown2).__name__}")
-                print(f"  lora_dropdown3 = {lora_dropdown3}, 型: {type(lora_dropdown3).__name__}")
-                
-                # 特に問題が出やすいlora_dropdown2の値を詳細にログ
-                print(translate("[DEBUG] 詳細ログ: LoRA2の値={0!r}, 型={1}").format(lora_dropdown2, type(lora_dropdown2).__name__))
+                            print(translate("LoRAファイルが見つかりません: {0}").format(lora_path))
                 
                 # 数値0の特別処理（インデックス0の要素として解釈）
                 if lora_dropdown2 == 0:
-                    print(translate("[DEBUG] dropdown2の特別処理: 数値0が検出されました。元の値: {0}").format(lora_dropdown2))
                     try:
                         # ディレクトリから選択が入ってるはずなので、選択肢からインデックス0の項目（なし）を取得
                         choices = scan_lora_directory()
                         if choices and len(choices) > 0:
                             if choices[0] != translate("なし"):
-                                print(translate("[WARN] 予期しない選択肢リスト: 最初の要素が「なし」ではありません: {0}").format(choices[0]))
+                                print(translate("予期しない選択肢リスト: 最初の要素が「なし」ではありません: {0}").format(choices[0]))
                     except Exception as e:
-                        print(translate("[ERROR] ドロップダウン2の特別処理でエラー: {0}").format(e))
+                        print(translate("ドロップダウン2の特別処理でエラー: {0}").format(e))
             else:
                 # ファイルアップロードモード
-                print(translate("[INFO] ファイルアップロードモードでLoRAを処理します"))
+                print(translate("ファイルアップロードモードでLoRAを処理します"))
                 # LoRAファイルを収集
                 if lora_files is not None:
                     if isinstance(lora_files, list):
@@ -785,9 +744,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # UIでLoRA使用が有効になっていた場合、ファイル選択に関わらず強制的に有効化
         if original_use_lora:
             use_lora = True
-            print(translate("[INFO] UIでLoRA使用が有効化されているため、LoRA使用を有効にします"))
-
-        print(f"[DEBUG] 最終的なuse_loraフラグ: {use_lora}")
+            print(translate("UIでLoRA使用が有効化されているため、LoRA使用を有効にします"))
 
         # LoRA設定を更新（リロードは行わない）
         transformer_manager.set_next_settings(
@@ -806,7 +763,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # -------- FP8 設定 END ---------
 
         # セクション処理開始前にtransformerの状態を確認
-        print(translate("\nセクション処理開始前のtransformer状態チェック..."))
+        print(translate("セクション処理開始前のtransformer状態チェック..."))
         try:
             # transformerの状態を確認し、必要に応じてリロード
             if not transformer_manager.ensure_transformer_state():
@@ -836,7 +793,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             # 定義後にログ出力（F1モードではオールパディングは常に無効）
             padding_info = translate("パディング値: {0} (F1モードでは影響なし)").format(latent_padding)
-            print(translate("\n■ セクション{0}の処理開始 ({1})").format(i_section, padding_info))
+            print(translate("■ セクション{0}の処理開始 ({1})").format(i_section, padding_info))
             print(translate("  - 現在の生成フレーム数: {0}フレーム").format(total_generated_latent_frames * 4 - 3))
             print(translate("  - 生成予定フレーム数: {0}フレーム").format(num_frames))
             print(translate("  - 最初のセクション?: {0}").format(is_first_section))
@@ -1001,82 +958,52 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     last_frame = resize_and_center_crop(last_frame, target_width=width, target_height=height)
 
                     # メタデータを埋め込むための情報を収集
-                    print(translate("\n[DEBUG] セクション{0}のメタデータ埋め込み準備").format(i_section))
                     section_metadata = {
                         PROMPT_KEY: prompt,  # メインプロンプト
                         SEED_KEY: seed,
                         SECTION_NUMBER_KEY: i_section
                     }
-                    print(translate("[DEBUG] 基本メタデータ: {0}").format(section_metadata))
 
                     # セクション固有のプロンプトがあれば取得
                     if section_map and i_section in section_map:
                         _, section_prompt = section_map[i_section]
                         if section_prompt and section_prompt.strip():
                             section_metadata[SECTION_PROMPT_KEY] = section_prompt
-                            print(translate("[DEBUG] セクションプロンプトを追加: {0}").format(section_prompt))
 
                     # 画像の保存とメタデータの埋め込み
                     if is_first_section:
                         frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}_end.png')
-                        print(translate("[DEBUG] セクション画像パス: {0}").format(frame_path))
                         Image.fromarray(last_frame).save(frame_path)
-                        print(translate("[DEBUG] メタデータ埋め込み実行: {0}").format(section_metadata))
                         embed_metadata_to_png(frame_path, section_metadata)
                     else:
                         frame_path = os.path.join(outputs_folder, f'{job_id}_{i_section}.png')
-                        print(translate("[DEBUG] セクション画像パス: {0}").format(frame_path))
                         Image.fromarray(last_frame).save(frame_path)
-                        print(translate("[DEBUG] メタデータ埋め込み実行: {0}").format(section_metadata))
                         embed_metadata_to_png(frame_path, section_metadata)
 
-                    print(translate("\u2713 セクション{0}のフレーム画像をメタデータ付きで保存しました").format(i_section))
+                    print(translate("セクション{0}のフレーム画像をメタデータ付きで保存しました").format(i_section))
                 except Exception as e:
-                    print(translate("[WARN] セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
+                    print(translate("セクション{0}最終フレーム画像保存時にエラー: {1}").format(i_section, e))
 
             # 全フレーム画像保存機能
             # 「全フレーム画像保存」または「最終セクションのみ全フレーム画像保存かつ最終セクション」が有効な場合
             # 最終セクションかどうかの判定をtotal_sectionsから正確に取得
             is_last_section = i_section == total_sections - 1
-            print(translate("\n[DEBUG] 現在のセクション: {0}, 総セクション数: {1}, 最終セクションと判定: {2}").format(i_section, total_sections, is_last_section))
             
             # save_latent_frames と save_last_section_frames の値をcopy
             # ループ内の変数を変更してもグローバルな値は変わらないため
             # 注意：既にここに来る前に万が一の文字列→ブール変換処理が済んでいるはず
-            
-            # デバッグ情報を追加：実際に使用されるフラグの値を確認
-            print(translate("[DEBUG] セクション{0}の処理開始時 - 現在のsave_latent_frames型: {1}, 値: {2}").format(
-                i_section, type(save_latent_frames).__name__, save_latent_frames
-            ))
-            print(translate("[DEBUG] セクション{0}の処理開始時 - 現在のsave_last_section_frames型: {1}, 値: {2}").format(
-                i_section, type(save_last_section_frames).__name__, save_last_section_frames
-            ))
             
             # 値のコピーではなく、明示的に新しい変数に適切な値を設定
             # BooleanかStringかの型変換ミスを防ぐ
             is_save_all_frames = bool(save_latent_frames)
             is_save_last_frame_only = bool(save_last_section_frames)
             
-            # デバッグ情報を追加：変換後の値を確認
-            print(translate("[DEBUG] セクション{0}の処理 - 変換後のis_save_all_frames型: {1}, 値: {2}").format(
-                i_section, type(is_save_all_frames).__name__, is_save_all_frames
-            ))
-            print(translate("[DEBUG] セクション{0}の処理 - 変換後のis_save_last_frame_only型: {1}, 値: {2}").format(
-                i_section, type(is_save_last_frame_only).__name__, is_save_last_frame_only
-            ))
-            
             if is_save_all_frames:
                 should_save_frames = True
-                print(translate("[DEBUG] 全フレーム画像保存が有効: 全セクションでフレーム保存します"))
             elif is_save_last_frame_only and is_last_section:
                 should_save_frames = True
-                print(translate("[DEBUG] 最終セクションのみ全フレーム画像保存が有効: 現在のセクション{0}が最終セクションと判定されたため保存します").format(i_section))
             else:
                 should_save_frames = False
-                if is_save_last_frame_only:
-                    print(translate("[DEBUG] 最終セクションのみ全フレーム画像保存が有効: 現在のセクション{0}は最終セクションではないためスキップします").format(i_section))
-                else:
-                    print(translate("[DEBUG] フレーム画像保存は無効です"))
             
             if should_save_frames:
                 try:
@@ -1087,12 +1014,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # history_pixelsを優先して使用するよう処理順序を変更
                     if history_pixels is not None:
                         source_pixels = history_pixels
-                        print(translate("\n[INFO] フレーム画像保存: history_pixelsを使用します"))
+                        print(translate("フレーム画像保存: history_pixelsを使用します"))
                     elif 'current_pixels' in locals() and current_pixels is not None:
                         source_pixels = current_pixels
-                        print(translate("\n[INFO] フレーム画像保存: current_pixelsを使用します"))
+                        print(translate("フレーム画像保存: current_pixelsを使用します"))
                     else:
-                        print(translate("\n[WARN] フレーム画像保存: 有効なピクセルデータがありません"))
+                        print(translate("フレーム画像保存: 有効なピクセルデータがありません"))
                         return
                         
                     # フレーム数（1秒モードでは9フレーム、0.5秒モードでは5フレーム）
@@ -1101,13 +1028,13 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # 保存モードに応じたメッセージを表示
                     # グローバル変数ではなく、ローカルのcopyを使用
                     if is_save_all_frames:
-                        print(translate("[INFO] 全フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
+                        print(translate("全フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
                     elif is_save_last_frame_only and is_last_section:
                         # 強調して最終セクションであることを表示
-                        print(translate("[INFO] 最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}フレームを保存します (最終セクション)").format(
+                        print(translate("最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}フレームを保存します (最終セクション)").format(
                             i_section, total_sections-1, latent_frame_count))
                     else:
-                        print(translate("[INFO] フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
+                        print(translate("フレーム画像保存: セクション{0}の{1}フレームを保存します").format(i_section, latent_frame_count))
                     
                     # セクションごとのフォルダを作成
                     frames_folder = os.path.join(outputs_folder, f'{job_id}_frames_section{i_section}')
@@ -1138,16 +1065,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # 保存モードに応じたメッセージを表示
                     # グローバル変数ではなく、ローカルのcopyを使用
                     if is_save_all_frames:
-                        print(translate("[INFO] 全フレーム画像保存: セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(
+                        print(translate("全フレーム画像保存: セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(
                             i_section, latent_frame_count, frames_folder))
                     elif is_save_last_frame_only and is_last_section:
-                        print(translate("[INFO] 最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}個のフレーム画像を保存しました (最終セクション): {3}").format(
+                        print(translate("最終セクションのみ全フレーム画像保存: セクション{0}/{1}の{2}個のフレーム画像を保存しました (最終セクション): {3}").format(
                             i_section, total_sections-1, latent_frame_count, frames_folder))
                     else:
-                        print(translate("[INFO] セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(
+                        print(translate("セクション{0}の{1}個のフレーム画像を保存しました: {2}").format(
                             i_section, latent_frame_count, frames_folder))
                 except Exception as e:
-                    print(translate("[WARN] セクション{0}のフレーム画像保存中にエラー: {1}").format(i_section, e))
+                    print(translate("セクション{0}のフレーム画像保存中にエラー: {1}").format(i_section, e))
                     traceback.print_exc()
 
             if not high_vram:
@@ -1157,40 +1084,14 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # バッチ番号はファイル名に明示的に含めない
             output_filename = os.path.join(outputs_folder, f'{job_id}_{total_generated_latent_frames}.mp4')
 
-            # MP4保存前のデータ検証を追加
-            print(translate("[DEBUG] MP4保存前のhistory_pixels形状: {0}").format(history_pixels.shape))
-            print(translate("[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={0}, max={1}").format(history_pixels.min().item(), history_pixels.max().item()))
-
-            # MP4保存前のデバッグ情報を出力
-            print(translate("[DEBUG] MP4保存前のhistory_pixels形状: {0}").format(history_pixels.shape))
-            print(translate("[DEBUG] MP4保存前のhistory_pixelsデータ範囲: min={0}, max={1}").format(history_pixels.min().item(), history_pixels.max().item()))
-
-            # GPUメモリ状況の確認
-            if torch.cuda.is_available():
-                print(translate("[DEBUG] MP4保存前GPUメモリ: {0:.2f}GB/{1:.2f}GB").format(torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
-
-            # 出力ファイルパスの確認
-            print(translate("[DEBUG] MP4保存パス: {0}").format(os.path.abspath(output_filename)))
-
             # もしhistory_pixelsの値が不適切な範囲にある場合、範囲を修正
             if history_pixels.min() < -1.0 or history_pixels.max() > 1.0:
-                print(translate("[DEBUG] history_pixelsの値範囲を[-1.0, 1.0]に修正します"))
                 history_pixels = torch.clamp(history_pixels, -1.0, 1.0)
 
             # MP4を保存
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30, crf=mp4_crf)
 
             print(translate('Decoded. Current latent shape {0}; pixel shape {1}').format(real_history_latents.shape, history_pixels.shape))
-
-            # COMMENTED OUT: セクション処理後の明示的なメモリ解放（処理速度向上のため）
-            # if torch.cuda.is_available():
-            #     torch.cuda.synchronize()
-            #     torch.cuda.empty_cache()
-            #     import gc
-            #     gc.collect()
-            #     memory_allocated = torch.cuda.memory_allocated()/1024**3
-            #     memory_reserved = torch.cuda.memory_reserved()/1024**3
-            #     print(translate("セクション後メモリ状態: 割当={0:.2f}GB, 予約={1:.2f}GB").format(memory_allocated, memory_reserved))
 
             print(translate("■ セクション{0}の処理完了").format(i_section))
             print(translate("  - 現在の累計フレーム数: {0}フレーム").format(int(max(0, total_generated_latent_frames * 4 - 3))))
@@ -1212,10 +1113,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         stream.output_queue.push(('progress', (None, translate("テンソルデータ({uploaded_frames}フレーム)の結合を開始します...").format(uploaded_frames=uploaded_frames), make_progress_bar_html(80, translate('テンソルデータ結合準備')))))
 
                         # テンソルデータを後方に結合する前に、互換性チェック
-                        # デバッグログを追加して詳細を出力
-                        print(translate("[DEBUG] テンソルデータの形状: {0}, 生成データの形状: {1}").format(uploaded_tensor.shape, real_history_latents.shape))
-                        print(translate("[DEBUG] テンソルデータの型: {0}, 生成データの型: {1}").format(uploaded_tensor.dtype, real_history_latents.dtype))
-                        print(translate("[DEBUG] テンソルデータのデバイス: {0}, 生成データのデバイス: {1}").format(uploaded_tensor.device, real_history_latents.device))
 
                         if uploaded_tensor.shape[3] != real_history_latents.shape[3] or uploaded_tensor.shape[4] != real_history_latents.shape[4]:
                             print(translate("警告: テンソルサイズが異なります: アップロード={0}, 現在の生成={1}").format(uploaded_tensor.shape, real_history_latents.shape))
@@ -1244,11 +1141,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 torch.cuda.empty_cache()
                                 import gc
                                 gc.collect()
-                                print(translate("[MEMORY] チャンク処理前のGPUメモリ確保状態: {memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3))
+                                print(translate("GPUメモリ確保状態: {memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3))
 
                             # VAEをGPUに移動
                             if not high_vram and vae.device != torch.device('cuda'):
-                                print(translate("[SETUP] VAEをGPUに移動: {0} → cuda").format(vae.device))
+                                print(translate("VAEをGPUに移動: {0} → cuda").format(vae.device))
                                 vae.to('cuda')
 
                             # 各チャンクを処理
@@ -1258,16 +1155,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             # チャンク数を計算
                             num_chunks = (uploaded_frames + chunk_size - 1) // chunk_size
 
-                            # テンソルデータの詳細を出力
-                            print(translate("[DEBUG] テンソルデータの詳細分析:"))
-                            print(translate("  - 形状: {0}").format(processed_tensor.shape))
-                            print(translate("  - 型: {0}").format(processed_tensor.dtype))
-                            print(translate("  - デバイス: {0}").format(processed_tensor.device))
-                            print(translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(processed_tensor.min().item(), processed_tensor.max().item(), processed_tensor.mean().item()))
-                            print(translate("  - チャンク数: {0}, チャンクサイズ: {1}").format(num_chunks, chunk_size))
-                            tensor_size_mb = (processed_tensor.element_size() * processed_tensor.nelement()) / (1024 * 1024)
-                            print(translate("  - テンソルデータ全体サイズ: {0:.2f} MB").format(tensor_size_mb))
-                            print(translate("  - フレーム数: {0}フレーム（制限無し）").format(uploaded_frames))
                             # 各チャンクを処理
                             for chunk_idx in range(num_chunks):
                                 chunk_start = chunk_idx * chunk_size
@@ -1285,7 +1172,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                                 # メモリ状態を出力
                                 if torch.cuda.is_available():
-                                    print(translate("[MEMORY] チャンク{0}処理前のGPUメモリ: {1:.2f}GB/{2:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
+                                    print(translate("チャンク{0}処理前のGPUメモリ: {1:.2f}GB/{2:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3, torch.cuda.get_device_properties(0).total_memory/1024**3))
                                     # メモリキャッシュをクリア
                                     torch.cuda.empty_cache()
 
@@ -1301,13 +1188,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                     print(translate("チャンク{0}のVAEデコード開始...").format(chunk_idx+1))
                                     stream.output_queue.push(('progress', (None, translate("チャンク{0}/{1}のVAEデコード中...").format(chunk_idx+1, num_chunks), make_progress_bar_html(int(80 + chunk_progress * 0.1), translate('デコード処理')))))
 
-                                    # VAEデコード前にテンソル情報を詳しく出力
-                                    print(translate("[DEBUG] チャンク{0}のデコード前情報:").format(chunk_idx+1))
-                                    print(translate("  - 形状: {0}").format(current_chunk.shape))
-                                    print(translate("  - 型: {0}").format(current_chunk.dtype))
-                                    print(translate("  - デバイス: {0}").format(current_chunk.device))
-                                    print(translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(current_chunk.min().item(), current_chunk.max().item(), current_chunk.mean().item()))
-
                                     # 明示的にデバイスを合わせる
                                     if current_chunk.device != vae.device:
                                         print(translate("  - デバイスをVAEと同じに変更: {0} → {1}").format(current_chunk.device, vae.device))
@@ -1322,27 +1202,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                     chunk_pixels = vae_decode(current_chunk, vae).cpu()
                                     print(translate("チャンク{0}のVAEデコード完了 (フレーム数: {1})").format(chunk_idx+1, chunk_frames))
 
-                                    # デコード後のピクセルデータ情報を出力
-                                    print(translate("[DEBUG] チャンク{0}のデコード結果:").format(chunk_idx+1))
-                                    print(translate("  - 形状: {0}").format(chunk_pixels.shape))
-                                    print(translate("  - 型: {0}").format(chunk_pixels.dtype))
-                                    print(translate("  - デバイス: {0}").format(chunk_pixels.device))
-                                    print(translate("  - 値範囲: 最小={0:.4f}, 最大={1:.4f}, 平均={2:.4f}").format(chunk_pixels.min().item(), chunk_pixels.max().item(), chunk_pixels.mean().item()))
-
                                     # メモリ使用量を出力
                                     if torch.cuda.is_available():
-                                        print(translate("[MEMORY] チャンク{0}デコード後のGPUメモリ: {1:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3))
+                                        print(translate("チャンク{0}デコード後のGPUメモリ: {1:.2f}GB").format(chunk_idx+1, torch.cuda.memory_allocated()/1024**3))
 
                                     # 結合する
                                     if combined_history_pixels is None:
                                         # 初回のチャンクの場合はそのまま設定
                                         combined_history_pixels = chunk_pixels
                                     else:
-                                        # 2回目以降は結合
-                                        print(translate("[DEBUG] 結合前の情報:"))
-                                        print(translate("  - 既存: {0}, 型: {1}, デバイス: {2}").format(combined_history_pixels.shape, combined_history_pixels.dtype, combined_history_pixels.device))
-                                        print(translate("  - 新規: {0}, 型: {1}, デバイス: {2}").format(chunk_pixels.shape, chunk_pixels.dtype, chunk_pixels.device))
-
                                         # 既存データと新規データで型とデバイスを揃える
                                         if combined_history_pixels.dtype != chunk_pixels.dtype:
                                             print(translate("  - データ型の不一致を修正: {0} → {1}").format(combined_history_pixels.dtype, chunk_pixels.dtype))
@@ -1379,7 +1247,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                     traceback.print_exc()
 
                                     # エラー情報の詳細な出力
-                                    print(translate("[ERROR] 詳細エラー情報:"))
+                                    print(translate("エラー情報:"))
                                     print(translate("  - チャンク情報: {0}/{1}, フレーム {2}-{3}/{4}").format(chunk_idx+1, num_chunks, chunk_start+1, chunk_end, uploaded_frames))
                                     if 'current_chunk' in locals():
                                         print(translate("  - current_chunk: shape={0}, dtype={1}, device={2}").format(current_chunk.shape, current_chunk.dtype, current_chunk.device))
@@ -1399,15 +1267,10 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                                 torch.cuda.empty_cache()
                                 import gc
                                 gc.collect()
-                                print(translate("[MEMORY] チャンク処理後のGPUメモリ確保状態: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
+                                print(translate("チャンク処理後のGPUメモリ確保状態: {0:.2f}GB").format(torch.cuda.memory_allocated()/1024**3))
 
                             # 全チャンクの処理が完了したら、最終的な結合動画を保存
                             if combined_history_pixels is not None:
-                                # 結合された最終結果の情報を出力
-                                print(translate("[DEBUG] 最終結合結果:"))
-                                print(translate("  - 形状: {0}").format(combined_history_pixels.shape))
-                                print(translate("  - 型: {0}").format(combined_history_pixels.dtype))
-                                print(translate("  - デバイス: {0}").format(combined_history_pixels.device))
                                 # 最終結果の保存
                                 print(translate("最終結果を保存中: 全{0}チャンク完了").format(num_chunks))
                                 stream.output_queue.push(('progress', (None, translate("結合した動画をMP4に変換中..."), make_progress_bar_html(95, translate('最終MP4変換処理')))))
@@ -1514,7 +1377,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     if HAS_WINSOUND:
                         winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
                     else:
-                        print(translate("\n✓ 処理が完了しました！"))  # Linuxでの代替通知
+                        print(translate("処理が完了しました"))  # Linuxでの代替通知
 
                 # メモリ解放を明示的に実行
                 if torch.cuda.is_available():
@@ -1522,10 +1385,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     torch.cuda.empty_cache()
                     import gc
                     gc.collect()
-                    print(translate("[MEMORY] 処理完了後のメモリクリア: {memory:.2f}GB/{total_memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3, total_memory=torch.cuda.get_device_properties(0).total_memory/1024**3))
+                    print(translate("処理完了後のメモリクリア: {memory:.2f}GB/{total_memory:.2f}GB").format(memory=torch.cuda.memory_allocated()/1024**3, total_memory=torch.cuda.get_device_properties(0).total_memory/1024**3))
 
                 # テンソルデータの保存処理
-                print(translate("[DEBUG] worker: テンソルデータ保存判定時の値: {0} (型: {1})").format(save_tensor_data, type(save_tensor_data).__name__))
                 if save_tensor_data:
                     try:
                         # 結果のテンソルを保存するファイルパス
@@ -1620,7 +1482,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     time_str = translate("{0}分 {1}秒").format(int(minutes), f"{seconds:.1f}")
                 else:
                     time_str = translate("{0:.1f}秒").format(seconds)
-                print(translate("\n全体の処理時間: {0}").format(time_str))
+                print(translate("全体の処理時間: {0}").format(time_str))
 
                 # 完了メッセージの設定（結合有無によって変更）
                 if combined_output_filename is not None:
@@ -1657,12 +1519,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             try:
                                 os.remove(file_path)
                                 deleted_count += 1
-                                print(translate("[削除] 中間ファイル: {0}").format(file))
+                                print(translate("中間ファイル: {0}").format(file))
                             except Exception as e:
-                                print(translate("[エラー] ファイル削除時のエラー {0}: {1}").format(file, e))
+                                print(translate("ファイル削除時のエラー {0}: {1}").format(file, e))
 
                     if deleted_count > 0:
-                        print(translate("[済] {0}個の中間ファイルを削除しました。最終ファイルは保存されています: {1}").format(deleted_count, final_video_name))
+                        print(translate("{0}個の中間ファイルを削除しました。最終ファイルは保存されています: {1}").format(deleted_count, final_video_name))
                         final_message = translate("中間ファイルを削除しました。最終動画と結合動画は保存されています。")
                         stream.output_queue.push(('progress', (None, final_message, make_progress_bar_html(100, translate('処理完了')))))
 
@@ -1699,9 +1561,8 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
             # セクション数を計算
             total_frames = int(seconds * 30)
             total_display_sections = int(max(round(total_frames / frame_count), 1))
-            print(translate("[DEBUG] 現在の設定によるセクション数: {0}").format(total_display_sections))
         except Exception as e:
-            print(translate("[ERROR] セクション数計算エラー: {0}").format(e))
+            print(translate("セクション数計算エラー: {0}").format(e))
 
     # 入力画像がない場合、表示されているセクションの中で最後のキーフレーム画像をチェック
     last_visible_section_image = None
@@ -1723,8 +1584,6 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
         except (TypeError, ValueError):
             # section_settingsがイテラブルでない場合（ブール値など）、空のリストとして扱う
             valid_sections = []
-            print(f"[DEBUG] section_settings is not iterable: {type(section_settings)}")
-
 
         # 有効なセクションがあれば、最大の番号（最後のセクション）を探す
         if valid_sections:
@@ -1732,8 +1591,6 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
             valid_sections.sort(key=lambda x: x[0])
             # 最後のセクションを取得
             last_visible_section_num, last_visible_section_image = valid_sections[-1]
-
-            print(translate("[DEBUG] 最後のキーフレーム確認: セクション{0} (画像あり: {1})").format(last_visible_section_num, last_visible_section_image is not None))
 
     # 最後のキーフレーム画像があればOK
     if last_visible_section_image is not None:
@@ -1751,10 +1608,9 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
 
 def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, use_random_seed, mp4_crf=16, all_padding_value=1.0, image_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, section_settings=None, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_count=1, frame_save_mode=translate("保存しない"), use_queue=False, prompt_queue_file=None, save_settings_on_start=False, alarm_on_completion=False):
     # 引数の型確認
-    print(translate("[DEBUG] process: section_settings の型: {0}").format(type(section_settings).__name__))
     # 異常な型の修正 (boolなど)
     if section_settings is not None and not isinstance(section_settings, list):
-        print(translate("[警告] process: section_settingsがリスト型ではありません：{0}. 初期化します。").format(type(section_settings).__name__))
+        print(translate("section_settingsがリスト型ではありません：{0}. 初期化します。").format(type(section_settings).__name__))
         section_settings = [[None, None, ""] for _ in range(50)]
     # メイン生成処理
     global stream
@@ -1805,9 +1661,9 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # F1モードでは常に通常のみ
     mode_name = translate("通常モード")
 
-    print(translate("\n==== 動画生成開始 ====="))
-    print(translate("\u25c6 生成モード: {0}").format(mode_name))
-    print(translate("\u25c6 動画長: {0}秒").format(total_second_length))
+    print(translate("==== 動画生成開始 ====="))
+    print(translate("生成モード: {0}").format(mode_name))
+    print(translate("動画長: {0}秒").format(total_second_length))
     
     # 自動保存機能
     if save_settings_on_start:
@@ -1833,19 +1689,19 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             print(translate("自動保存が完了しました"))
         except Exception as e:
             print(translate("自動保存中にエラーが発生しました: {0}").format(str(e)))
-    print(translate("\u25c6 フレームサイズ: {0}").format(frame_size_setting))
-    print(translate("\u25c6 生成セクション数: {0}回").format(total_latent_sections))
-    print(translate("\u25c6 サンプリングステップ数: {0}").format(steps))
-    print(translate("\u25c6 TeaCache使用: {0}").format(use_teacache))
+    print(translate("フレームサイズ: {0}").format(frame_size_setting))
+    print(translate("生成セクション数: {0}回").format(total_latent_sections))
+    print(translate("サンプリングステップ数: {0}").format(steps))
+    print(translate("TeaCache使用: {0}").format(use_teacache))
     # TeaCache使用の直後にSEED値の情報を表示
-    print(translate("\u25c6 使用SEED値: {0}").format(seed))
-    print(translate("\u25c6 LoRA使用: {0}").format(use_lora))
+    print(translate("使用SEED値: {0}").format(seed))
+    print(translate("LoRA使用: {0}").format(use_lora))
 
     # FP8最適化設定のログ出力
-    print(translate("\u25c6 FP8最適化: {0}").format(fp8_optimization))
+    print(translate("FP8最適化: {0}").format(fp8_optimization))
 
     # オールパディング設定のログ出力（F1モードでは常に無効）
-    print(translate("\u25c6 オールパディング: F1モードでは無効化されています"))
+    print(translate("オールパディング: F1モードでは無効化されています"))
 
     # LoRA情報のログ出力
     if use_lora and has_lora_support:
@@ -1855,18 +1711,11 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # LoRAの読み込み方式に応じて処理を分岐
         if lora_mode == translate("ディレクトリから選択"):
             # ディレクトリから選択モードの場合
-            print(translate("[INFO] process: ディレクトリから選択モードでLoRAを処理"))
+            print(translate("ディレクトリから選択モードでLoRAを処理"))
             lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
-            
-            # LoRAドロップダウンのデバッグ情報
-            print(translate("[DEBUG] process関数でのLoRAドロップダウン情報:"))
-            print(translate("  - lora_dropdown1: {0}, 型: {1}").format(lora_dropdown1, type(lora_dropdown1).__name__))
-            print(translate("  - lora_dropdown2: {0}, 型: {1}").format(lora_dropdown2, type(lora_dropdown2).__name__))
-            print(translate("  - lora_dropdown3: {0}, 型: {1}").format(lora_dropdown3, type(lora_dropdown3).__name__))
             
             # 特にlora_dropdown2の値が問題になることが多いので詳細ログ
             if isinstance(lora_dropdown2, int) and lora_dropdown2 == 0:
-                print(translate("[DEBUG] lora_dropdown2が数値0になっています。特別処理を実行します"))
                 
                 # 特別処理: 数値の0はインデックスとして解釈されている可能性がある
                 # 選択肢リストの0番目（なし）として扱う
@@ -1874,7 +1723,6 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                         
                 # もし既に処理済みの文字列値が別にあればそちらを優先
                 if isinstance(lora_dropdown2, str) and lora_dropdown2 != "0" and lora_dropdown2 != translate("なし"):
-                    print(translate("[DEBUG] dropdown2の特別処理: 直接文字列値が検出されました: {0}").format(lora_dropdown2))
                     dropdown_direct_value = lora_dropdown2
             
             # 各ドロップダウンの値を処理
@@ -1884,12 +1732,12 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                     file_path = os.path.join(lora_dir, dropdown)
                     if os.path.exists(file_path):
                         lora_paths.append(file_path)
-                        print(translate("[INFO] {0}選択: {1}").format(label, dropdown))
+                        print(translate("{0}選択: {1}").format(label, dropdown))
                     else:
-                        print(translate("[WARN] 選択された{0}ファイルが見つかりません: {1}").format(label, file_path))
+                        print(translate("選択された{0}ファイルが見つかりません: {1}").format(label, file_path))
         else:
             # ファイルアップロードモードの場合
-            print(translate("[INFO] process: ファイルアップロードモードでLoRAを処理"))
+            print(translate("ファイルアップロードモードでLoRAを処理"))
             
             # 1つ目のLoRAファイルを処理
             if lora_files is not None:
@@ -1933,26 +1781,23 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # LoRAファイル情報を出力
         if len(lora_paths) == 1:
             # 単一ファイル
-            print(translate("\u25c6 LoRAファイル: {0}").format(os.path.basename(lora_paths[0])))
-            print(translate("\u25c6 LoRA適用強度: {0}").format(scales[0]))
+            print(translate("LoRAファイル: {0}").format(os.path.basename(lora_paths[0])))
+            print(translate("LoRA適用強度: {0}").format(scales[0]))
         elif len(lora_paths) > 1:
             # 複数ファイル
-            print(translate("\u25c6 LoRAファイル (複数):"))
+            print(translate("LoRAファイル (複数):"))
             for i, path in enumerate(lora_paths):
                 print(f"   - {os.path.basename(path)} (スケール: {scales[i] if i < len(scales) else 0.8})")
         else:
             # LoRAファイルなし
-            print(translate("\u25c6 LoRA: 使用しない"))
+            print(translate("LoRA: 使用しない"))
 
     # セクションごとのキーフレーム画像の使用状況をログに出力
     valid_sections = []
     if section_settings is not None:
-        # 型チェックを追加してデバッグ
-        print(translate("[DEBUG] process: section_settings の型: {0}").format(type(section_settings).__name__))
-
         # リストでない場合は空のリストとして扱う
         if not isinstance(section_settings, list):
-            print(translate("[警告] section_settingsがリスト型ではありません。空のリストとして扱います。"))
+            print(translate("section_settingsがリスト型ではありません。空のリストとして扱います。"))
             section_settings = []
 
         for i, sec_data in enumerate(section_settings):
@@ -1960,20 +1805,17 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 valid_sections.append(sec_data[0])
 
     if valid_sections:
-        print(translate("\u25c6 使用するキーフレーム画像: セクション{0}").format(', '.join(map(str, valid_sections))))
+        print(translate("使用するキーフレーム画像: セクション{0}").format(', '.join(map(str, valid_sections))))
     else:
-        print(translate("◆ キーフレーム画像: デフォルト設定のみ使用"))
+        print(translate("キーフレーム画像: デフォルト設定のみ使用"))
 
-    print("=============================\n")
+    print("=============================")
 
     # バッチ処理の全体停止用フラグ
     batch_stopped = False
 
     # 元のシード値を保存（バッチ処理用）
     original_seed = seed
-
-    # ランダムシード状態をデバッグ表示
-    print(translate("[DEBUG] use_random_seed: {0}, タイプ: {1}").format(use_random_seed, type(use_random_seed).__name__))
     
     # ランダムシード生成を文字列型も含めて判定
     use_random = False
@@ -1981,8 +1823,6 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         use_random = use_random_seed
     elif isinstance(use_random_seed, str):
         use_random = use_random_seed.lower() in ["true", "yes", "1", "on"]
-        
-    print(translate("[DEBUG] 実際のランダムシード使用状態: {0}").format(use_random))
     
     if use_random:
         # ランダムシード設定前の値を保存
@@ -1990,20 +1830,20 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # 特定の範囲内で新しいシード値を生成
         seed = random.randint(0, 2**32 - 1)
         # ユーザーにわかりやすいメッセージを表示
-        print(translate("\n[INFO] ランダムシード機能が有効なため、指定されたSEED値 {0} の代わりに新しいSEED値 {1} を使用します。").format(previous_seed, seed))
+        print(translate("ランダムシード機能が有効なため、指定されたSEED値 {0} の代わりに新しいSEED値 {1} を使用します。").format(previous_seed, seed))
         # UIのseed欄もランダム値で更新
         yield gr.skip(), None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update(value=seed)
         # ランダムシードの場合は最初の値を更新
         original_seed = seed
     else:
-        print(translate("[INFO] 指定されたSEED値 {0} を使用します。").format(seed))
+        print(translate("指定されたSEED値 {0} を使用します。").format(seed))
         yield gr.skip(), None, '', '', gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
     stream = AsyncStream()
 
     # stream作成後、バッチ処理前もう一度フラグを確認
     if batch_stopped:
-        print(translate("\nバッチ処理が中断されました（バッチ開始前）"))
+        print(translate("バッチ処理が中断されました（バッチ開始前）"))
         yield (
             gr.skip(),
             gr.update(visible=False),
@@ -2018,9 +1858,9 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # バッチ処理ループの開始
     if queue_enabled:
         if queue_type == "image":
-            print(translate("\n◆ バッチ処理情報: 合計{0}回").format(batch_count))
-            print(translate("◆ イメージキュー: 有効, 入力画像1枚 + 画像ファイル{0}枚").format(len(image_queue_files)))
-            print(translate("◆ 処理順序: 1回目=入力画像, 2回目以降=入力フォルダの画像ファイル"))
+            print(translate("バッチ処理情報: 合計{0}回").format(batch_count))
+            print(translate("イメージキュー: 有効, 入力画像1枚 + 画像ファイル{0}枚").format(len(image_queue_files)))
+            print(translate("処理順序: 1回目=入力画像, 2回目以降=入力フォルダの画像ファイル"))
             # バッチ処理を強調表示
             for i in range(batch_count):
                 if i == 0:
@@ -2045,15 +1885,15 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                             print(translate("   └ バッチ{0}: {1}").format(i+1, prompt_preview))
                 except:
                     pass
-            print(translate("\n◆ バッチ処理情報: 合計{0}回").format(batch_count))
-            print(translate("◆ プロンプトキュー: 有効, プロンプト行数={0}行").format(queue_lines_count))
+            print(translate("バッチ処理情報: 合計{0}回").format(batch_count))
+            print(translate("プロンプトキュー: 有効, プロンプト行数={0}行").format(queue_lines_count))
     else:
-        print(translate("\n◆ バッチ処理情報: 合計{0}回").format(batch_count))
-        print(translate("◆ キュー機能: 無効"))
+        print(translate("バッチ処理情報: 合計{0}回").format(batch_count))
+        print(translate("キュー機能: 無効"))
     for batch_index in range(batch_count):
         # 停止フラグが設定されている場合は全バッチ処理を中止
         if batch_stopped:
-            print(translate("\nバッチ処理がユーザーによって中止されました"))
+            print(translate("バッチ処理がユーザーによって中止されました"))
             yield (
                 gr.skip(),
                 gr.update(visible=False),
@@ -2068,7 +1908,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
         # 現在のバッチ番号を表示
         if batch_count > 1:
             batch_info = translate("バッチ処理: {0}/{1}").format(batch_index + 1, batch_count)
-            print(f"\n{batch_info}")
+            print(f"{batch_info}")
             # UIにもバッチ情報を表示
             yield gr.skip(), gr.update(visible=False), batch_info, "", gr.update(interactive=False), gr.update(interactive=True), gr.update()
 
@@ -2086,7 +1926,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 if os.path.exists(txt_path):
                     img_name = os.path.basename(queue_img_path)
                     using_custom_prompt = True
-                    print(translate("[section_prompt] セクション{0}はイメージキュー画像「{1}」の専用プロンプトを使用します").format("全て", img_name))
+                    print(translate("セクション{0}はイメージキュー画像「{1}」の専用プロンプトを使用します").format("全て", img_name))
 
         # キュー機能の処理
         if queue_enabled:
@@ -2099,18 +1939,18 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                             if batch_index < len(lines):
                                 # プロンプトキューからプロンプトを取得
                                 current_prompt = lines[batch_index]
-                                print(f"◆ プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count}")
+                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count}")
                                 print(f"  └ プロンプト: 「{current_prompt[:50]}...」")
                             else:
-                                print(f"◆ プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count} はプロンプト行数を超えているため元のプロンプトを使用")
+                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count} はプロンプト行数を超えているため元のプロンプトを使用")
                     except Exception as e:
-                        print(f"◆ プロンプトキューファイル読み込みエラー: {str(e)}")
+                        print(f"プロンプトキューファイル読み込みエラー: {str(e)}")
 
             elif queue_type == "image" and len(image_queue_files) > 0:
                 # イメージキューの処理
                 # 最初のバッチは入力画像を使用
                 if batch_index == 0:
-                    print(f"◆ イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は入力画像を使用")
+                    print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は入力画像を使用")
                 elif batch_index > 0:
                     # 2回目以降はイメージキューの画像を順番に使用
                     image_index = batch_index - 1  # 0回目（入力画像）の分を引く
@@ -2118,7 +1958,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                     if image_index < len(image_queue_files):
                         current_image = image_queue_files[image_index]
                         image_filename = os.path.basename(current_image)
-                        print(f"◆ イメージキュー実行中: バッチ {batch_index+1}/{batch_count} の画像「{image_filename}」")
+                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} の画像「{image_filename}」")
                         print(f"  └ 画像ファイルパス: {current_image}")
                         
                         # 同名のテキストファイルがあるか確認し、あれば内容をプロンプトとして使用
@@ -2137,7 +1977,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                                 print(translate("イメージキュー: テキストファイル読み込みエラー: {0}").format(e))
                     else:
                         # 画像数が足りない場合は入力画像に戻る
-                        print(f"◆ イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は画像数を超えているため入力画像を使用")
+                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は画像数を超えているため入力画像を使用")
 
         # バッチインデックスに応じてSEED値を設定
         current_seed = original_seed + batch_index
@@ -2159,7 +1999,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                    gr.update())
             break
 
-        # GPUメモリの設定値をデバッグ出力し、正しい型に変換
+        # GPUメモリの設定値を出力し、正しい型に変換
         gpu_memory_value = float(gpu_memory_preservation) if gpu_memory_preservation is not None else 6.0
         print(translate('Using GPU memory preservation setting: {0} GB').format(gpu_memory_value))
 
@@ -2168,30 +2008,13 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             output_dir = "outputs"
         print(translate('Output directory: {0}').format(output_dir))
 
-        # 先に入力データの状態をログ出力（デバッグ用）
-        if input_image is not None:
-            if isinstance(input_image, str):
-                print(translate("[DEBUG] input_image path: {0}, type: {1}").format(input_image, type(input_image)))
-            else:
-                print(translate("[DEBUG] input_image shape: {0}, type: {1}").format(input_image.shape, type(input_image)))
-        if section_settings is not None:
-            print(translate("[DEBUG] section_settings count: {0}").format(len(section_settings)))
-            valid_images = sum(1 for s in section_settings if s and s[1] is not None)
-            print(translate("[DEBUG] Valid section images: {0}").format(valid_images))
-
-        # バッチ処理の各回で実行
-        # worker関数の引数順とips配列の順序をデバッグログから確認し、正確に追跡
-        print(translate("[DEBUG] async_runに渡すsave_tensor_data: {0}").format(save_tensor_data))
-        print(translate("[DEBUG] フレーム保存モード (オリジナル): {0}").format(frame_save_mode))
-        
         # Gradioオブジェクトから実際の値を取得
         if hasattr(frame_save_mode, 'value'):
             frame_save_mode_actual = frame_save_mode.value
         else:
             frame_save_mode_actual = frame_save_mode
             
-        print(translate("[DEBUG] フレーム保存モード (実際の値): {0}").format(frame_save_mode_actual))
-        print(translate("[DEBUG] 現在のバッチ: {0}/{1}, 画像: {2}").format(
+        print(translate("現在のバッチ: {0}/{1}, 画像: {2}").format(
             batch_index + 1,
             batch_count,
             os.path.basename(current_image) if isinstance(current_image, str) else "入力画像"
@@ -2284,11 +2107,11 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                         gr.update()
                     )
                     # 最後のバッチが終わったので終了
-                    print(translate("\n◆ バッチシーケンス完了: 全 {0} バッチの処理を終了").format(batch_count))
+                    print(translate("バッチシーケンス完了: 全 {0} バッチの処理を終了").format(batch_count))
                 else:
                     # 次のバッチに進むメッセージを表示
                     next_batch_message = translate("バッチ処理: {0}/{1} 完了、次のバッチに進みます...").format(batch_index + 1, batch_count)
-                    print(translate("\n◆ バッチ {0}/{1} 完了 - 次のバッチに進みます").format(batch_index + 1, batch_count))
+                    print(translate("バッチ {0}/{1} 完了 - 次のバッチに進みます").format(batch_index + 1, batch_count))
                     yield (
                         batch_output_filename if batch_output_filename is not None else gr.skip(),
                         gr.update(value=None, visible=False),
@@ -2317,7 +2140,7 @@ def end_process():
 
     # 現在のバッチと次のバッチ処理を全て停止するフラグを設定
     batch_stopped = True
-    print(translate("\n停止ボタンが押されました。バッチ処理を停止します..."))
+    print(translate("停止ボタンが押されました。バッチ処理を停止します..."))
     # 現在実行中のバッチを停止
     stream.input_queue.push('end')
 
@@ -2338,9 +2161,6 @@ css = get_app_css()
 block = gr.Blocks(css=css).queue()
 with block:
     gr.HTML('<h1>FramePack<span class="title-suffix">-<s>eichi</s> F1</span></h1>')
-
-    # デバッグ情報の表示
-    # print_keyframe_debug_info()
 
     # 一番上の行に「生成モード、セクションフレームサイズ、オールパディング、動画長」を配置
     with gr.Row():
@@ -2699,31 +2519,21 @@ with block:
                 """Imageアップロード時にメタデータを抽出してUIに反映する
                 F1モードではキーフレームコピー機能を削除済みのため、単純化
                 """
-                print(translate("\n[DEBUG] F1モード：update_from_image_metadata関数が実行されました"))
-                print(translate("[DEBUG] メタデータ複写機能: {0}").format(copy_enabled))
-
                 # 複写機能が無効の場合は何もしない
                 if not copy_enabled:
-                    print(translate("[DEBUG] メタデータ複写機能が無効化されているため、処理をスキップします"))
                     return [gr.update()] * 2
 
                 if image_path is None:
-                    print(translate("[DEBUG] image_pathはNoneです"))
                     return [gr.update()] * 2
-
-                print(translate("[DEBUG] 画像パス: {0}").format(image_path))
 
                 try:
                     # ファイルパスから直接メタデータを抽出
-                    print(translate("[DEBUG] extract_metadata_from_pngをファイルパスから直接呼び出します"))
                     metadata = extract_metadata_from_png(image_path)
 
                     if not metadata:
-                        print(translate("[DEBUG] メタデータが抽出されませんでした"))
                         print(translate("アップロードされた画像にメタデータが含まれていません"))
                         return [gr.update()] * 2
 
-                    print(translate("[DEBUG] メタデータサイズ: {0}, 内容: {1}").format(len(metadata), metadata))
                     print(translate("画像からメタデータを抽出しました: {0}").format(metadata))
 
                     # プロンプトとSEEDをUIに反映
@@ -2732,24 +2542,18 @@ with block:
 
                     if PROMPT_KEY in metadata and metadata[PROMPT_KEY]:
                         prompt_update = gr.update(value=metadata[PROMPT_KEY])
-                        print(translate("[DEBUG] プロンプトを更新: {0}").format(metadata[PROMPT_KEY]))
-                        print(translate("プロンプトを画像から取得: {0}").format(metadata[PROMPT_KEY]))
 
                     if SEED_KEY in metadata and metadata[SEED_KEY]:
                         # SEED値を整数に変換
                         try:
                             seed_value = int(metadata[SEED_KEY])
                             seed_update = gr.update(value=seed_value)
-                            print(translate("[DEBUG] SEED値を更新: {0}").format(seed_value))
-                            print(translate("SEED値を画像から取得: {0}").format(seed_value))
                         except (ValueError, TypeError):
-                            print(translate("[DEBUG] SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
                             print(translate("SEED値の変換エラー: {0}").format(metadata[SEED_KEY]))
 
-                    print(translate("[DEBUG] 更新結果: prompt_update={0}, seed_update={1}").format(prompt_update, seed_update))
                     return [prompt_update, seed_update]
                 except Exception as e:
-                    print(translate("[ERROR] メタデータ抽出処理中のエラー: {0}").format(e))
+                    print(translate("メタデータ抽出処理中のエラー: {0}").format(e))
                     traceback.print_exc()
                     print(translate("メタデータ抽出エラー: {0}").format(e))
                     return [gr.update()] * 2
@@ -2774,7 +2578,7 @@ with block:
                     # ディレクトリが存在しない場合は作成
                     if not os.path.exists(lora_dir):
                         os.makedirs(lora_dir, exist_ok=True)
-                        print(translate("[INFO] LoRAディレクトリが存在しなかったため作成しました: {0}").format(lora_dir))
+                        print(translate("LoRAディレクトリが存在しなかったため作成しました: {0}").format(lora_dir))
                     
                     # ディレクトリ内のファイルをリストアップ
                     for filename in os.listdir(lora_dir):
@@ -2791,20 +2595,12 @@ with block:
                     # 重要: すべての選択肢が確実に文字列型であることを確認
                     for i, choice in enumerate(choices):
                         if not isinstance(choice, str):
-                            # 型変換のデバッグログ
-                            print(translate("[DEBUG] 選択肢の型変換が必要: インデックス {0}, 型 {1}, 値 {2}").format(
-                                i, type(choice).__name__, choice))
                             # 明示的に文字列に変換
                             choices[i] = str(choice)
                     
-                    # ファイル内容のデバッグ出力を追加
-                    print(translate("[INFO] LoRAディレクトリから{0}個のモデルを検出しました").format(len(choices) - 1))
-                    print(translate("[DEBUG] 'なし'の値: {0!r}, 型: {1}").format(choices[0], type(choices[0]).__name__))
-                    
-                    # デバッグ用の出力
-                    print(translate("[DEBUG] scan_lora_directory戻り値: 型={0}, 最初の要素={1!r}").format(
-                        type(choices).__name__, choices[0] if choices else "なし"))
-                    
+                    # ファイル内容の出力を追加
+                    print(translate("LoRAディレクトリから{0}個のモデルを検出しました").format(len(choices) - 1))
+                            
                     return choices
                 
                 # LoRAの読み込み方式を選択するラジオボタン
@@ -2873,13 +2669,10 @@ with block:
                     if use_lora:
                         # LoRA使用時はデフォルトでディレクトリから選択モードを表示
                         choices = scan_lora_directory()
-                        print(translate("[DEBUG] toggle_lora_settings - 選択肢リスト: {0}").format(choices))
                         
                         # 選択肢の型チェックを追加
                         for i, choice in enumerate(choices):
                             if not isinstance(choice, str):
-                                print(translate("[DEBUG] toggle_lora_settings - 選択肢を文字列に変換: インデックス {0}, 元の値 {1}, 型 {2}").format(
-                                    i, choice, type(choice).__name__))
                                 choices[i] = str(choice)
                         
                         # プリセットはディレクトリから選択モードの場合のみ表示
@@ -2907,20 +2700,14 @@ with block:
                         # ディレクトリから選択モードの場合
                         # 最初にディレクトリをスキャン
                         choices = scan_lora_directory()
-                        print(translate("[DEBUG] toggle_lora_mode - 選択肢リスト: {0}").format(choices))
                         
                         # 選択肢の型を明示的に確認＆変換
                         for i, choice in enumerate(choices):
                             if not isinstance(choice, str):
-                                print(translate("[DEBUG] toggle_lora_mode - 選択肢を文字列に変換: インデックス {0}, 元の値 {1}, 型 {2}").format(
-                                    i, choice, type(choice).__name__))
                                 choices[i] = str(choice)
                         
                         # 最初の選択肢がちゃんと文字列になっているか再確認
                         first_choice = choices[0]
-                        print(translate("[DEBUG] toggle_lora_mode - 変換後の最初の選択肢: {0}, 型: {1}").format(
-                            first_choice, type(first_choice).__name__
-                        ))
                         
                         # 選択肢が確実に更新されるようにする
                         return [
@@ -2943,20 +2730,13 @@ with block:
                 # スキャンボタンの処理関数
                 def update_lora_dropdowns():
                     choices = scan_lora_directory()
-                    # LoRAドロップダウンの値を明示的に文字列として設定
-                    print(translate("[DEBUG] LoRAドロップダウン更新 - 選択肢: {0}").format(choices))
-                    print(translate("[DEBUG] 最初の選択肢: {0}, 型: {1}").format(choices[0], type(choices[0]).__name__))
                     
                     # すべての選択肢が確実に文字列型であることを確認
                     for i, choice in enumerate(choices):
                         if not isinstance(choice, str):
-                            print(translate("[DEBUG] update_lora_dropdowns - 選択肢を文字列に変換: インデックス {0}, 値 {1}, 型 {2}").format(
-                                i, choice, type(choice).__name__))
                             choices[i] = str(choice)
                     
                     # 各ドロップダウンを更新
-                    print(translate("[DEBUG] update_lora_dropdowns - ドロップダウン更新完了。選択肢: {0}").format(choices))
-                    
                     return [
                         gr.update(choices=choices, value=choices[0]),  # lora_dropdown1
                         gr.update(choices=choices, value=choices[0]),  # lora_dropdown2
@@ -2978,19 +2758,16 @@ with block:
                         current_mode = getattr(lora_mode, 'value', translate("ディレクトリから選択"))
                         if current_mode:
                             previous_lora_mode = current_mode
-                            print(translate("[DEBUG] 前回のLoRAモードを保存: {0}").format(previous_lora_mode))
                     
                     # 表示/非表示の設定を取得
                     settings_updates = toggle_lora_settings(use_lora_val)
                     
                     # もしLoRAが有効になった場合
                     if use_lora_val:
-                        print(translate("[DEBUG] LoRAが有効になりました。前回のモード: {0}").format(previous_lora_mode))
                         
                         # 前回のモードに基づいて表示を切り替え
                         if previous_lora_mode == translate("ファイルアップロード"):
                             # ファイルアップロードモードだった場合
-                            print(translate("[DEBUG] 前回のモードはファイルアップロードだったため、ファイルアップロードUIを表示します"))
                             # モードの設定を上書き（ファイルアップロードに設定）
                             settings_updates[0] = gr.update(visible=True, value=translate("ファイルアップロード"))  # lora_mode
                             settings_updates[1] = gr.update(visible=True)   # lora_upload_group
@@ -3001,7 +2778,6 @@ with block:
                         else:
                             # デフォルトまたはディレクトリから選択モードだった場合
                             choices = scan_lora_directory()
-                            print(translate("[DEBUG] toggle_lora_full_update - LoRAドロップダウン選択肢: {0}").format(choices))
                             
                             # ドロップダウンの更新を行う
                             dropdown_updates = [
@@ -3022,7 +2798,6 @@ with block:
                     # グローバル変数に選択を保存
                     global previous_lora_mode
                     previous_lora_mode = mode_value
-                    print(translate("[DEBUG] LoRAモードを変更: {0}").format(mode_value))
                     
                     # 標準のtoggle_lora_mode関数を呼び出し
                     return toggle_lora_mode(mode_value)
@@ -3052,14 +2827,10 @@ with block:
                 # UIロード時のLoRA初期化関数
                 def lora_ready_init():
                     """LoRAドロップダウンの初期化を行う関数"""
-                    print(translate("[INFO] LoRAドロップダウンの初期化を開始します"))
                     
                     # 現在のuse_loraとlora_modeの値を取得
                     use_lora_value = getattr(use_lora, 'value', False)
                     lora_mode_value = getattr(lora_mode, 'value', translate("ディレクトリから選択"))
-                    
-                    print(translate("[DEBUG] 初期化時の状態 - use_lora: {0}, lora_mode: {1}").format(
-                        use_lora_value, lora_mode_value))
                     
                     # グローバル変数を更新
                     global previous_lora_mode
@@ -3069,9 +2840,7 @@ with block:
                         # LoRAが有効な場合
                         if lora_mode_value == translate("ディレクトリから選択"):
                             # ディレクトリから選択モードの場合はドロップダウンを初期化
-                            print(translate("[INFO] ディレクトリから選択モードでLoRAが有効なため、ドロップダウンを初期化します"))
                             choices = scan_lora_directory()
-                            print(translate("[DEBUG] 初期化時のLoRA選択肢: {0}").format(choices))
                             return [
                                 gr.update(choices=choices, value=choices[0]),  # lora_dropdown1
                                 gr.update(choices=choices, value=choices[0]),  # lora_dropdown2
@@ -3079,7 +2848,6 @@ with block:
                             ]
                         else:
                             # ファイルアップロードモードの場合はドロップダウンを更新しない
-                            print(translate("[INFO] ファイルアップロードモードでLoRAが有効なため、ドロップダウンは更新しません"))
                             return [gr.update(), gr.update(), gr.update()]
                     
                     # LoRAが無効な場合は何も更新しない
@@ -3354,7 +3122,7 @@ with block:
                     {translate('動画モード {0} とフレームサイズ {1} で必要なセクション数: <strong>{2}</strong>').format(length, frame_size, total_sections)}
                     </div>"""
 
-                    # デバッグ用ログ
+                    # セクション計算ログ
                     print(translate("計算結果: モード=通常, フレームサイズ={0}, latent_window_size={1}, 総フレーム数={2}, 必要セクション数={3}").format(frame_size, latent_window_size, total_frames, total_sections))
 
                     return html
@@ -3782,8 +3550,6 @@ with block:
                 elif hasattr(log_folder_val, 'value') and log_folder_val.value:
                     log_folder_path = str(log_folder_val.value)
                 
-                print(f"[DEBUG] 保存するログ設定: 有効={is_log_enabled}, フォルダ={log_folder_path}")
-                
                 log_settings = {
                     "log_enabled": is_log_enabled,
                     "log_folder": log_folder_path
@@ -3815,10 +3581,6 @@ with block:
                 
                 # 現在の言語設定を取得して、その言語用のデフォルト設定を取得
                 current_lang = i18n.lang
-                print(f"[DEBUG] F1リセット関数: 現在の言語設定 = {current_lang}")
-                
-                # デバッグ出力
-                print("[DEBUG] リセット関数が呼ばれました")
                 
                 # 言語設定を考慮したデフォルト設定を取得
                 default_settings = get_default_app_settings_f1(current_lang)
@@ -3852,8 +3614,6 @@ with block:
                     "log_folder": "logs"
                 }
                 
-                print("[DEBUG] リセット時のログ設定: enabled=False, folder=logs")
-                
                 # 設定ファイルを更新
                 all_settings = load_settings()
                 all_settings['log_settings'] = default_log_settings
@@ -3874,12 +3634,6 @@ with block:
         global batch_stopped, queue_enabled, queue_type, prompt_queue_file_path, image_queue_files
 
         input_img = args[0]  # 入力の最初が入力画像
-        # 注意: 引数のインデックスを正確に確認するためのデバッグ出力
-        print(translate("[DEBUG] validate_and_process: 引数の総数: {0}").format(len(args)))
-        print(translate("[DEBUG] validate_and_process: LoRA関連引数の値:"))
-        for i in range(18, 30):
-            if i < len(args):
-                print(translate("[DEBUG] args[{0}] = {1} (型: {2})").format(i, args[i], type(args[i]).__name__))
 
         # UIのセットアップとips配列 (実際のips配列の順序):
         # [0]input_image, [1]prompt, [2]n_prompt, [3]seed, [4]total_second_length, [5]latent_window_size,
@@ -3905,7 +3659,6 @@ with block:
         # section_settingsが存在するかチェックする（args[31]）
         section_settings = [[None, None, ""] for _ in range(50)]
         if len(args) > 31 and args[31] is not None:
-            print(translate("[DEBUG] section_settings の型: {0}").format(type(args[31]).__name__))
             # すでに配列なら使用、そうでなければ初期化した配列を使用
             if isinstance(args[31], list):
                 section_settings = args[31]
@@ -3921,9 +3674,6 @@ with block:
         # 自動保存・アラーム設定の引数を取得
         save_settings_on_start_ui = args[39] if len(args) > 39 else False
         alarm_on_completion_ui = args[40] if len(args) > 40 else False
-        
-        # デバッグ:frame_save_modeの値を確認
-        print(translate("[DEBUG] frame_save_mode = {0} (型: {1})").format(frame_save_mode, type(frame_save_mode).__name__))
         
         # 値の取得処理
         actual_save_settings_value = save_settings_on_start_ui
@@ -3942,16 +3692,15 @@ with block:
             if isinstance(alarm_on_completion_ui.value, bool):
                 actual_alarm_value = alarm_on_completion_ui.value
 
-        # キュー設定のデバッグ出力
-        print(f"[DEBUG] キュー関連: use_queue_ui={use_queue_ui}, グローバル変数queue_enabled={queue_enabled}")
-        print(f"[DEBUG] キュータイプ: {queue_type}")
+        # キュー設定の出力
+        print(f"キュータイプ: {queue_type}")
 
         # キュー機能の状態を更新（UIチェックボックスからの値を直接反映）
         queue_enabled = use_queue_ui
 
         # section_settings型チェック - エラー修正
         if len(args) > 31 and args[31] is not None and not isinstance(args[31], list):
-            print(translate("[警告] validate_and_process: section_settingsが正しい型ではありません: {0}. 初期化します。").format(type(args[31]).__name__))
+            print(translate("section_settingsが正しい型ではありません: {0}. 初期化します。").format(type(args[31]).__name__))
             section_settings = [[None, None, ""] for _ in range(50)]
 
         # バッチ数の上限を設定
@@ -4008,27 +3757,16 @@ with block:
             else:
                 print("プロンプトキュー無効: ファイルが正しくアップロードされていません")
         
-        # デバッグ：フレーム保存モードの型と値を確認
-        print(translate("[DEBUG] frame_save_modeの型: {0}, 値: {1}").format(type(frame_save_mode).__name__, frame_save_mode))
-        
         # Gradioのラジオボタンオブジェクトが直接渡されているか、文字列値が渡されているかを確認
         if hasattr(frame_save_mode, 'value'):
             # Gradioオブジェクトの場合は値を取得
             frame_save_mode_value = frame_save_mode.value
-            print(translate("[DEBUG] Gradioオブジェクトから値を取得: {0}").format(frame_save_mode_value))
         else:
             # 文字列などの通常の値の場合はそのまま使用
             frame_save_mode_value = frame_save_mode
-            print(translate("[DEBUG] 通常の値として使用: {0}").format(frame_save_mode_value))
         
         # フレーム保存モードはworker関数内で処理されるため、ここでの設定は不要
         # frame_save_mode は worker関数に直接渡される
-        
-        print(translate("[DEBUG] 重要な引数の値:"))
-        print(translate("[DEBUG] save_tensor_data = {0} (型: {1})").format(save_tensor_data, type(save_tensor_data).__name__))
-        print(translate("[DEBUG] use_lora = {0} (型: {1})").format(use_lora, type(use_lora).__name__))
-        print(translate("[DEBUG] resolution = {0}").format(resolution_value))
-
         # バッチ回数を有効な範囲に制限
         batch_count = max(1, min(int(batch_count), 100))
 
@@ -4098,23 +3836,16 @@ with block:
         # process関数に渡す前に重要な値を確認
         # 注意: ここではインデックス25と書かれていますが、これは誤りです
         # 正しくはnew_args[30]がsave_tensor_dataの値です
-        print(translate("[DEBUG] process関数への引数: save_tensor_data = {0} (型: {1})").format(
-            new_args[30] if len(new_args) > 30 else "未設定",
-            type(new_args[30]).__name__ if len(new_args) > 30 else "不明"
-        ))
-        print(translate("[DEBUG] フレーム保存モード = {0}").format(frame_save_mode))
-        # save_latent_frames と save_last_section_frames は worker関数内で設定されるため、ここでは確認しない
         
-        # new_argsの引数をデバッグ出力（特にsection_settings）
+        # new_argsの引数を出力（特にsection_settings）
         # section_settingsは配列であることを確認
         section_settings_index = 31  # section_settingsのインデックス
         if len(new_args) > section_settings_index:
             if not isinstance(new_args[section_settings_index], list):
-                print(translate("[警告] section_settingsがリストではありません。修正します。"))
+                print(translate("section_settingsがリストではありません。修正します。"))
                 new_args[section_settings_index] = [[None, None, ""] for _ in range(50)]
 
         # process関数のジェネレータを返す
-        print(translate("[DEBUG] process関数へ渡す引数の数: {0}").format(len(new_args)))
         yield from process(*new_args)
 
     # 設定保存ボタンのクリックイベント
@@ -4147,7 +3878,7 @@ with block:
         fn=reset_app_settings_handler,
         inputs=[],
         outputs=[
-            resolution,            # 1
+            resolution,           # 1
             mp4_crf,              # 2
             steps,                # 3
             cfg,                  # 4
@@ -4305,13 +4036,13 @@ try:
     )
 except OSError as e:
     if "Cannot find empty port" in str(e):
-        print("\n======================================================")
+        print("======================================================")
         print(translate("エラー: FramePack-eichiは既に起動しています。"))
         print(translate("同時に複数のインスタンスを実行することはできません。"))
         print(translate("現在実行中のアプリケーションを先に終了してください。"))
-        print("======================================================\n")
+        print("======================================================")
         input(translate("続行するには何かキーを押してください..."))
     else:
         # その他のOSErrorの場合は元のエラーを表示
-        print(translate("\nエラーが発生しました: {e}").format(e=e))
+        print(translate("エラーが発生しました: {e}").format(e=e))
         input(translate("続行するには何かキーを押してください..."))
