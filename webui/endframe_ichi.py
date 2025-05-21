@@ -312,7 +312,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     # グローバル変数を使用
     global vae_cache_enabled, current_prompt
     # パラメータ経由の値とグローバル変数の値を確認
-    print(f"worker関数でのVAEキャッシュ設定: パラメータ={use_vae_cache}, グローバル変数={vae_cache_enabled}")
+    print(translate("worker関数でのVAEキャッシュ設定: パラメータ={0}, グローバル変数={1}").format(use_vae_cache, vae_cache_enabled))
 
     # キュー処理
     current_prompt = prompt
@@ -324,49 +324,49 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     use_queue_flag = bool(use_queue)  # パラメータから直接使用
     queue_type_flag = queue_type  # グローバル変数を使用
 
-    print(f"worker: キュー状態: {use_queue_flag}, タイプ: {queue_type_flag}")
+    print(translate("worker: キュー状態: {0}, タイプ: {1}").format(use_queue_flag, queue_type_flag))
 
     # パラメータも診断のため確認
     if isinstance(use_queue, bool):
         param_queue = use_queue
-        print(f"worker: パラメータ値(ブール型): {param_queue}")
+        print(translate("worker: パラメータ値(ブール型): {0}").format(param_queue))
     elif hasattr(use_queue, 'value'):
         param_queue = bool(use_queue.value)
-        print(f"worker: パラメータ値(Gradioオブジェクト): {param_queue}")
+        print(translate("worker: パラメータ値(Gradioオブジェクト): {0}").format(param_queue))
     else:
-        print(f"worker: パラメータ値が無効な形式: {type(use_queue).__name__}")
+        print(translate("worker: パラメータ値が無効な形式: {0}").format(type(use_queue).__name__))
 
     # キュー処理の開始
     if use_queue_flag:
         # キュータイプに応じた処理
         if queue_type_flag == "prompt":
             # プロンプトキュー処理
-            print(f"worker: プロンプトキューを使用")
+            print(translate("worker: プロンプトキューを使用"))
 
             # パラメータからファイルパス情報を確認
-            print(f"worker: prompt_queue_file パラメータの型: {type(prompt_queue_file).__name__}")
+            print(translate("worker: prompt_queue_file パラメータの型: {0}").format(type(prompt_queue_file).__name__))
             if hasattr(prompt_queue_file, 'name'):
-                print(f"worker: 【ファイル診断】prompt_queue_file.name: {prompt_queue_file.name}")
+                print(translate("worker: 【ファイル診断】prompt_queue_file.name: {0}").format(prompt_queue_file.name))
 
             # バッチ処理開始時に保存された値を使用
             if prompt_queue_file_path is not None:
                 queue_file_path = prompt_queue_file_path
-                print(f"worker: プロンプトキューファイルを使用: {queue_file_path}")
+                print(translate("worker: プロンプトキューファイルを使用: {0}").format(queue_file_path))
 
                 try:
                     # ファイルが存在し、読み込める場合
                     if queue_file_path and os.path.exists(queue_file_path):
-                        print(f"プロンプトキューファイルを読み込みます: {queue_file_path}")
+                        print(translate("プロンプトキューファイルを読み込みます: {0}").format(queue_file_path))
 
                         with open(queue_file_path, 'r', encoding='utf-8') as f:
                             # 空行を除去して整形
                             prompt_lines = [line.strip() for line in f.readlines() if line.strip()]
-                            print(f"読み込まれたプロンプト行数: {len(prompt_lines)}")
+                            print(translate("読み込まれたプロンプト行数: {0}").format(len(prompt_lines)))
 
                         # バッチインデックスに応じたプロンプトを選択
                         if prompt_lines and batch_index is not None and 0 <= batch_index < len(prompt_lines):
                             current_prompt = prompt_lines[batch_index]
-                            print(f"バッチ {batch_index + 1}/{len(prompt_lines)} のプロンプト: {current_prompt[:50]}...")
+                            print(translate("バッチ {0}/{1} のプロンプト: {2}...").format(batch_index + 1, len(prompt_lines), current_prompt[:50]))
                             print(translate("プロンプトキュー行を優先: {0}/{1} 行目を処理中").format(batch_index + 1, len(prompt_lines)))
                         else:
                             # バッチインデックスが不正な場合やプロンプトが足りない場合は元のプロンプトを使用
@@ -374,27 +374,27 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             if batch_index is None:
                                 print("バッチインデックスが未指定です")
                             elif batch_index < 0 or (prompt_lines and batch_index >= len(prompt_lines)):
-                                print(f"バッチインデックスが範囲外です: {batch_index}, プロンプト数: {len(prompt_lines) if prompt_lines else 0}")
+                                print(translate("バッチインデックスが範囲外です: {0}, プロンプト数: {1}").format(batch_index, len(prompt_lines) if prompt_lines else 0))
                             elif not prompt_lines:
                                 print("プロンプトファイルに有効な行がありません")
 
-                            print(f"元のプロンプトを使用します: {prompt[:50]}...")
+                            print(translate("元のプロンプトを使用します: {0}...").format(prompt[:50]))
                     else:
                         current_prompt = prompt  # 元のプロンプトを使用
-                        print(f"プロンプトキューファイルが存在しないか無効です: {queue_file_path}")
+                        print(translate("プロンプトキューファイルが存在しないか無効です: {0}").format(queue_file_path))
                 except Exception as e:
                     current_prompt = prompt  # エラー時は元のプロンプトを使用
-                    print(f"プロンプトキュー処理エラー: {str(e)}")
+                    print(translate("プロンプトキュー処理エラー: {0}").format(str(e)))
                     import traceback
                     traceback.print_exc()
 
         elif queue_type_flag == "image":
             # イメージキュー処理
-            print(f"worker: イメージキューを使用")
+            print(translate("worker: イメージキューを使用"))
 
             # batch_indexが0（最初の実行）なら入力画像を使用
             if batch_index == 0 or batch_index is None:
-                print(f"イメージキュー: 最初の実行のため入力画像を使用")
+                print(translate("イメージキュー: 最初の実行のため入力画像を使用"))
                 # 現在の入力画像をそのまま使用
                 current_image = input_image
             else:
@@ -406,9 +406,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     get_image_queue_files()
 
                 # イメージキューの詳細ログ出力
-                print(f"worker: イメージキュー詳細: 画像数={len(image_queue_files)}, batch_index={batch_index}")
+                print(translate("worker: イメージキュー詳細: 画像数={0}, batch_index={1}").format(len(image_queue_files), batch_index))
                 for i, img in enumerate(image_queue_files):
-                    print(f"    worker: 画像{i+1}: {os.path.basename(img)}")
+                    print(translate("    worker: 画像{0}: {1}").format(i+1, os.path.basename(img)))
 
                 # 入力画像 + 画像キュー
                 if image_queue_files and batch_index - 1 < len(image_queue_files):
@@ -416,7 +416,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     queue_index = batch_index - 1
                     img_path = image_queue_files[queue_index]
                     img_name = os.path.basename(img_path)
-                    print(f"イメージキュー: {batch_index}回目の実行、画像ファイル使用: {img_name} (インデックス: {queue_index})")
+                    print(translate("イメージキュー: {0}回目の実行、画像ファイル使用: {1} (インデックス: {2})").format(batch_index, img_name, queue_index))
                     current_image = img_path
                     
                     # 同名のテキストファイルがあるか確認し、あれば内容をプロンプトとして使用
@@ -437,7 +437,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         print(translate("イメージキュー: 画像「{0}」用のテキストファイルはありません").format(img_name))
                 else:
                     # 画像ファイルが足りない場合は入力画像に戻る
-                    print(f"イメージキュー: 画像ファイルが足りないため入力画像を再使用")
+                    print(translate("イメージキュー: 画像ファイルが足りないため入力画像を再使用"))
                     current_image = input_image
     # グローバル変数の値を優先
     use_vae_cache = vae_cache_enabled or use_vae_cache
@@ -806,7 +806,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 # テンソルに含まれているキーとシェイプを確認
                 print(translate("テンソルデータの内容:"))
                 for key, tensor in tensor_dict.items():
-                    print(f"  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
+                    print(translate("  - {0}: shape={1}, dtype={2}").format(key, tensor.shape, tensor.dtype))
 
                 # history_latentsと呼ばれるキーが存在するか確認
                 if "history_latents" in tensor_dict:
@@ -1078,7 +1078,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         
                         # 最初の何個かのファイルを表示
                         for i, file in enumerate(directory_files[:5]):
-                            print(f"  {i+1}. {file}")
+                            print(translate("  {0}. {1}").format(i+1, file))
                 
                 dropdown_direct_values = {
                     "dropdown1": original_dropdowns["LoRA1"],
@@ -2167,7 +2167,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     else:
                         print(translate("処理が完了しました"))  # Linuxでの代替通知
                 else:
-                    print(f"Alarm skip (値: {alarm_on_completion})")
+                    print(translate("Alarm skip (値: {0})").format(alarm_on_completion))
 
                 # メモリ解放を明示的に実行
                 if torch.cuda.is_available():
@@ -2626,7 +2626,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             # 複数ファイル
             print(translate("\u25c6 LoRAファイル (複数):"))
             for i, file in enumerate(all_lora_files):
-                print(f"   - {os.path.basename(file.name)} (スケール: {scales[i]})")
+                print(translate("   - {0} (スケール: {1})").format(os.path.basename(file.name), scales[i]))
         else:
             # LoRAファイルなし
             print(translate("\u25c6 LoRA: 使用しない"))
@@ -2841,7 +2841,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                 print(translate("LoRAディレクトリ内ファイル:"))
                 for filename in os.listdir(lora_dir):
                     if filename.endswith(('.safetensors', '.pt', '.bin')):
-                        print(f"  - {filename}")
+                        print(translate("  - {0}").format(filename))
 
         # プロンプトとシードの初期化（グローバル変数として確実に宣言）
         global current_prompt, current_seed
@@ -2860,9 +2860,9 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                     get_image_queue_files()
 
                 # イメージキューのリストを詳細に出力
-                print(f"イメージキュー詳細: 画像数={len(image_queue_files)}, batch_index={batch_index}")
+                print(translate("イメージキュー詳細: 画像数={0}, batch_index={1}").format(len(image_queue_files), batch_index))
                 for i, img in enumerate(image_queue_files):
-                    print(f"    画像{i+1}: {os.path.basename(img)}")
+                    print(translate("    画像{0}: {1}").format(i+1, os.path.basename(img)))
 
                 # 画像キューから適切な画像を選択
                 if image_queue_files and batch_index - 1 < len(image_queue_files):
@@ -3365,14 +3365,14 @@ with block:
                     global prompt_queue_file_path
 
                     if file_obj is not None:
-                        print(f"ファイルアップロード検出: 型={type(file_obj).__name__}")
+                        print(translate("ファイルアップロード検出: 型={0}").format(type(file_obj).__name__))
 
                         if hasattr(file_obj, 'name'):
                             prompt_queue_file_path = file_obj.name
-                            print(f"アップロードファイルパス保存: {prompt_queue_file_path}")
+                            print(translate("アップロードファイルパス保存: {0}").format(prompt_queue_file_path))
                         else:
                             prompt_queue_file_path = file_obj
-                            print(f"アップロードファイルデータ保存: {file_obj}")
+                            print(translate("アップロードファイルデータ保存: {0}").format(file_obj))
                     else:
                         prompt_queue_file_path = None
                         print("ファイルアップロード解除")
@@ -4632,7 +4632,7 @@ with block:
                 # エンドフレーム画像の変更をState変数に保存するハンドラを追加
                 def update_end_frame_state(image_path):
                     # 画像パスをState変数に保存
-                    print(f"エンドフレーム画像パスをStateに保存: {image_path}")
+                    print(translate("エンドフレーム画像パスをStateに保存: {0}").format(image_path))
                     return image_path
                 
                 # エンドフレーム変更時にStateも更新
@@ -4700,9 +4700,9 @@ with block:
                     result = upload_zipfile_handler(file, max_keyframes, current_video_settings)
                     
                     # LoRA設定が含まれているか確認
-                    print(f"upload result length: {len(result)}")
+                    print(translate("upload result length: {0}").format(len(result)))
                     if len(result) > 0:
-                        print(f"Last element (LoRA settings): {result[-1]}")
+                        print(translate("Last element (LoRA settings): {0}").format(result[-1]))
                     
                     # グラフィカルコンポーネント用の値（最後の2つ）
                     
@@ -4849,28 +4849,28 @@ with block:
                         
                         # 手動で選択肢リストを確認
                         for idx, choice in enumerate(lora_choices):
-                            print(f"  {idx}: '{choice}' (type={type(choice).__name__})")
+                            print(translate("  {0}: '{1}' (type={2})").format(idx, choice, type(choice).__name__))
                         
                         # 値が配列に存在しない場合、最も近い値を探す
                         if lora1_value not in lora_choices:
-                            print(f"LoRA1値 '{lora1_value}' が選択肢にありません。")
+                            print(translate("LoRA1値 '{0}' が選択肢にありません。").format(lora1_value))
                             # ファイル名で部分一致を試みる
                             for choice in lora_choices:
                                 if lora1_value in str(choice):
-                                    print(f"代替として '{choice}' を使用")
+                                    print(translate("代替として '{0}' を使用").format(choice))
                                     lora1_value = choice
                                     break
                         
                         # 同様にLoRA2と3も確認
                         if lora2_value not in lora_choices:
-                            print(f"LoRA2値 '{lora2_value}' が選択肢にありません。")
+                            print(translate("LoRA2値 '{0}' が選択肢にありません。").format(lora2_value))
                             for choice in lora_choices:
                                 if lora2_value in str(choice):
                                     lora2_value = choice
                                     break
                         
                         if lora3_value not in lora_choices:
-                            print(f"LoRA3値 '{lora3_value}' が選択肢にありません。")
+                            print(translate("LoRA3値 '{0}' が選択肢にありません。").format(lora3_value))
                             for choice in lora_choices:
                                 if lora3_value in str(choice):
                                     lora3_value = choice
@@ -4981,8 +4981,8 @@ with block:
                     
                     # 実際にダウンロードするセクション数は、期待されるセクション数と最大キーフレーム数の小さい方
                     current_sections_count = min(expected_sections, max_keyframes)
-                    print(f"動画長{video_length_value}に必要なセクション数: {expected_sections}")
-                    print(f"ダウンロードするセクション数: {current_sections_count}")
+                    print(translate("動画長{0}に必要なセクション数: {1}").format(video_length_value, expected_sections))
+                    print(translate("ダウンロードするセクション数: {0}").format(current_sections_count))
                     
                     # ユーザーが入力したプロンプト値をそのまま使用
                     # 表示されているセクションのみを処理
@@ -5946,9 +5946,9 @@ with block:
         
         print("=== 入力パラメーター型情報 ===")
         if hasattr(use_queue, 'value'):
-            print(f"use_queue.value: {use_queue.value}, 型={type(use_queue.value).__name__}")
+            print(translate("use_queue.value: {0}, 型={1}").format(use_queue.value, type(use_queue.value).__name__))
         if hasattr(prompt_queue_file, 'name'):
-            print(f"prompt_queue_file.name: {prompt_queue_file.name}, 型={type(prompt_queue_file.name).__name__}")
+            print(translate("prompt_queue_file.name: {0}, 型={1}").format(prompt_queue_file.name, type(prompt_queue_file.name).__name__))
         """入力画像または最後のキーフレーム画像のいずれかが有効かどうかを確認し、問題がなければ処理を実行する"""
         
         # グローバル変数宣言
@@ -5962,7 +5962,7 @@ with block:
         # UIの値よりもグローバル変数を優先
         use_vae_cache_value = vae_cache_enabled
         
-        print(f"フレーム保存モード: {frame_save_mode}(index=32)")
+        print(translate("フレーム保存モード: {0}(index=32)").format(frame_save_mode))
         
         # Gradioのラジオボタンオブジェクトが直接渡されているか、文字列値が渡されているかを確認
         if hasattr(frame_save_mode, 'value'):
@@ -6093,14 +6093,14 @@ with block:
             queue_enabled = True
 
         # キュー機能の状態をログに出力
-        print(f"キュー状態: {queue_enabled}, タイプ: {queue_type}")
+        print(translate("キュー状態: {0}, タイプ: {1}").format(queue_enabled, queue_type))
 
         # イメージキューの場合は、事前に画像ファイルリストを更新
         if queue_enabled and queue_type == "image":
             # inputs フォルダから画像ファイルリストを更新
             get_image_queue_files()
             image_queue_count = len(image_queue_files)
-            print(f"イメージキュー使用: inputs フォルダの画像 {image_queue_count} 個を使用します")
+            print(translate("イメージキュー使用: inputs フォルダの画像 {0} 個を使用します").format(image_queue_count))
 
             # バッチ数を画像数+1（入力画像を含む）に合わせる
             if image_queue_count > 0:
@@ -6109,31 +6109,31 @@ with block:
 
                 # 設定されたバッチ数より必要数が多い場合は調整
                 if total_needed_batches > batch_count:
-                    print(f"画像キュー数+1に合わせてバッチ数を自動調整: {batch_count} → {total_needed_batches}")
+                    print(translate("画像キュー数+1に合わせてバッチ数を自動調整: {0} → {1}").format(batch_count, total_needed_batches))
                     batch_count = total_needed_batches
 
         # パラメータもチェックして整合性を確認（診断用）
         param_enabled = False
         if isinstance(use_queue, bool):
             param_enabled = use_queue
-            print(f"パラメータからの値: {param_enabled} (ブール型)")
+            print(translate("パラメータからの値: {0} (ブール型)").format(param_enabled))
         elif hasattr(use_queue, 'value'):
             param_enabled = bool(use_queue.value)
-            print(f"パラメータからの値: {param_enabled} (Gradioオブジェクト)")
+            print(translate("パラメータからの値: {0} (Gradioオブジェクト)").format(param_enabled))
         elif isinstance(use_queue, str) and use_queue.lower() in ('true', 'false', 't', 'f', 'yes', 'no', 'y', 'n', '1', '0'):
             param_enabled = use_queue.lower() in ('true', 't', 'yes', 'y', '1')
-            print(f"パラメータからの値: {param_enabled} (文字列)")
+            print(translate("パラメータからの値: {0} (文字列)").format(param_enabled))
         else:
-            print(f"パラメータは使用できない形式: {type(use_queue).__name__}")
+            print(translate("パラメータは使用できない形式: {0}").format(type(use_queue).__name__))
 
         # グローバル変数と渡されたパラメータに不一致がある場合は警告
         if param_enabled != queue_enabled and not isinstance(use_queue, str):
-            print(f"警告: グローバル変数とパラメータの値が一致しません: グローバル={queue_enabled}, パラメータ={param_enabled}")
+            print(translate("警告: グローバル変数とパラメータの値が一致しません: グローバル={0}, パラメータ={1}").format(queue_enabled, param_enabled))
 
         # グローバル変数の値を優先して使用
-        print(f"最終的なプロンプトキュー状態: {queue_enabled} (グローバル変数優先)")
+        print(translate("最終的なプロンプトキュー状態: {0} (グローバル変数優先)").format(queue_enabled))
 
-        print(f"プロンプトキュー使用状態: {queue_enabled}")
+        print(translate("プロンプトキュー使用状態: {0}").format(queue_enabled))
 
         # チェックボックスがオンでファイルがあれば処理
         queue_prompts_count = 0
@@ -6141,51 +6141,51 @@ with block:
         # グローバル変数のファイルパスを使用し、バッチ処理用にコピー
         global prompt_queue_file_path
         # ファイルアップロード状態の詳細診断
-        print(f"prompt_queue_file の型: {type(prompt_queue_file).__name__}")
+        print(translate("prompt_queue_file の型: {0}").format(type(prompt_queue_file).__name__))
         if prompt_queue_file_path:
-            print(f"プロンプトキューファイルパス: {prompt_queue_file_path}")
+            print(translate("プロンプトキューファイルパス: {0}").format(prompt_queue_file_path))
 
         # パラメータから得られるファイル情報
         if hasattr(prompt_queue_file, 'name'):
-            print(f"【ファイル診断】prompt_queue_file.name: {prompt_queue_file.name}")
+            print(translate("【ファイル診断】prompt_queue_file.name: {0}").format(prompt_queue_file.name))
             # グローバル変数がなければパラメータから更新
             if prompt_queue_file_path is None:
                 prompt_queue_file_path = prompt_queue_file.name
-                print(f"【ファイル診断】グローバル変数を更新: {prompt_queue_file_path}")
+                print(translate("【ファイル診断】グローバル変数を更新: {0}").format(prompt_queue_file_path))
 
         # グローバル変数が有効でチェックボックスがオンなら処理
         if prompt_queue_file_path is not None and queue_enabled:
             # グローバル変数からファイルパスを取得しつつ、saved変数も設定
             queue_file_path = prompt_queue_file_path
             # グローバル変数にすでに保存済み
-            print(f"【ファイル診断】グローバル変数からファイルパス取得: {queue_file_path}")
+            print(translate("【ファイル診断】グローバル変数からファイルパス取得: {0}").format(queue_file_path))
 
-            print(f"プロンプトキューファイル: {queue_file_path}")
+            print(translate("プロンプトキューファイル: {0}").format(queue_file_path))
 
             # ファイルパスが有効かチェック
             if queue_file_path and os.path.exists(queue_file_path):
-                print(f"プロンプトキューファイルの内容を読み込みます: {queue_file_path}")
+                print(translate("プロンプトキューファイルの内容を読み込みます: {0}").format(queue_file_path))
                 try:
                     with open(queue_file_path, 'r', encoding='utf-8') as f:
                         lines = [line.strip() for line in f.readlines() if line.strip()]
                         queue_prompts_count = len(lines)
-                        print(f"有効なプロンプト行数: {queue_prompts_count}")
+                        print(translate("有効なプロンプト行数: {0}").format(queue_prompts_count))
 
                         if queue_prompts_count > 0:
                             # サンプルとして最初の数行を表示
                             sample_lines = lines[:min(3, queue_prompts_count)]
-                            print(f"プロンプトサンプル: {sample_lines}")
+                            print(translate("プロンプトサンプル: {0}").format(sample_lines))
 
                             # バッチ数をプロンプト数に合わせる
                             if queue_prompts_count > batch_count:
-                                print(f"プロンプト数に合わせてバッチ数を自動調整: {batch_count} → {queue_prompts_count}")
+                                print(translate("プロンプト数に合わせてバッチ数を自動調整: {0} → {1}").format(batch_count, queue_prompts_count))
                                 batch_count = queue_prompts_count
                         else:
                             print("プロンプトキューファイルに有効なプロンプトがありません")
                 except Exception as e:
-                    print(f"プロンプトキューファイル読み込みエラー: {str(e)}")
+                    print(translate("プロンプトキューファイル読み込みエラー: {0}").format(str(e)))
             else:
-                print(f"プロンプトキューファイルが存在しないか無効です: {queue_file_path}")
+                print(translate("プロンプトキューファイルが存在しないか無効です: {0}").format(queue_file_path))
         else:
             # エラーメッセージの改善
             if not queue_enabled:

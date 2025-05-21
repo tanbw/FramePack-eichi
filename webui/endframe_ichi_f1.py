@@ -506,7 +506,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     # テンソルに含まれているキーとシェイプを確認
                     print(translate("テンソルデータの内容:"))
                     for key, tensor in tensor_dict.items():
-                        print(f"  - {key}: shape={tensor.shape}, dtype={tensor.dtype}")
+                        print(translate("  - {0}: shape={1}, dtype={2}").format(key, tensor.shape, tensor.dtype))
 
                     # history_latentsと呼ばれるキーが存在するか確認
                     if "history_latents" in tensor_dict:
@@ -1787,7 +1787,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             # 複数ファイル
             print(translate("LoRAファイル (複数):"))
             for i, path in enumerate(lora_paths):
-                print(f"   - {os.path.basename(path)} (スケール: {scales[i] if i < len(scales) else 0.8})")
+                print(translate("   - {0} (スケール: {1})").format(os.path.basename(path), scales[i] if i < len(scales) else 0.8))
         else:
             # LoRAファイルなし
             print(translate("LoRA: 使用しない"))
@@ -1939,18 +1939,18 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                             if batch_index < len(lines):
                                 # プロンプトキューからプロンプトを取得
                                 current_prompt = lines[batch_index]
-                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count}")
-                                print(f"  └ プロンプト: 「{current_prompt[:50]}...」")
+                                print(translate("プロンプトキュー実行中: バッチ {0}/{1}").format(batch_index+1, batch_count))
+                                print(translate("  └ プロンプト: 「{0}...」").format(current_prompt[:50]))
                             else:
-                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count} はプロンプト行数を超えているため元のプロンプトを使用")
+                                print(translate("プロンプトキュー実行中: バッチ {0}/{1} はプロンプト行数を超えているため元のプロンプトを使用").format(batch_index+1, batch_count))
                     except Exception as e:
-                        print(f"プロンプトキューファイル読み込みエラー: {str(e)}")
+                        print(translate("プロンプトキューファイル読み込みエラー: {0}").format(str(e)))
 
             elif queue_type == "image" and len(image_queue_files) > 0:
                 # イメージキューの処理
                 # 最初のバッチは入力画像を使用
                 if batch_index == 0:
-                    print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は入力画像を使用")
+                    print(translate("イメージキュー実行中: バッチ {0}/{1} は入力画像を使用").format(batch_index+1, batch_count))
                 elif batch_index > 0:
                     # 2回目以降はイメージキューの画像を順番に使用
                     image_index = batch_index - 1  # 0回目（入力画像）の分を引く
@@ -1958,8 +1958,8 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                     if image_index < len(image_queue_files):
                         current_image = image_queue_files[image_index]
                         image_filename = os.path.basename(current_image)
-                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} の画像「{image_filename}」")
-                        print(f"  └ 画像ファイルパス: {current_image}")
+                        print(translate("イメージキュー実行中: バッチ {0}/{1} の画像「{2}」").format(batch_index+1, batch_count, image_filename))
+                        print(translate("  └ 画像ファイルパス: {0}").format(current_image))
                         
                         # 同名のテキストファイルがあるか確認し、あれば内容をプロンプトとして使用
                         img_basename = os.path.splitext(current_image)[0]
@@ -1977,7 +1977,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
                                 print(translate("イメージキュー: テキストファイル読み込みエラー: {0}").format(e))
                     else:
                         # 画像数が足りない場合は入力画像に戻る
-                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は画像数を超えているため入力画像を使用")
+                        print(translate("イメージキュー実行中: バッチ {0}/{1} は画像数を超えているため入力画像を使用").format(batch_index+1, batch_count))
 
         # バッチインデックスに応じてSEED値を設定
         current_seed = original_seed + batch_index
@@ -2260,8 +2260,8 @@ with block:
                     # グローバル変数に保存
                     queue_enabled = is_enabled
 
-                    print(f"トグル関数: チェックボックスの型={type(use_queue_val).__name__}, 値={use_queue_val}")
-                    print(f"キュー設定の表示状態を変更: {is_enabled} (グローバル変数に保存: queue_enabled={queue_enabled})")
+                    print(translate("トグル関数: チェックボックスの型={0}, 値={1}").format(type(use_queue_val).__name__, use_queue_val))
+                    print(translate("キュー設定の表示状態を変更: {0} (グローバル変数に保存: queue_enabled={1})").format(is_enabled, queue_enabled))
 
                     # キュータイプに応じて適切なグループを表示/非表示
                     if is_enabled:
@@ -2292,14 +2292,14 @@ with block:
                     global prompt_queue_file_path
 
                     if file_obj is not None:
-                        print(f"ファイルアップロード検出: 型={type(file_obj).__name__}")
+                        print(translate("ファイルアップロード検出: 型={0}").format(type(file_obj).__name__))
 
                         if hasattr(file_obj, 'name'):
                             prompt_queue_file_path = file_obj.name
-                            print(f"アップロードファイルパス保存: {prompt_queue_file_path}")
+                            print(translate("アップロードファイルパス保存: {0}").format(prompt_queue_file_path))
                         else:
                             prompt_queue_file_path = file_obj
-                            print(f"アップロードファイルデータ保存: {file_obj}")
+                            print(translate("アップロードファイルデータ保存: {0}").format(file_obj))
                     else:
                         prompt_queue_file_path = None
                         print("ファイルアップロード解除")
@@ -3693,7 +3693,7 @@ with block:
                 actual_alarm_value = alarm_on_completion_ui.value
 
         # キュー設定の出力
-        print(f"キュータイプ: {queue_type}")
+        print(translate("キュータイプ: {0}").format(queue_type))
 
         # キュー機能の状態を更新（UIチェックボックスからの値を直接反映）
         queue_enabled = use_queue_ui
@@ -3711,7 +3711,7 @@ with block:
             # 入力フォルダから画像ファイルリストを更新
             get_image_queue_files()
             image_queue_count = len(image_queue_files)
-            print(f"イメージキュー使用: 入力フォルダの画像 {image_queue_count} 個を使用します")
+            print(translate("イメージキュー使用: 入力フォルダの画像 {0} 個を使用します").format(image_queue_count))
 
             # バッチ数を画像数+1（入力画像を含む）に合わせる
             if image_queue_count > 0:
@@ -3720,7 +3720,7 @@ with block:
 
                 # 設定されたバッチ数より必要数が多い場合は調整
                 if total_needed_batches > batch_count:
-                    print(f"画像キュー数+1に合わせてバッチ数を自動調整: {batch_count} → {total_needed_batches}")
+                    print(translate("画像キュー数+1に合わせてバッチ数を自動調整: {0} → {1}").format(batch_count, total_needed_batches))
                     batch_count = total_needed_batches
 
         # プロンプトキューの場合はファイルの内容を確認
@@ -3728,32 +3728,32 @@ with block:
             # グローバル変数からファイルパスを取得
             if prompt_queue_file_path is not None:
                 queue_file_path = prompt_queue_file_path
-                print(f"プロンプトキューファイル: {queue_file_path}")
+                print(translate("プロンプトキューファイル: {0}").format(queue_file_path))
 
                 # ファイルパスが有効かチェック
                 if os.path.exists(queue_file_path):
-                    print(f"プロンプトキューファイルの内容を読み込みます: {queue_file_path}")
+                    print(translate("プロンプトキューファイルの内容を読み込みます: {0}").format(queue_file_path))
                     try:
                         with open(queue_file_path, 'r', encoding='utf-8') as f:
                             lines = [line.strip() for line in f.readlines() if line.strip()]
                             queue_prompts_count = len(lines)
-                            print(f"有効なプロンプト行数: {queue_prompts_count}")
+                            print(translate("有効なプロンプト行数: {0}").format(queue_prompts_count))
 
                             if queue_prompts_count > 0:
                                 # サンプルとして最初の数行を表示
                                 sample_lines = lines[:min(3, queue_prompts_count)]
-                                print(f"プロンプトサンプル: {sample_lines}")
+                                print(translate("プロンプトサンプル: {0}").format(sample_lines))
 
                                 # バッチ数をプロンプト数に合わせる
                                 if queue_prompts_count > batch_count:
-                                    print(f"プロンプト数に合わせてバッチ数を自動調整: {batch_count} → {queue_prompts_count}")
+                                    print(translate("プロンプト数に合わせてバッチ数を自動調整: {0} → {1}").format(batch_count, queue_prompts_count))
                                     batch_count = queue_prompts_count
                             else:
                                 print("プロンプトキューファイルに有効なプロンプトがありません")
                     except Exception as e:
-                        print(f"プロンプトキューファイル読み込みエラー: {str(e)}")
+                        print(translate("プロンプトキューファイル読み込みエラー: {0}").format(str(e)))
                 else:
-                    print(f"プロンプトキューファイルが存在しないか無効です: {queue_file_path}")
+                    print(translate("プロンプトキューファイルが存在しないか無効です: {0}").format(queue_file_path))
             else:
                 print("プロンプトキュー無効: ファイルが正しくアップロードされていません")
         

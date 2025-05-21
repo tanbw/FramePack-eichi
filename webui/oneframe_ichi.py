@@ -220,7 +220,7 @@ def reload_transformer_if_needed():
             return True
         return False
     except Exception as e:
-        print(f"transformerリロードエラー: {e}")
+        print(translate("transformerリロードエラー: {0}").format(e))
         traceback.print_exc()
         return False
 
@@ -2071,18 +2071,18 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                             if batch_index < len(lines):
                                 # プロンプトキューからプロンプトを取得
                                 current_prompt = lines[batch_index]
-                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count}")
-                                print(f"  └ プロンプト: 「{current_prompt[:50]}...」")
+                                print(translate("プロンプトキュー実行中: バッチ {0}/{1}").format(batch_index+1, batch_count))
+                                print(translate("  └ プロンプト: 「{0}...」").format(current_prompt[:50]))
                             else:
-                                print(f"プロンプトキュー実行中: バッチ {batch_index+1}/{batch_count} はプロンプト行数を超えているため元のプロンプトを使用")
+                                print(translate("プロンプトキュー実行中: バッチ {0}/{1} はプロンプト行数を超えているため元のプロンプトを使用").format(batch_index+1, batch_count))
                     except Exception as e:
-                        print(f"プロンプトキューファイル読み込みエラー: {str(e)}")
+                        print(translate("プロンプトキューファイル読み込みエラー: {0}").format(str(e)))
 
             elif queue_type == "image" and len(image_queue_files) > 0:
                 # イメージキューの処理
                 # 最初のバッチは入力画像を使用
                 if batch_index == 0:
-                    print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は入力画像を使用")
+                    print(translate("イメージキュー実行中: バッチ {0}/{1} は入力画像を使用").format(batch_index+1, batch_count))
                 elif batch_index > 0:
                     # 2回目以降はイメージキューの画像を順番に使用
                     image_index = batch_index - 1  # 0回目（入力画像）の分を引く
@@ -2090,8 +2090,8 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                     if image_index < len(image_queue_files):
                         current_image = image_queue_files[image_index]
                         image_filename = os.path.basename(current_image)
-                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} の画像「{image_filename}」")
-                        print(f"  └ 画像ファイルパス: {current_image}")
+                        print(translate("イメージキュー実行中: バッチ {0}/{1} の画像「{2}」").format(batch_index+1, batch_count, image_filename))
+                        print(translate("  └ 画像ファイルパス: {0}").format(current_image))
                         
                         # 同名のテキストファイルがあるか確認し、あれば内容をプロンプトとして使用
                         img_basename = os.path.splitext(current_image)[0]
@@ -2109,7 +2109,7 @@ def process(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs, gpu_memory_
                                 print(translate("イメージキュー: テキストファイル読み込みエラー: {0}").format(e))
                     else:
                         # 画像数が足りない場合は入力画像に戻る
-                        print(f"イメージキュー実行中: バッチ {batch_index+1}/{batch_count} は画像数を超えているため入力画像を使用")
+                        print(translate("イメージキュー実行中: バッチ {0}/{1} は画像数を超えているため入力画像を使用").format(batch_index+1, batch_count))
 
         # RoPE値バッチ処理の場合はRoPE値をインクリメント、それ以外は通常のシードインクリメント
         current_seed = original_seed
