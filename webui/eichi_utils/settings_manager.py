@@ -190,7 +190,7 @@ def get_default_app_settings_f1(current_lang="ja"):
         "resolution": 640,
         "mp4_crf": 16,
         "steps": 25,
-        "cfg": 2.5,
+        "cfg": 1,
         
         # パフォーマンス設定
         "use_teacache": True,
@@ -219,7 +219,7 @@ def get_default_app_settings_oichi():
         # 基本設定
         "resolution": 640,
         "steps": 25,
-        "cfg": 2.5,
+        "cfg": 1,
         
         # パフォーマンス設定
         "use_teacache": True,

@@ -3261,7 +3261,7 @@ with block:
                 label=translate("CFG Scale"), 
                 minimum=1.0, 
                 maximum=32.0, 
-                value=saved_app_settings.get("cfg", 2.5) if saved_app_settings else 2.5, 
+                value=saved_app_settings.get("cfg", 1.0) if saved_app_settings else 1.0, 
                 step=0.01, 
                 visible=False,  # Should not change
                 elem_classes="saveable-setting"
@@ -3590,7 +3590,7 @@ with block:
                 updates.append(gr.update(value=default_settings.get("resolution", 640)))  # 1
                 updates.append(gr.update(value=default_settings.get("mp4_crf", 16)))  # 2
                 updates.append(gr.update(value=default_settings.get("steps", 25)))  # 3
-                updates.append(gr.update(value=default_settings.get("cfg", 2.5)))  # 4
+                updates.append(gr.update(value=default_settings.get("cfg", 1.0)))  # 4
                 updates.append(gr.update(value=default_settings.get("use_teacache", True)))  # 5
                 updates.append(gr.update(value=default_settings.get("gpu_memory_preservation", 6)))  # 6
                 updates.append(gr.update(value=default_settings.get("gs", 10)))  # 7

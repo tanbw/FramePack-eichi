@@ -3163,7 +3163,7 @@ with block:
 
             # プロンプト入力
             prompt = gr.Textbox(label=translate("プロンプト"), value=get_default_startup_prompt(), lines=6)
-            n_prompt = gr.Textbox(label=translate("ネガティブプロンプト"), value='')
+            n_prompt = gr.Textbox(label=translate("ネガティブプロンプト"), value='', visible=False)
             
             # プロンプト管理パネル
             with gr.Group(visible=True) as prompt_management:
@@ -3225,7 +3225,7 @@ with block:
             gs = gr.Slider(label=translate("蒸留CFGスケール"), minimum=1.0, maximum=32.0, value=saved_app_settings.get("gs", 10.0) if saved_app_settings else 10.0, step=0.01, info=translate('この値の変更は推奨されません'), elem_classes="saveable-setting")
             
             # 非表示設定
-            cfg = gr.Slider(label="CFG Scale", minimum=1.0, maximum=32.0, value=saved_app_settings.get("cfg", 2.5) if saved_app_settings else 2.5, step=0.01, visible=False, elem_classes="saveable-setting")
+            cfg = gr.Slider(label="CFG Scale", minimum=1.0, maximum=32.0, value=saved_app_settings.get("cfg", 1) if saved_app_settings else 1, step=0.01, visible=False, elem_classes="saveable-setting")
             rs = gr.Slider(label="CFG Re-Scale", minimum=0.0, maximum=1.0, value=0.0, step=0.01, visible=False)
             
             # GPU設定
@@ -3419,7 +3419,7 @@ with block:
                 # 各UIコンポーネントのデフォルト値を設定
                 updates.append(gr.update(value=default_settings.get("resolution", 640)))  # 1
                 updates.append(gr.update(value=default_settings.get("steps", 25)))  # 2
-                updates.append(gr.update(value=default_settings.get("cfg", 2.5)))  # 3
+                updates.append(gr.update(value=default_settings.get("cfg", 1)))  # 3
                 updates.append(gr.update(value=default_settings.get("use_teacache", True)))  # 4
                 updates.append(gr.update(value=default_settings.get("gpu_memory_preservation", 6)))  # 5
                 updates.append(gr.update(value=default_settings.get("gs", 10)))  # 6
