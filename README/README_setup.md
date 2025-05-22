@@ -38,7 +38,8 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
 ### サポートされるGPUモデル
 - **公式サポート**: NVIDIA RTX 30XX、40XX、50XXシリーズ（fp16およびbf16データフォーマットをサポート）
 - **推奨最小**: RTX 3060（または同等の8GB以上のVRAM）
-- **動作確認済み**: RTX 3060、3070Ti、4060Ti、4090
+- **動作確認済み**: RTX 3060、3070Ti、4060Ti、4090、5070Ti
+- **RTX 50シリーズ（Blackwell）**: 特別な手動セットアップが必要（下記参照）
 - **非公式/未テスト**: GTX 10XX/20XXシリーズ
 - **AMD GPU**: 明示的なサポートの言及なし
 - **Intel GPU**: 明示的なサポートの言及なし
@@ -91,6 +92,96 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
    - WebUIに画像をアップロード
    - 希望する動きを説明するプロンプトを入力
    - 「生成開始」をクリックして動画生成が機能していることを確認
+
+## RTX 50シリーズ（Blackwell）セットアップ手順
+
+RTX 50シリーズではCUDAカーネルエラーが発生するため、特別なセットアップが必要です。
+
+**重要**: RTX 50シリーズのサポートは現在開発中のため、完全な動作は保証されません。
+
+### 発生する問題
+
+- 標準構成では「CUDA kernel error」が発生
+- package_installer.batはPyTorch 2.7.0に対応していない
+- 多くの高速化ライブラリがBlackwellアーキテクチャに未対応
+
+### 基本セットアップ（推奨）
+
+**最も確実な方法**: PyTorch 2.7.0のみによる動作
+
+1. **FramePackのルートディレクトリでコマンドプロンプトを開く**
+
+2. **environment.batを実行**:
+   ```cmd
+   call environment.bat
+   ```
+
+3. **PyTorch 2.7.0をインストール**:
+   ```cmd
+   python -m pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+   ```
+
+4. **動作確認**:
+   FramePack-eichiを起動し、基本的な動画生成ができることを確認
+
+### 追加最適化（試験的）
+
+**注意**: 以下のライブラリは動作しない場合があります
+
+#### xformers 0.0.30の試行
+
+```cmd
+python -m pip install xformers==0.0.30
+```
+
+**問題**: RTX 50シリーズで正しく有効化されない報告があります
+
+#### SageAttention 2.1.1の試行
+
+```cmd
+pip uninstall sageattention
+git clone https://github.com/thu-ml/SageAttention.git
+cd SageAttention
+call ..\environment.bat
+pip install .
+cd ..
+```
+
+**問題**: RTX 50xxシリーズで動作しない問題が報告されています（GitHub Issue #148）
+
+### 動作確認方法
+
+起動時のコンソールメッセージを確認:
+
+**基本構成**:
+```
+Xformers is not installed!
+Flash Attn is not installed!
+Sage Attn is not installed!
+```
+
+**最適化ライブラリが動作している場合**:
+```
+Xformers is installed!
+Sage Attn is installed!
+Flash Attn is not installed! (This is normal)
+```
+
+### トラブルシューティング
+
+1. **生成エラーが発生する場合**:
+   - 高速化ライブラリをアンインストールし、PyTorch 2.7.0のみで運用
+
+2. **性能が出ない場合**:
+   - 現時点では高速化ライブラリの恩恵を受けられない可能性があります
+
+3. **Flash Attentionについて**:
+   - RTX 50シリーズでの導入は現在非常に困難です
+
+### 結論
+
+RTX 50シリーズでは現在、**PyTorch 2.7.0のみによる基本動作**が最も確実です。
+高速化ライブラリのサポートは今後のアップデートを待つ必要があります。
 
 ## Linuxセットアップ手順
 

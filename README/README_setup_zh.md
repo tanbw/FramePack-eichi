@@ -92,6 +92,96 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
    - 輸入描述所需動作的提示詞
    - 點擊「開始生成」確認視頻生成正常工作
 
+## RTX 50 系列（Blackwell）設置說明
+
+RTX 50 系列會出現 CUDA 核心錯誤，需要特殊的設置程序。
+
+**重要**: RTX 50 系列支援目前正在開發中，無法保證完整功能。
+
+### 已知問題
+
+- 標準配置會導致「CUDA kernel error」
+- package_installer.bat 與 PyTorch 2.7.0 不兼容
+- 許多加速庫不支援 Blackwell 架構
+
+### 基本設置（推薦）
+
+**最可靠的方法**: 僅使用 PyTorch 2.7.0 運行
+
+1. **在 FramePack 根目錄開啟命令提示字元**
+
+2. **執行 environment.bat**:
+   ```cmd
+   call environment.bat
+   ```
+
+3. **安裝 PyTorch 2.7.0**:
+   ```cmd
+   python -m pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+   ```
+
+4. **驗證**:
+   啟動 FramePack-eichi 並確認基本影片生成能夠運作
+
+### 額外優化（實驗性）
+
+**警告**: 以下庫可能無法正常運作
+
+#### xformers 0.0.30 試用
+
+```cmd
+python -m pip install xformers==0.0.30
+```
+
+**問題**: 有報告指出 xformers 在 RTX 50 系列上無法正確啟用
+
+#### SageAttention 2.1.1 試用
+
+```cmd
+pip uninstall sageattention
+git clone https://github.com/thu-ml/SageAttention.git
+cd SageAttention
+call ..\environment.bat
+pip install .
+cd ..
+```
+
+**問題**: 已報告 SageAttention 在 RTX 50xx 系列上無法運作的問題（GitHub Issue #148）
+
+### 驗證方法
+
+檢查啟動時的控制台消息：
+
+**基本配置**:
+```
+Xformers is not installed!
+Flash Attn is not installed!
+Sage Attn is not installed!
+```
+
+**當優化庫運作時**:
+```
+Xformers is installed!
+Sage Attn is installed!
+Flash Attn is not installed! （這是正常的）
+```
+
+### 故障排除
+
+1. **出現生成錯誤**:
+   - 卸載加速庫，僅使用 PyTorch 2.7.0 運行
+
+2. **性能不佳**:
+   - 目前可能無法從加速庫中獲益
+
+3. **關於 Flash Attention**:
+   - 在 RTX 50 系列上的安裝目前極其困難
+
+### 結論
+
+對於 RTX 50 系列，**僅使用 PyTorch 2.7.0 的基本運行**目前最可靠。
+加速庫的支援需要等待未來的更新。
+
 ## Linux 設置說明
 
 ### 支持的 Linux 發行版

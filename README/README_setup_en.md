@@ -92,6 +92,96 @@ FramePack-eichi is an AI video generation system that creates short videos from 
    - Enter a prompt describing the desired movement
    - Click "Start Generation" to confirm video generation is working
 
+## RTX 50 Series (Blackwell) Setup Instructions
+
+RTX 50 series experiences CUDA kernel errors, requiring special setup procedures.
+
+**Important**: RTX 50 series support is currently under development and complete functionality is not guaranteed.
+
+### Known Issues
+
+- Standard configuration causes "CUDA kernel error"
+- package_installer.bat is incompatible with PyTorch 2.7.0
+- Many acceleration libraries do not support Blackwell architecture
+
+### Basic Setup (Recommended)
+
+**Most reliable method**: PyTorch 2.7.0 only operation
+
+1. **Open command prompt in FramePack root directory**
+
+2. **Execute environment.bat**:
+   ```cmd
+   call environment.bat
+   ```
+
+3. **Install PyTorch 2.7.0**:
+   ```cmd
+   python -m pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+   ```
+
+4. **Verification**:
+   Launch FramePack-eichi and confirm basic video generation works
+
+### Additional Optimizations (Experimental)
+
+**Warning**: The following libraries may not work properly
+
+#### xformers 0.0.30 Trial
+
+```cmd
+python -m pip install xformers==0.0.30
+```
+
+**Issue**: Reports of xformers not properly activating on RTX 50 series
+
+#### SageAttention 2.1.1 Trial
+
+```cmd
+pip uninstall sageattention
+git clone https://github.com/thu-ml/SageAttention.git
+cd SageAttention
+call ..\environment.bat
+pip install .
+cd ..
+```
+
+**Issue**: Problems with SageAttention not working on RTX 50xx series reported (GitHub Issue #148)
+
+### Verification Methods
+
+Check console messages at startup:
+
+**Basic configuration**:
+```
+Xformers is not installed!
+Flash Attn is not installed!
+Sage Attn is not installed!
+```
+
+**When optimization libraries are working**:
+```
+Xformers is installed!
+Sage Attn is installed!
+Flash Attn is not installed! (This is normal)
+```
+
+### Troubleshooting
+
+1. **Generation errors occur**:
+   - Uninstall acceleration libraries and operate with PyTorch 2.7.0 only
+
+2. **Poor performance**:
+   - Currently may not benefit from acceleration libraries
+
+3. **About Flash Attention**:
+   - Installation on RTX 50 series is currently extremely difficult
+
+### Conclusion
+
+For RTX 50 series, **basic operation with PyTorch 2.7.0 only** is currently most reliable.
+Support for acceleration libraries requires waiting for future updates.
+
 ## Linux Setup Instructions
 
 ### Supported Linux Distributions

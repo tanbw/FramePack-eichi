@@ -349,10 +349,19 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 ### 必要條件
 
 - Windows 10/11（Linux/Mac也可能支援基本功能）
-- NVIDIA GPU（建議RTX 30/40系列，最低8GB VRAM）
-- CUDA Toolkit 12.6
+- NVIDIA GPU（建議RTX 30/40/50系列，最低8GB VRAM）
+- CUDA Toolkit 12.6（RTX 50系列建議CUDA 12.8）
 - Python 3.10.x
 - 最新版NVIDIA GPU驅動程式
+
+#### 📍 RTX 50系列（Blackwell）使用者注意
+
+RTX 50系列（RTX 5070Ti、RTX 5080、RTX 5090等）需要特殊設置：
+
+- **CUDA**: 需要12.8或更高版本
+- **PyTorch**: 2.7.0（CUDA 12.8相容版）
+- **SageAttention**: 2.1.1（RTX 50系列最佳化版）
+- **建議設置**: 請參考[詳細設置說明](README_setup_zh.md#rtx-50-系列blackwell設置)
 
 ※ Linux支援在v1.2得到加強，並添加了開啟功能，但部分功能可能有限制。
 

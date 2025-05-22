@@ -353,10 +353,19 @@ Significantly improved in v1.9:
 ### Prerequisites
 
 - Windows 10/11 (Basic functionality probably works on Linux/Mac as well)
-- NVIDIA GPU (RTX 30/40 series recommended, minimum 8GB VRAM)
-- CUDA Toolkit 12.6
+- NVIDIA GPU (RTX 30/40/50 series recommended, minimum 8GB VRAM)
+- CUDA Toolkit 12.6 (CUDA 12.8 recommended for RTX 50 series)
 - Python 3.10.x
 - Latest NVIDIA GPU drivers
+
+#### 📍 For RTX 50 Series (Blackwell) Users
+
+RTX 50 series (RTX 5070Ti, RTX 5080, RTX 5090, etc.) requires special setup:
+
+- **CUDA**: 12.8 or later required
+- **PyTorch**: 2.7.0 (CUDA 12.8 compatible)
+- **SageAttention**: 2.1.1 (RTX 50 series optimized)
+- **Recommended Setup**: Please refer to [detailed setup instructions](README_setup_en.md#rtx-50-series-blackwell-setup)
 
 Note: Linux compatibility was enhanced in v1.2 with additional open features, but some functionality may be limited.
 
