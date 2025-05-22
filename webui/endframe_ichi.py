@@ -5944,7 +5944,6 @@ with block:
         # グローバル変数の宣言 - 関数の先頭で行う
         global batch_stopped, queue_enabled, queue_type, prompt_queue_file_path, vae_cache_enabled, image_queue_files
         
-        print("=== 入力パラメーター型情報 ===")
         if hasattr(use_queue, 'value'):
             print(translate("use_queue.value: {0}, 型={1}").format(use_queue.value, type(use_queue.value).__name__))
         if hasattr(prompt_queue_file, 'name'):
@@ -6189,9 +6188,9 @@ with block:
         else:
             # エラーメッセージの改善
             if not queue_enabled:
-                print("プロンプトキュー無効: チェックボックスがオフです")
+                print(translate("プロンプトキュー無効: チェックボックスがオフです"))
             if prompt_queue_file_path is None:
-                print("プロンプトキュー無効: ファイルが正しくアップロードされていません")
+                print(translate("プロンプトキュー無効: ファイルが正しくアップロードされていません"))
 
         # process関数のジェネレータを返す - 明示的に全ての引数を渡す
         yield from process(

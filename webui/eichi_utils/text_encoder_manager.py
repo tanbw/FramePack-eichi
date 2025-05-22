@@ -38,7 +38,7 @@ class TextEncoderManager:
             'is_loaded': self.current_state['is_loaded']
         }
         print(translate("次回のtext_encoder設定を設定しました:"))
-        print(f"  - High-VRAM mode: {high_vram_mode}")
+        print(translate("  - High-VRAM mode: {0}").format(high_vram_mode))
     
     def _needs_reload(self):
         """現在の状態と次回の設定を比較し、リロードが必要かどうかを判断"""

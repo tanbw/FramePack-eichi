@@ -3749,13 +3749,13 @@ with block:
                                     print(translate("プロンプト数に合わせてバッチ数を自動調整: {0} → {1}").format(batch_count, queue_prompts_count))
                                     batch_count = queue_prompts_count
                             else:
-                                print("プロンプトキューファイルに有効なプロンプトがありません")
+                                print(translate("プロンプトキューファイルに有効なプロンプトがありません"))
                     except Exception as e:
                         print(translate("プロンプトキューファイル読み込みエラー: {0}").format(str(e)))
                 else:
                     print(translate("プロンプトキューファイルが存在しないか無効です: {0}").format(queue_file_path))
             else:
-                print("プロンプトキュー無効: ファイルが正しくアップロードされていません")
+                print(translate("プロンプトキュー無効: ファイルが正しくアップロードされていません"))
         
         # Gradioのラジオボタンオブジェクトが直接渡されているか、文字列値が渡されているかを確認
         if hasattr(frame_save_mode, 'value'):

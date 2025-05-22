@@ -99,7 +99,7 @@ def load_translations():
             with open(json_file, 'r', encoding='utf-8') as f:
                 translations[locale] = json.load(f)
         else:
-            print(f"Warning: Translation file {json_file} not found")
+            print("Warning: Translation file {0} not found".format(json_file))
             translations[locale] = {}
 
     return translations
@@ -119,7 +119,7 @@ def init(locale="ja"):
     
     # 対応していない言語の場合はデフォルト言語(ja)を使用
     if locale not in supported_locales:
-        print(f"[WARNING] Unsupported language: {locale}. Falling back to 'ja'")
+        print("Unsupported language: {0}. Falling back to 'ja'".format(locale))
         locale = "ja"
     
     lang = locale

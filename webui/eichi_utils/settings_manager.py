@@ -280,7 +280,7 @@ def load_app_settings():
     for key, default_value in default_settings.items():
         if key not in app_settings:
             app_settings[key] = default_value
-            print(f"[INFO] 新しい設定項目 '{key}' をデフォルト値 {default_value} で追加")
+            print(translate("新しい設定項目 '{0}' をデフォルト値 {1} で追加").format(key, default_value))
     
     # マージした設定を保存
     if app_settings != settings.get('app_settings_eichi', {}):
@@ -317,7 +317,7 @@ def load_app_settings_f1():
     for key, default_value in default_settings.items():
         if key not in app_settings:
             app_settings[key] = default_value
-            print(f"[INFO] F1: 新しい設定項目 '{key}' をデフォルト値 {default_value} で追加")
+            print(translate("F1: 新しい設定項目 '{0}' をデフォルト値 {1} で追加").format(key, default_value))
     
     # マージした設定を保存
     if app_settings != settings.get('app_settings_f1', {}):

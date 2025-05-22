@@ -62,7 +62,7 @@ def process_uploaded_zipfile(file, max_keyframes):
                 extracted_files.append(file_path)
     
     if not extracted_files:
-        print(f"[WARNING] 抽出されたファイルがありません！")
+        print(translate("抽出されたファイルがありません！"))
 
     # プロンプトファイルを取得（1つのみ）
     prompt_files = [f for f in extracted_files if f.endswith("sections.yml") or f.endswith("sections.yaml")]
@@ -143,12 +143,12 @@ def process_uploaded_zipfile(file, max_keyframes):
     # LoRA設定を取得（存在しない場合はNone）
     lora_settings_from_yaml = prompt_data.get("lora_settings", None)
     if lora_settings_from_yaml:
-        print(f"YAMLからLoRA設定を読み込み: {lora_settings_from_yaml}")
+        print(translate("YAMLからLoRA設定を読み込み: {0}").format(lora_settings_from_yaml))
     
     # 動画設定を取得（存在しない場合はNone）
     video_settings_from_yaml = prompt_data.get("video_settings", None)
     if video_settings_from_yaml:
-        print(f"YAMLから動画設定を読み込み: {video_settings_from_yaml}")
+        print(translate("YAMLから動画設定を読み込み: {0}").format(video_settings_from_yaml))
 
     # image_filesからファイル名の先頭番号を抽出してマッピング
     image_file_map = {

@@ -203,18 +203,18 @@ class TransformerManager:
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-            print(translate("\ntransformerをリロードします..."))
+            print(translate("transformerをリロードします..."))
             print(translate("適用するtransformer設定:"))
             lora_paths = self.next_state.get('lora_paths', []) or []
             lora_scales = self.next_state.get('lora_scales', []) or []
             if lora_paths:
                 for i, (path, scale) in enumerate(zip(lora_paths, lora_scales)):
-                    print(f"  - LoRA {i+1}: {os.path.basename(path)} (スケール: {scale})")
+                    print(translate("  - LoRA {0}: {1} (スケール: {2})").format(i+1, os.path.basename(path), scale))
             else:
                 print(translate("  - LoRA: None"))
-            print(f"  - FP8 optimization: {self.next_state['fp8_enabled']}")
-            print(f"  - Force dict split: {self.next_state.get('force_dict_split', False)}")
-            print(f"  - High-VRAM mode: {self.next_state['high_vram']}")
+            print(translate("  - FP8 optimization: {0}").format(self.next_state['fp8_enabled']))
+            print(translate("  - Force dict split: {0}").format(self.next_state.get('force_dict_split', False)))
+            print(translate("  - High-VRAM mode: {0}").format(self.next_state['high_vram']))
 
             # モードに応じたモデルパスを選択
             model_path = self._get_model_path()
@@ -334,7 +334,7 @@ class TransformerManager:
             self.transformer.cpu()
             self.transformer.eval()
             self.transformer.high_quality_fp32_output_for_inference = True
-            print('transformer.high_quality_fp32_output_for_inference = True')
+            print(translate("transformer.high_quality_fp32_output_for_inference = True"))
             # self.transformer.to(dtype=torch.bfloat16) # fp8が解除されてしまうのでコメントアウト
             self.transformer.requires_grad_(False)
             
