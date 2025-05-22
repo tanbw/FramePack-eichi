@@ -16,6 +16,23 @@ In other words, it's a ~~local~~ **worldwide** modification specialized in creat
 
 We're extremely grateful to [https://github.com/hinablue](https://github.com/hinablue) **Hina Chen** for multilingual support cooperation.
 
+## 🌟 Feature Expansion (v1.9.4) ※Official Release
+
+**FramePack-eichi v1.9.4** focuses on usability improvements and stability enhancements.
+
+### 🚀 Key New Features
+
+- **Settings Save Function**: Colored background items automatically restored on next startup
+- **Alarm Function**: Completion notification with ON/OFF setting for Windows
+- **Tensor Processing Enhancement**: Improved processing capabilities with new tensor-related modules
+- **Log Management System**: File redirection for standard output with timestamped logging
+
+### 💡 Use Cases
+
+- **Efficient Workflow**: No need for repetitive settings configuration thanks to settings save function
+- **Long-term Work**: Audio confirmation of generation completion with alarm function
+- **Debug Work**: Easier problem identification and resolution with log management
+
 ## 🌟 Feature Expansion (v1.9.3)
 
 **FramePack-eichi v1.9.3** focuses on workflow efficiency and usability improvements.
