@@ -63,7 +63,8 @@ FramePack-eichiは、テキストプロンプトを使用して1枚の画像か�
 
 2. **FramePack-eichiのインストール**:
    - [FramePack-eichiリポジトリ](https://github.com/git-ai-code/FramePack-eichi)をクローンまたはダウンロード
-   - 適切な言語のバッチファイル（日本語は`run_endframe_ichi.bat`、英語は`run_endframe_ichi_en.bat`、繁体字中国語は`run_endframe_ichi_zh-tw.bat`、ロシア語は`run_endframe_ichi_ru.bat`）をFramePackのルートディレクトリにコピー
+   - **多言語・多モード統合ランチャー**: `Language_FramePack-eichi.bat`をFramePackのルートディレクトリにコピーすることで、単一のインターフェースからすべてのFramePack-eichiバリエーションを起動可能
+   - または適切な言語のバッチファイル（日本語は`run_endframe_ichi.bat`、英語は`run_endframe_ichi_en.bat`、繁体字中国語は`run_endframe_ichi_zh-tw.bat`、ロシア語は`run_endframe_ichi_ru.bat`）をFramePackのルートディレクトリにコピー
    - F1版を使用する場合は`run_endframe_ichi_f1.bat`（または言語別の`run_endframe_ichi_en_f1.bat`、`run_endframe_ichi_zh-tw_f1.bat`、`run_endframe_ichi_f1_ru.bat`）
    - 単一フレーム推論の場合は`run_oneframe_ichi.bat`（または言語別の`run_oneframe_ichi_en.bat`、`run_oneframe_ichi_zh-tw.bat`、`run_oneframe_ichi_ru.bat`）
    - FramePack-eichiから以下のファイル/フォルダをFramePackの`webui`フォルダにコピー:

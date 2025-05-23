@@ -112,6 +112,28 @@ FramePack-eichiは、lllyasviel師の[lllyasviel/FramePack](https://github.com/l
 
 **注意：** F1モデルの初回起動時は無印モデル版に加え、約24GBの追加モデルダウンロードが発生します。無印版のモデルもそのまま保持され、切り替えて利用できます。
 
+### 多言語・多モード統合ランチャー
+
+**Language_FramePack-eichi.bat**は、すべてのFramePack-eichiバリエーションを一つのインターフェースから起動できる統合ランチャーです。
+
+#### 起動方法
+1. FramePackのルートディレクトリで`Language_FramePack-eichi.bat`を実行
+2. メニューから希望する番号を選択してEnterキーを押す
+
+#### 利用可能オプション
+| 番号 | 説明 |
+|---------|-----------|
+| 1-4 | FramePack-Eichi endframe_ichi（日本語、英語、中国語、ロシア語） |
+| 10-13 | FramePack-Eichi endframe_ichi_f1（日本語、英語、中国語、ロシア語） |
+| 20-23 | FramePack-Eichi oneframe_ichi（日本語、英語、中国語、ロシア語） |
+| 50-53 | オリジナルFramePack（日本語、英語、中国語、ロシア語） |
+| 60-63 | FramePack LoRA（日本語、英語、中国語、ロシア語） |
+
+#### リポジトリリンク
+ランチャーからは以下への素早いアクセスも提供されます：
+- 公式FramePackリポジトリ
+- FramePack-eichiリポジトリ
+
 ## 🌟 主な機能
 
 - **高品質な動画生成**: 単一画像から自然な動きの動画を生成　※既存機能
@@ -512,6 +534,48 @@ Linuxでは、以下の手順で実行可能です：
 - [話題のFramePackをMac mini M4 Proで動かしてみた件](https://note.com/akira_kano24/n/n49651dbef319)をご参考ください
 
 ## 🚀 使い方
+
+### 多言語・多モード統合ランチャー
+
+**Language_FramePack-eichi.bat**は、すべてのFramePack-eichiバリエーションを一つのインターフェースから起動できる統合ランチャーです。
+
+#### 起動方法
+1. FramePackのルートディレクトリで`Language_FramePack-eichi.bat`を実行
+2. メニューから希望する番号を選択してEnterキーを押す
+
+#### 利用可能なオプション
+
+**🎯 FramePack-Eichi_endframe_ichi（無印版）**
+- `1` - 日本語
+- `2` - 英語  
+- `3` - 繁体字中国語
+- `4` - ロシア語
+
+**🚀 FramePack-Eichi_endframe_ichi_f1（F1版）**
+- `10` - 日本語
+- `11` - 英語
+- `12` - 繁体字中国語  
+- `13` - ロシア語
+
+**🎪 FramePack-Eichi_oneframe_ichi（1フレーム推論版）**
+- `20` - 日本語
+- `21` - 英語
+- `22` - 繁体字中国語
+- `23` - ロシア語
+
+**⚡ オリジナルFramePack**
+- `30` - FramePack（オリジナル版）
+- `31` - FramePack-F1（オリジナル版）
+
+**🌐 公式リンク**
+- `99` - 公式FramePackのGitHubページを開く
+- `00` - FramePack-eichiのGitHubページを開く
+
+#### 使用例
+```
+Please select language (number): 1
+```
+上記のように番号を入力すると、対応するモードと言語でFramePack-eichiが起動します。
 
 ### モデル選択
 

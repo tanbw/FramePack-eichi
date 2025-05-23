@@ -62,7 +62,8 @@ FramePack-eichi 是一個 AI 視頻生成系統，可使用文本提示從單一
 
 2. **安裝 FramePack-eichi**:
    - 克隆或下載 [FramePack-eichi 倉庫](https://github.com/git-ai-code/FramePack-eichi)
-   - 將適合語言的批處理文件（日語用 `run_endframe_ichi.bat`、英語用 `run_endframe_ichi_en.bat`、繁體中文用 `run_endframe_ichi_zh-tw.bat`、俄語用 `run_endframe_ichi_ru.bat`）複製到 FramePack 根目錄
+   - **多言語・多模式統合啟動器**: 將 `Language_FramePack-eichi.bat` 複製到 FramePack 根目錄，可以從單一界面啟動所有 FramePack-eichi 變體
+   - 或者將適合語言的批處理文件（日語用 `run_endframe_ichi.bat`、英語用 `run_endframe_ichi_en.bat`、繁體中文用 `run_endframe_ichi_zh-tw.bat`、俄語用 `run_endframe_ichi_ru.bat`）複製到 FramePack 根目錄
    - F1版本請使用 `run_endframe_ichi_f1.bat`（或語言版 `run_endframe_ichi_en_f1.bat`、`run_endframe_ichi_zh-tw_f1.bat`、`run_endframe_ichi_f1_ru.bat`）
    - 單幀推論請使用 `run_oneframe_ichi.bat`（或語言版 `run_oneframe_ichi_en.bat`、`run_oneframe_ichi_zh-tw.bat`、`run_oneframe_ichi_ru.bat`）
    - 將以下文件/文件夾從 FramePack-eichi 複製到 FramePack 的 `webui` 文件夾：

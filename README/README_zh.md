@@ -112,7 +112,27 @@ FramePack-eichi 是基於 lllyasviel 的 [lllyasviel/FramePack](https://github.c
 
 **注意：** 首次啟動 F1 模型時，除了標準模型外，還會下載約 24GB 的額外模型。標準模型也會被保留，您可以在兩者之間切換使用。
 
+### 多語言・多模式統合啟動器
 
+**Language_FramePack-eichi.bat** 是一個統合啟動器，可以從單一界面啟動所有 FramePack-eichi 變體。
+
+#### 啟動方法
+1. 在 FramePack 根目錄執行 `Language_FramePack-eichi.bat`
+2. 從菜單中選擇所需的編號並按 Enter 鍵
+
+#### 可用選項
+| 編號 | 說明 |
+|---------|-----------|
+| 1-4 | FramePack-Eichi endframe_ichi（日語、英語、中文、俄語） |
+| 10-13 | FramePack-Eichi endframe_ichi_f1（日語、英語、中文、俄語） |
+| 20-23 | FramePack-Eichi oneframe_ichi（日語、英語、中文、俄語） |
+| 50-53 | 原版 FramePack（日語、英語、中文、俄語） |
+| 60-63 | FramePack LoRA（日語、英語、中文、俄語） |
+
+#### 資源庫連結
+啟動器還提供快速存取以下內容：
+- 官方 FramePack 資源庫
+- FramePack-eichi 資源庫
 
 ## 🌟 主要功能
 

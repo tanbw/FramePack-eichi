@@ -62,7 +62,8 @@ FramePack-eichi is an AI video generation system that creates short videos from 
 
 2. **Installing FramePack-eichi**:
    - Clone or download the [FramePack-eichi repository](https://github.com/git-ai-code/FramePack-eichi)
-   - Copy the appropriate language batch file (`run_endframe_ichi.bat` for Japanese, `run_endframe_ichi_en.bat` for English, `run_endframe_ichi_zh-tw.bat` for Traditional Chinese, `run_endframe_ichi_ru.bat` for Russian) to the FramePack root directory
+   - **Multi-Language & Multi-Mode Integrated Launcher**: Copy `Language_FramePack-eichi.bat` to the FramePack root directory to launch all FramePack-eichi variants from a single interface
+   - Or copy the appropriate language batch file (`run_endframe_ichi.bat` for Japanese, `run_endframe_ichi_en.bat` for English, `run_endframe_ichi_zh-tw.bat` for Traditional Chinese, `run_endframe_ichi_ru.bat` for Russian) to the FramePack root directory
    - For F1 version, use `run_endframe_ichi_f1.bat` (or language-specific `run_endframe_ichi_en_f1.bat`, `run_endframe_ichi_zh-tw_f1.bat`, `run_endframe_ichi_f1_ru.bat`)
    - For single-frame inference, use `run_oneframe_ichi.bat` (or language-specific `run_oneframe_ichi_en.bat`, `run_oneframe_ichi_zh-tw.bat`, `run_oneframe_ichi_ru.bat`)
    - Copy the following files/folders from FramePack-eichi to the `webui` folder in FramePack:

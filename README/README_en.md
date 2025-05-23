@@ -111,6 +111,28 @@ Dedicated launch scripts are provided:
 
 **Note:** When launching the F1 model for the first time, approximately 24GB of additional model downloads will occur in addition to the standard model. The standard model will also be retained, allowing you to switch between them.
 
+### Multi-Language & Multi-Mode Integrated Launcher
+
+**Language_FramePack-eichi.bat** is an integrated launcher that allows you to start all FramePack-eichi variations from a single interface.
+
+#### How to Launch
+1. Run `Language_FramePack-eichi.bat` in the FramePack root directory
+2. Select the desired number from the menu and press Enter
+
+#### Available Options
+| Number | Description |
+|---------|-----------|
+| 1-4 | FramePack-Eichi endframe_ichi (Japanese, English, Chinese, Russian) |
+| 10-13 | FramePack-Eichi endframe_ichi_f1 (Japanese, English, Chinese, Russian) |
+| 20-23 | FramePack-Eichi oneframe_ichi (Japanese, English, Chinese, Russian) |
+| 50-53 | Original FramePack (Japanese, English, Chinese, Russian) |
+| 60-63 | FramePack LoRA (Japanese, English, Chinese, Russian) |
+
+#### Repository Links
+The launcher also provides quick access to:
+- Official FramePack repository
+- FramePack-eichi repository
+
 ## 🌟 Main Features
 
 - **High-Quality Video Generation**: Generate natural motion videos from a single image (existing feature)
@@ -569,6 +591,48 @@ On Linux, you can run it with the following steps:
 - Please refer to [Running FramePack on Mac mini M4 Pro](https://note.com/akira_kano24/n/n49651dbef319)
 
 ## 🚀 How to Use
+
+### Multi-Language & Multi-Mode Integrated Launcher
+
+**Language_FramePack-eichi.bat** is an integrated launcher that allows you to start all FramePack-eichi variations from a single interface.
+
+#### How to Launch
+1. Run `Language_FramePack-eichi.bat` in the FramePack root directory
+2. Select the desired number from the menu and press Enter
+
+#### Available Options
+
+**🎯 FramePack-Eichi_endframe_ichi (Standard Version)**
+- `1` - Japanese
+- `2` - English  
+- `3` - Traditional Chinese
+- `4` - Russian
+
+**🚀 FramePack-Eichi_endframe_ichi_f1 (F1 Version)**
+- `10` - Japanese
+- `11` - English
+- `12` - Traditional Chinese  
+- `13` - Russian
+
+**🎪 FramePack-Eichi_oneframe_ichi (One-Frame Inference Version)**
+- `20` - Japanese
+- `21` - English
+- `22` - Traditional Chinese
+- `23` - Russian
+
+**⚡ Original FramePack**
+- `30` - FramePack (Original version)
+- `31` - FramePack-F1 (Original version)
+
+**🌐 Official Links**
+- `99` - Open official FramePack GitHub page
+- `00` - Open FramePack-eichi GitHub page
+
+#### Usage Example
+```
+Please select language (number): 2
+```
+Enter a number as shown above, and FramePack-eichi will start with the corresponding mode and language.
 
 ### Model Selection
 
