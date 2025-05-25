@@ -42,6 +42,7 @@ from eichi_utils.combine_mode import (
     COMBINE_MODE_OPTIONS_KEYS,
     COMBINE_MODE_DEFAULT,
     get_combine_mode,
+    is_combine_mode,
 )
 
 from eichi_utils.png_metadata import (
@@ -365,13 +366,6 @@ input_dir = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), input_folder_name_value
 )
 os.makedirs(input_dir, exist_ok=True)
-
-
-def is_combine_mode(combine_mode, check_mode):
-    if COMBINE_MODE_OPTIONS[combine_mode] == check_mode:
-        return True
-    else:
-        return False
 
 
 def remove_first_frame_from_tensor_latent(tensor_latent, trim_size):
@@ -2840,7 +2834,10 @@ with block:
                 # 生成動画
                 with gr.Group():
                     gr.Markdown(
-                        "### " + translate("入力：動画生成で使用する画像、プロンプト"),
+                        "### "
+                        + translate(
+                            "入力：動画生成（生成フレーム数、画像、プロンプト）"
+                        ),
                         elem_classes="markdown-title",
                     )
                     with gr.Row():
@@ -4239,7 +4236,7 @@ with block:
             )
             gr.Markdown(
                 translate(
-                    "safetensors形式のテンソルファイルを2つ選択して結合します。結合順序は「テンソル1 + テンソル2」です。"
+                    "safetensors形式のテンソルファイルを2つ選択して結合します。結合順序は「テンソル1 + テンソル2」です。テンソルデータのスムーズ結合機能を使うことでスムーズな結合が可能です。"
                 ),
                 elem_classes="markdown-desc",
             )
@@ -4261,6 +4258,75 @@ with block:
                             file_types=[".safetensors"],
                             height=200,
                         )
+
+                    # チェックボックスで表示/非表示を切り替え
+                    tool_use_interpolation_section = gr.Checkbox(
+                        label=translate("テンソルデータのスムーズ結合機能を表示"),
+                        value=False,
+                        info=translate(
+                            "チェックをオンにするとテンソルデータをスムーズに結合する機能を表示します"
+                        ),
+                    )
+
+                    with gr.Group(visible=False) as tool_interpolation_group:
+                        # テンソルデータと新規生成動画のスムージング結合のチェックボックス
+                        gr.Markdown(
+                            f"### " + translate("テンソルデータのスムーズ結合機能"),
+                            elem_classes="markdown-subtitle",
+                        )
+                        gr.Markdown(
+                            translate(
+                                "テンソル1の最後の画像とテンソル2の最初の画像を使用して補間動画を生成します。この2画像間には適度な動作差分をつけてください（約1セクション分）。"
+                            ),
+                            elem_classes="markdown-desc",
+                        )
+
+                        # テンソルデータの先頭の削除フレーム数
+                        tool_tensor_trim_start_latents = gr.Slider(
+                            label=translate("テンソルデータ1の先頭の削除フレーム数"),
+                            minimum=0,
+                            maximum=5,
+                            value=0,
+                            step=1,
+                            interactive=True,
+                            info=translate(
+                                "テンソルデータ1の先頭から削除するフレーム数。テンソルデータの先頭部分にノイズがある場合に、設定してください。出力結果の品質を確認して調整してください。"
+                            ),
+                        )
+
+                        # 補間フレーム数
+                        tool_interpolation_latents = gr.Slider(
+                            label=translate("補間フレーム数"),
+                            minimum=0,
+                            maximum=12,
+                            value=9,
+                            step=1,
+                            interactive=True,
+                            info=translate(
+                                "テンソルデータをつなげるため、追加する補間フレーム数。6-9推奨。設定値と時間の目安：3（0.3秒）、6（0.7秒）、9（1.1秒）、12（1.5秒）"
+                            ),
+                        )
+
+                        # 補間フレーム用プロンプト
+                        with gr.Row():
+                            tool_interpolation_prompt = gr.Textbox(
+                                label=translate(
+                                    "Prompt - 補間フレーム動画の動きを指示するプロンプト"
+                                ),
+                                value="",
+                                lines=6,
+                            )
+
+                    # チェックボックスの状態によってテンソルデータと生成動画のスムーズ機能の表示/非表示を切り替える関数
+                    def toggle_interpolation_settings(use_interpolation):
+                        return gr.update(visible=use_interpolation)
+
+                    # チェックボックスの変更イベントに関数を紐づけ
+                    tool_use_interpolation_section.change(
+                        fn=toggle_interpolation_settings,
+                        inputs=[tool_use_interpolation_section],
+                        outputs=[tool_interpolation_group],
+                    )
 
                 with gr.Column(elem_classes="group-border"):
                     gr.Markdown(
@@ -4297,18 +4363,20 @@ with block:
                 outputs=tool_combine_btn,
             )
 
-            def combine_tensor_files(file1_path, file2_path, output_path=None):
+            def combine_tensor_files(file1_path, file2_path):
                 """2つのsafetensorsファイルを読み込み、結合して新しいファイルに保存する
 
                 Args:
                     file1_path (str): 1つ目のsafetensorsファイルパス
                     file2_path (str): 2つ目のsafetensorsファイルパス
-                    output_path (str, optional): 出力ファイルパス。指定しない場合は自動生成
 
                 Returns:
                     tuple: (成功したかどうかのbool, 出力ファイルパス, 結果メッセージ)
                 """
                 try:
+                    job_id = generate_timestamp() + "_combined"
+                    output_path = os.path.join(outputs_folder, f"{job_id}.safetensors")
+
                     # ファイル1を読み込み
                     print(
                         translate("ファイル1を読み込み中: {0}").format(
@@ -4419,7 +4487,7 @@ with block:
                         )
                         info_text = translate("""結合成功
                             #### 結合後のテンソルファイル情報:
-                            - ファイル名: {filename}
+                            - 出力先: {filename}
                             - フレーム数: {frames}フレーム ({frames1}+{frames2}フレーム)
                             - サイズ: {tensor_size_mb:.2f}MB
                             - keys: {keys}
@@ -4450,20 +4518,523 @@ with block:
                     traceback.print_exc()
                     return False, None, error_msg
 
-            def combine_tensors(file1, file2):
+            @torch.no_grad()
+            def generate_interpolation_movie(
+                file1_path,
+                file2_path,
+                trim_start_latent_size,
+                interpolation_latent_size,
+            ):
+                # 生成データの末尾のフレームとテンソルデータの先頭のフレームを補間するフレームを追加する
+                job_id = generate_timestamp() + "_tool_tensor_combined"
+
+                # 各モデルを初期化して使用
+                try:
+                    # loraなし
+                    transformer_manager.set_next_settings()
+                    # transformerの状態を確認し、必要に応じてリロード
+                    if not transformer_manager.ensure_transformer_state():
+                        raise Exception(
+                            translate("transformer状態の確認に失敗しました")
+                        )
+                    # 最新のtransformerインスタンスを取得
+                    transformer = transformer_manager.get_transformer()
+                    print(translate("transformer状態チェック完了"))
+                except Exception as e:
+                    print(translate("transformer状態チェックエラー: {0}").format(e))
+                    traceback.print_exc()
+                    raise e
+
+                # file1の末尾のフレーム
+                tensor_dict_1 = sf.load_file(file1_path)
+                # テンソルデータからlatentデータを取得
+                file1_latents = tensor_dict_1["history_latents"]
+
+                # 削除するフレームサイズを計算
+                file1_latents_size = file1_latents.shape[2]
+
+                if file1_latents_size > trim_start_latent_size:
+                    # テンソルデータの先頭フレームを削除
+                    if trim_start_latent_size > 0:
+                        fix_file1_latents = file1_latents[
+                            :, :, trim_start_latent_size:, :, :
+                        ]
+                        print(
+                            translate(
+                                "アップロードされたテンソルデータの先頭フレームを削除しました。削除数: {0}/{1}"
+                            ).format(trim_start_latent_size, file1_latents_size)
+                        )
+                    else:
+                        fix_file1_latents = file1_latents
+                else:
+                    fix_file1_latents = file1_latents
+                    if trim_start_latent_size > 0:
+                        print(
+                            translate(
+                                "警告: テンソルデータのフレーム数よりも、先頭フレーム削除数が大きく指定されているため、先頭フレーム削除は実施しません。"
+                            )
+                        )
+
+                file1_last_latent = fix_file1_latents[:, :, -1, :, :].clone()
+
+                # file2の先頭のフレーム
+                tensor_dict_2 = sf.load_file(file2_path)
+                # テンソルデータからlatentデータを取得
+                file2_latents = tensor_dict_2["history_latents"]
+                file2_first_latent = file2_latents[:, :, 0, :, :].clone()
+
+                # TODO:現状、動画サイズはファイル2固定
+                adjust_height = file2_latents.shape[3] * 8
+                adjust_width = file2_latents.shape[4] * 8
+                # TODO:現状、各種パラメータは固定
+                cfg = 1
+                gs = 10.0
+                rs = 0
+                seed = random.randint(0, 2**32 - 1)
+                rnd = torch.Generator("cpu").manual_seed(seed)
+                steps = 25
+
+                # text_encoderとtext_encoder_2を確実にロード
+                if not text_encoder_manager.ensure_text_encoder_state():
+                    raise Exception(
+                        translate("text_encoderとtext_encoder_2の初期化に失敗しました")
+                    )
+                text_encoder, text_encoder_2 = text_encoder_manager.get_text_encoders()
+
+                # Text encoding
+
+                if not high_vram:
+                    fake_diffusers_current_device(
+                        text_encoder, gpu
+                    )  # since we only encode one text - that is one model move and one encode, offload is same time consumption since it is also one load and one encode.
+                    text_encoder_2.to(gpu)
+
+                # 補間用プロンプトを使用
+                llama_vec, clip_l_pooler = encode_prompt_conds(
+                    tool_interpolation_prompt.value,
+                    text_encoder,
+                    text_encoder_2,
+                    tokenizer,
+                    tokenizer_2,
+                )
+
+                if cfg == 1:
+                    llama_vec_n, clip_l_pooler_n = (
+                        torch.zeros_like(llama_vec),
+                        torch.zeros_like(clip_l_pooler),
+                    )
+                else:
+                    # n_prompt
+                    llama_vec_n, clip_l_pooler_n = encode_prompt_conds(
+                        "", text_encoder, text_encoder_2, tokenizer, tokenizer_2
+                    )
+
+                llama_vec, llama_attention_mask = crop_or_pad_yield_mask(
+                    llama_vec, length=512
+                )
+                llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(
+                    llama_vec_n, length=512
+                )
+
+                # これ以降の処理は text_encoder, text_encoder_2 は不要なので、メモリ解放してしまって構わない
+                if not high_vram:
+                    text_encoder, text_encoder_2 = None, None
+                    text_encoder_manager.dispose_text_encoders()
+
+                def preprocess_image(img_path_or_array, resolution=640):
+                    """Pathまたは画像配列を処理して適切なサイズに変換する"""
+                    print(
+                        translate(
+                            "[DEBUG] preprocess_image: img_path_or_array型 = {0}"
+                        ).format(type(img_path_or_array))
+                    )
+
+                    if img_path_or_array is None:
+                        # 画像がない場合は指定解像度の黒い画像を生成
+                        img = np.zeros((resolution, resolution, 3), dtype=np.uint8)
+                        height = width = resolution
+                        return img, img, height, width
+
+                    # TensorからNumPyへ変換する必要があれば行う
+                    if isinstance(img_path_or_array, torch.Tensor):
+                        img_path_or_array = img_path_or_array.cpu().numpy()
+
+                    # Pathの場合はPILで画像を開く
+                    if isinstance(img_path_or_array, str) and os.path.exists(
+                        img_path_or_array
+                    ):
+                        # print(translate("[DEBUG] ファイルから画像を読み込み: {0}").format(img_path_or_array))
+                        img = np.array(Image.open(img_path_or_array).convert("RGB"))
+                    else:
+                        # NumPy配列の場合はそのまま使う
+                        img = img_path_or_array
+
+                    # H, W, C = img.shape
+                    # 解像度パラメータを使用してサイズを決定
+                    # height, width = find_nearest_bucket(H, W, resolution=resolution)
+
+                    # 入力画像の解像度をテンソルファイルのサイズに合わせる
+                    img_np = resize_and_center_crop(
+                        img,
+                        target_width=adjust_width,
+                        target_height=adjust_height,
+                    )
+                    img_pt = torch.from_numpy(img_np).float() / 127.5 - 1
+                    img_pt = img_pt.permute(2, 0, 1)[None, :, None]
+                    return img_np, img_pt, adjust_height, adjust_width
+
+                if not high_vram:
+                    load_model_as_complete(image_encoder, target_device=gpu)
+                    load_model_as_complete(vae, target_device=gpu, unload=False)
+
+                file1_last_latent.to(gpu)
+                file2_first_latent.to(gpu)
+
+                # 開始、終了画像を出力
+                # VAEキャッシュ設定に応じてデコード関数を切り替え
+                if use_vae_cache:
+                    last_image = vae_decode_cache(
+                        file1_last_latent.clone().unsqueeze(2), vae
+                    )
+                else:
+                    last_image = vae_decode(file1_last_latent.clone().unsqueeze(2), vae)
+                last_image = (
+                    (last_image[0, :, 0] * 127.5 + 127.5)
+                    .permute(1, 2, 0)
+                    .cpu()
+                    .numpy()
+                    .clip(0, 255)
+                    .astype(np.uint8)
+                )
+                # デコードした画像を保存
+                Image.fromarray(last_image).save(
+                    os.path.join(outputs_folder, f"{job_id}_start.png")
+                )
+
+                # VAEキャッシュ設定に応じてデコード関数を切り替え
+                if use_vae_cache:
+                    first_image = vae_decode_cache(file2_first_latent.unsqueeze(2), vae)
+                else:
+                    first_image = vae_decode(file2_first_latent.unsqueeze(2), vae)
+                first_image = (
+                    (first_image[0, :, 0] * 127.5 + 127.5)
+                    .permute(1, 2, 0)
+                    .cpu()
+                    .numpy()
+                    .clip(0, 255)
+                    .astype(np.uint8)
+                )
+                # デコードした画像を保存
+                Image.fromarray(first_image).save(
+                    os.path.join(outputs_folder, f"{job_id}_end.png")
+                )
+
+                input_image_np, input_image_pt, height, width = preprocess_image(
+                    last_image
+                )
+                image_encoder_output = hf_clip_vision_encode(
+                    input_image_np, feature_extractor, image_encoder
+                )
+                image_encoder_last_hidden_state = image_encoder_output.last_hidden_state
+
+                # Clean GPU
+                if not high_vram:
+                    # モデルをCPUにアンロード
+                    unload_complete_models(image_encoder, vae)
+
+                # Dtype
+
+                llama_vec = llama_vec.to(transformer.dtype)
+                llama_vec_n = llama_vec_n.to(transformer.dtype)
+                clip_l_pooler = clip_l_pooler.to(transformer.dtype)
+                clip_l_pooler_n = clip_l_pooler_n.to(transformer.dtype)
+                image_encoder_last_hidden_state = image_encoder_last_hidden_state.to(
+                    transformer.dtype
+                )
+
+                if not high_vram:
+                    unload_complete_models()
+                    move_model_to_device_with_memory_preservation(
+                        transformer,
+                        target_device=gpu,
+                        preserved_memory_gb=8.0,
+                    )
+
+                if use_teacache:
+                    transformer.initialize_teacache(
+                        enable_teacache=True, num_steps=steps
+                    )
+                else:
+                    transformer.initialize_teacache(enable_teacache=False)
+
+                def callback_interpolation(d):
+                    preview = d["denoised"]
+                    preview = vae_decode_fake(preview)
+
+                    preview = (
+                        (preview * 255.0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                        .clip(0, 255)
+                        .astype(np.uint8)
+                    )
+                    preview = einops.rearrange(preview, "b c t h w -> (b h) (t w) c")
+
+                    if stream.input_queue.top() == "end":
+                        stream.output_queue.push(("end", None))
+                        raise KeyboardInterrupt("User ends the task.")
+
+                    current_step = d["i"] + 1
+                    percentage = int(100.0 * current_step / steps)
+                    hint = translate("Sampling {0}/{1}").format(current_step, steps)
+                    desc = "補間データを生成中です ..."
+                    stream.output_queue.push(
+                        (
+                            "progress",
+                            (
+                                preview,
+                                desc,
+                                make_progress_bar_html(percentage, hint),
+                            ),
+                        )
+                    )
+                    return
+
+                tensor2_size = 1 + 2 + 16
+                if file2_latents.shape[2] < tensor2_size:
+                    # テンソルデータの足りない部分を補間
+                    fix_file2_latents = torch.nn.functional.interpolate(
+                        file2_latents,
+                        size=(
+                            tensor2_size,
+                            file2_latents.shape[3],
+                            file2_latents.shape[4],
+                        ),
+                        mode="nearest",
+                    )
+                else:
+                    fix_file2_latents = file2_latents
+
+                effective_window_size_2 = interpolation_latent_size
+
+                # 補間frames
+                interpolation_num_frames = int(effective_window_size_2 * 4 - 3)
+
+                # indexとclean_latent
+                indices_2 = torch.arange(
+                    0,
+                    sum(
+                        [
+                            1,
+                            effective_window_size_2,
+                            1,
+                            2,
+                            16,
+                        ]
+                    ),
+                ).unsqueeze(0)
+                (
+                    clean_latent_indices_pre_2,
+                    latent_indices_2,
+                    clean_latent_indices_post_2,
+                    clean_latent_2x_indices_2,
+                    clean_latent_4x_indices_2,
+                ) = indices_2.split(
+                    [
+                        1,
+                        effective_window_size_2,
+                        1,
+                        2,
+                        16,
+                    ],
+                    dim=1,
+                )
+                clean_latent_indices_2 = torch.cat(
+                    [clean_latent_indices_pre_2, clean_latent_indices_post_2],
+                    dim=1,
+                )
+                clean_latents_post_2, clean_latents_2x_2, clean_latents_4x_2 = (
+                    fix_file2_latents[:, :, : 1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
+                )
+                clean_latents_2 = torch.cat(
+                    [
+                        file1_last_latent.unsqueeze(2),
+                        clean_latents_post_2[:, :, :1, :, :],
+                    ],
+                    dim=2,
+                )
+
+                latent_indices_2 = latent_indices_2.to(gpu)
+                clean_latents_2 = clean_latents_2.to(gpu)
+                clean_latent_indices_2 = clean_latent_indices_2.to(gpu)
+                clean_latents_2x_2 = clean_latents_2x_2.to(gpu)
+                clean_latent_2x_indices_2 = clean_latent_2x_indices_2.to(gpu)
+                clean_latents_4x_2 = clean_latents_4x_2.to(gpu)
+                clean_latent_4x_indices_2 = clean_latent_4x_indices_2.to(gpu)
+
+                # 補間フレームを生成
+                generated_interpolation_latents = sample_hunyuan(
+                    transformer=transformer,
+                    sampler="unipc",
+                    width=width,
+                    height=height,
+                    frames=interpolation_num_frames,
+                    real_guidance_scale=cfg,
+                    distilled_guidance_scale=gs,
+                    guidance_rescale=rs,
+                    # shift=3.0,
+                    num_inference_steps=steps,
+                    generator=rnd,
+                    prompt_embeds=llama_vec,
+                    prompt_embeds_mask=llama_attention_mask,
+                    prompt_poolers=clip_l_pooler,
+                    negative_prompt_embeds=llama_vec_n,
+                    negative_prompt_embeds_mask=llama_attention_mask_n,
+                    negative_prompt_poolers=clip_l_pooler_n,
+                    device=gpu,
+                    dtype=torch.bfloat16,
+                    image_embeddings=image_encoder_last_hidden_state,
+                    latent_indices=latent_indices_2,
+                    clean_latents=clean_latents_2,
+                    clean_latent_indices=clean_latent_indices_2,
+                    clean_latents_2x=clean_latents_2x_2,
+                    clean_latent_2x_indices=clean_latent_2x_indices_2,
+                    clean_latents_4x=clean_latents_4x_2,
+                    clean_latent_4x_indices=clean_latent_4x_indices_2,
+                    callback=callback_interpolation,
+                )
+
+                if not high_vram:
+                    offload_model_from_device_for_memory_preservation(
+                        transformer,
+                        target_device=gpu,
+                        preserved_memory_gb=8.0,
+                    )
+                    unload_complete_models()
+
+                # 補間された潜在変数を結合
+                device = fix_file2_latents.device
+                fix_file1_latents = fix_file1_latents.to(device)
+                generated_interpolation_latents = generated_interpolation_latents.to(
+                    device
+                )
+
+                combined_tensor = torch.cat(
+                    [
+                        fix_file1_latents,
+                        generated_interpolation_latents,
+                        file2_latents,
+                    ],
+                    dim=2,
+                )
+
+                print(
+                    translate(
+                        "新規生成データの末尾、補間データ、テンソルデータの先頭のフレームを結合しました。"
+                    )
+                )
+
+                # CPUに移動
+                combined_tensor = combined_tensor.cpu()
+
+                # 結合されたテンソルの情報を表示
+                tensor1_frames = fix_file1_latents.shape[2]
+                tensor2_frames = file2_latents.shape[2]
+                generated_interpolation_frames = generated_interpolation_latents.shape[
+                    2
+                ]
+                combined_frames = combined_tensor.shape[2]
+                print(
+                    translate(
+                        "結合成功: 結合後のフレーム数={0} ({1}+{2}+{3}フレーム)"
+                    ).format(
+                        combined_frames,
+                        tensor1_frames,
+                        generated_interpolation_frames,
+                        tensor2_frames,
+                    )
+                )
+
+                # メタデータを更新
+                metadata = torch.tensor(
+                    [height, width, combined_frames], dtype=torch.int32
+                )
+
+                # 出力パス
+                tensor_combined_output_filename = os.path.join(
+                    outputs_folder, f"{job_id}.safetensors"
+                )
+
+                # 結合したテンソルをファイルに保存
+                tensor_dict = {
+                    "history_latents": combined_tensor,
+                    "metadata": metadata,
+                }
+
+                # ファイル保存
+                sf.save_file(tensor_dict, tensor_combined_output_filename)
+
+                # テンソルデータの保存サイズの概算
+                tensor_size_mb = (
+                    combined_tensor.element_size() * combined_tensor.nelement()
+                ) / (1024 * 1024)
+
+                # 情報文字列の作成
+                # 情報
+                metadata = (
+                    [str(v) for v in tensor_dict["metadata"].tolist()]
+                    if "metadata" in tensor_dict
+                    else ["metadata is not included"]
+                )
+                info_text = translate("""結合成功
+                            #### 結合後のテンソルファイル情報:
+                            - ファイル名: {filename}
+                            - フレーム数: {frames}フレーム ({frames1}+{iframes}+{frames2}フレーム)
+                            - サイズ: {tensor_size_mb:.2f}MB
+                            - keys: {keys}
+                            - history_latents: {history_latents_shape}
+                            - metadata: {metadata}
+                        """).format(
+                    filename=tensor_combined_output_filename,
+                    frames=combined_frames,
+                    frames1=tensor1_frames,
+                    iframes=generated_interpolation_frames,
+                    frames2=tensor2_frames,
+                    tensor_size_mb=tensor_size_mb,
+                    keys=", ".join(list(tensor_dict.keys())),
+                    history_latents_shape=tensor_dict["history_latents"].shape,
+                    metadata=", ".join(metadata),
+                )
+                return True, tensor_combined_output_filename, info_text
+
+            def combine_tensors(
+                file1,
+                file2,
+                use_interpolation_section,
+                trim_start_latent_size,
+                interpolation_latent_size,
+            ):
                 if file1 is None or file2 is None:
                     return translate("エラー: 2つのテンソルファイルを選択してください")
 
                 file1_path = file1.name
                 file2_path = file2.name
 
-                # 出力パス
-                job_id = generate_timestamp() + "_combined"
-                output_filename = os.path.join(outputs_folder, f"{job_id}.safetensors")
+                if use_interpolation_section and interpolation_latent_size > 0:
+                    # 2つのテンソルの間を生成動画で補間
+                    success, result_path, message = generate_interpolation_movie(
+                        file1_path,
+                        file2_path,
+                        trim_start_latent_size,
+                        interpolation_latent_size,
+                    )
+                else:
+                    # 2つのテンソルを単純結合
+                    success, result_path, message = combine_tensor_files(
+                        file1_path, file2_path
+                    )
 
-                success, result_path, message = combine_tensor_files(
-                    file1_path, file2_path, output_filename
-                )
                 if success:
                     return message
                 else:
@@ -4482,7 +5053,13 @@ with block:
                 queue=True,
             ).then(
                 combine_tensors,  # メイン処理を実行
-                inputs=[tool_tensor_file1, tool_tensor_file2],
+                inputs=[
+                    tool_tensor_file1,
+                    tool_tensor_file2,
+                    tool_use_interpolation_section,
+                    tool_tensor_trim_start_latents,
+                    tool_interpolation_latents,
+                ],
                 outputs=[tool_combined_tensor_data_desc],
                 queue=True,
             ).then(
@@ -4536,6 +5113,13 @@ with block:
                         interactive=False,
                     )
 
+                    # 動画情報
+                    tool_tensor_video_desc = gr.Markdown(
+                        "",
+                        elem_classes="markdown-desc",
+                        height=240,
+                    )
+
             with gr.Row():
                 # MP4ファイル作成ボタン
                 tool_create_mp4_button = gr.Button(
@@ -4551,22 +5135,12 @@ with block:
                     tensor_dict = sf.load_file(tensor_path)
                     # テンソルデータからlatentデータを取得
                     uploaded_tensor_latents = tensor_dict["history_latents"]
+
                     job_id = generate_timestamp() + "_tensor_to_mp4"
+                    uploaded_tensor_latents = uploaded_tensor_latents.to(gpu)
 
                     if not high_vram:
-                        # 減圧時に使用するGPUメモリ値も明示的に浮動小数点に設定
-                        preserved_memory_offload = 8.0  # こちらは固定値のまま
-                        print(
-                            translate(
-                                "Offloading transformer with memory preservation: {0} GB"
-                            ).format(preserved_memory_offload)
-                        )
-                        offload_model_from_device_for_memory_preservation(
-                            transformer,
-                            target_device=gpu,
-                            preserved_memory_gb=preserved_memory_offload,
-                        )
-                        load_model_as_complete(vae, target_device=gpu)
+                        vae.to(gpu)
 
                     uploaded_tensor_pixels, _ = process_tensor_chunks(
                         tensor=uploaded_tensor_latents,
@@ -4578,6 +5152,10 @@ with block:
                         stream=stream,
                         vae=vae,
                     )
+
+                    if not high_vram:
+                        unload_complete_models(vae)
+
                     # 入力されたテンソルデータの動画
                     input_tensor_output_filename = os.path.join(
                         outputs_folder, f"{job_id}_input_safetensors.mp4"
@@ -4588,6 +5166,42 @@ with block:
                         fps=30,
                         crf=mp4_crf,
                     )
+
+                    # OpenCVでMP4ファイルを開く
+                    cap = cv2.VideoCapture(input_tensor_output_filename)
+
+                    if not cap.isOpened():
+                        return (
+                            translate("エラー: MP4ファイルを開けませんでした"),
+                            gr.update(interactive=False),
+                        )
+
+                    # 基本情報の取得
+                    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    duration = frame_count / fps if fps > 0 else 0
+
+                    # キャプチャを解放
+                    cap.release()
+
+                    # 情報文字列の作成
+                    info_text = translate("""#### 変換後のMP4ファイル情報:
+                        - ファイル名: {filename}
+                        - フレーム数: {frames}
+                        - フレームレート: {fps:.2f} fps
+                        - 解像度: H{height}xW{width}
+                        - 長さ: {duration:.2f} 秒
+                    """).format(
+                        filename=input_tensor_output_filename,
+                        frames=frame_count,
+                        fps=fps,
+                        width=width,
+                        height=height,
+                        duration=duration,
+                    )
+
                     print(
                         translate(
                             "入力されたテンソルデータの動画を保存しました: {input_tensor_output_filename}"
@@ -4595,9 +5209,11 @@ with block:
                             input_tensor_output_filename=input_tensor_output_filename
                         )
                     )
-                    return gr.update(value=input_tensor_output_filename)
+                    return gr.update(value=input_tensor_output_filename), gr.update(
+                        value=info_text
+                    )
                 else:
-                    return gr.update()
+                    return gr.update(), gr.update()
 
             def disable_tool_create_mp4_button():
                 return gr.update(interactive=False)
@@ -4626,7 +5242,7 @@ with block:
             ).then(
                 create_mp4_from_tensor,  # メイン処理を実行
                 inputs=[tool_tensor_data_input, mp4_crf],
-                outputs=tool_tensor_video,
+                outputs=[tool_tensor_video, tool_tensor_video_desc],
                 queue=True,
             ).then(
                 enable_tool_create_mp4_button,
@@ -4783,10 +5399,6 @@ with block:
                             )
                         )
 
-                        # VAEをGPUに移動
-                        if not high_vram:
-                            load_model_as_complete(vae, target_device=gpu)
-
                         # MP4ファイルから画像シーケンスを読み込み
                         cap = cv2.VideoCapture(mp4_path)
                         frames = []
@@ -4828,6 +5440,10 @@ with block:
                                 frames_tensor.shape
                             )
                         )
+
+                        # VAEをGPUに移動
+                        if not high_vram:
+                            vae.to(gpu)
 
                         # VAEエンコード
                         frames_tensor = ensure_tensor_properties(
@@ -4878,11 +5494,19 @@ with block:
                             vae=vae,
                         )
 
+                        if not high_vram:
+                            unload_complete_models(vae)
+
                         print(
                             translate("  - decoded_pixelsの形状: {0}").format(
                                 decoded_pixels.shape
                             )
                         )
+
+                        # テンソルデータの保存サイズの概算
+                        tensor_size_mb = (
+                            latents.element_size() * latents.nelement()
+                        ) / (1024 * 1024)
 
                         # 情報
                         metadata = (
@@ -4890,13 +5514,18 @@ with block:
                             if "metadata" in tensor_dict
                             else ["metadata is not included"]
                         )
-                        tensor_info = translate("""#### テンソルファイル情報:
+                        tensor_info = translate("""変換成功
+                            #### 変換後のテンソルファイル情報:
                             - 出力先: {file_path}
+                            - フレーム数: {frames}フレーム
+                            - サイズ: {tensor_size_mb:.2f}MB
                             - keys: {keys}
                             - history_latents: {history_latents_shape}
                             - metadata: {metadata}
                         """).format(
                             file_path=tensor_output_path,
+                            frames=latents.shape[2],
+                            tensor_size_mb=tensor_size_mb,
                             keys=", ".join(list(tensor_dict.keys())),
                             history_latents_shape=tensor_dict["history_latents"].shape,
                             metadata=", ".join(metadata),

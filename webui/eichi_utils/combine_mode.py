@@ -18,6 +18,13 @@ COMBINE_MODE_OPTIONS_KEYS = list(COMBINE_MODE_OPTIONS.keys())
 COMBINE_MODE_DEFAULT = COMBINE_MODE_OPTIONS_KEYS[0]
 
 
+def is_combine_mode(combine_mode, check_mode):
+    if COMBINE_MODE_OPTIONS[combine_mode] == check_mode:
+        return True
+    else:
+        return False
+
+
 def get_combine_mode(combine_mode):
     """COMBINE_MODEのEnumからCOMBINE_MODE_OPTIONSのキーの値を取得する
 
