@@ -102,10 +102,19 @@ FramePack-eichi improves quality further by strategically placing multiple keyfr
    - 8-second mode provides more gradual image transitions than 6-second mode
    - In any case (including for multiple scenes), the greater the difference between images, the larger the movement changes, resulting in smoother motion
 
-2. **Loop Function Optimization**:
+2. **Loop Function Optimization and Limitations**:
    - In loop mode, the first keyframe is automatically copied to the Final Frame
    - Since v1.5.1, copying from input images in normal mode has been stopped, and image copying is only enabled in loop mode
    - By setting the loop's starting pose in keyframe image 1, you can create smooth cyclic videos
+
+   **Important Limitations**:
+   - **Difficulty in Perfect Loops**: Due to the characteristics of AI video generation models, creating perfectly seamless loops is technically challenging
+   - **Micro-variations Between Frames**: Subtle differences in AI-generated frames may cause unnaturalness at loop joints
+   - **Hunyuan Video Constraints**: Due to the underlying model's temporal consistency limitations, ensuring exact matching between first and last frames is difficult
+
+   **Recommended Alternatives**:
+   - For high-quality loops, we recommend using the dedicated loop generation tool **[FramePackLooP](https://github.com/red-polo/FramePackLoop)**
+   - We are investigating whether tensor concatenation tool research results can be utilized for loop functionality in the future
 
 3. **Section-Specific Prompt Settings**: *Added in v1.2 [Experimental Implementation]
    - Set unique prompts for each section to achieve different movements or expressions per section

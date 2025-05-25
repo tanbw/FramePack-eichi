@@ -4,6 +4,25 @@
 
 ## 日本語
 
+### 2025-05-22: バージョン1.9.4 ※正式リリース版
+- **設定保存機能の実装**:
+  - 色付き背景の項目について、次回起動時に設定内容が自動復元
+  - 手動保存オプション：設定変更後に手動で保存可能
+  - 自動保存オプション：生成開始時に設定を自動保存（選択可能）
+  - 既存機能との併用：セクション一括アップロード、画像キュー、LoRAプリセットマネージャーと併用可能
+- **アラーム機能の追加**:
+  - Windows対応：生成完了時にシステム音でお知らせ
+  - ON/OFF設定：ユーザーの好みに応じてアラーム機能を制御可能
+  - 効率向上：長時間の生成作業時の利便性を向上
+- **テンソル処理機能の強化**:
+  - 新規モジュール追加：`tensor_processing.py`、`tensor_tool.py`、`tensor_tool_f1.py`
+  - 結合モード管理：`combine_mode.py`による統一的なテンソル結合処理
+  - 処理能力向上：より高度なテンソル操作に対応
+- **ログ管理システムの導入**:
+  - ファイル出力：標準出力をファイルにもリダイレクト
+  - タイムスタンプ機能：ログエントリにタイムスタンプを自動付与
+  - デバッグ支援：問題の特定と解決を効率化
+
 ### 2025-05-15: バージョン1.9.3
 - **プロンプトキューと画像キュー**:
   - テキストファイルから複数のプロンプトを読み込み順次処理
@@ -221,6 +240,25 @@
 - キーフレームガイド機能の追加
 
 ## English
+
+### 2025-05-22: Version 1.9.4 ※Official Release
+- **Settings Save Function Implementation**:
+  - Colored background items automatically restored on next startup
+  - Manual save option: Settings can be saved manually after changes
+  - Automatic save option: Settings automatically saved on generation start (selectable)
+  - Compatibility with existing functions: Works with section bulk upload, image queue, LoRA preset manager
+- **Alarm Function Addition**:
+  - Windows support: System sound notification on generation completion
+  - ON/OFF setting: Alarm function controllable according to user preference
+  - Efficiency improvement: Enhanced convenience for long generation work
+- **Tensor Processing Enhancement**:
+  - New module addition: `tensor_processing.py`, `tensor_tool.py`, `tensor_tool_f1.py`
+  - Combine mode management: Unified tensor combine processing by `combine_mode.py`
+  - Processing capability improvement: Support for more advanced tensor operations
+- **Log Management System Introduction**:
+  - File output: Standard output redirected to files as well
+  - Timestamp function: Automatic timestamp addition to log entries
+  - Debug support: Efficient problem identification and resolution
 
 ### 2025-05-15: Version 1.9.3
 - **Prompt Queue and Image Queue**:
@@ -440,6 +478,25 @@
 
 ## 简体中文
 
+### 2025-05-22: 版本1.9.4 ※正式发布版
+- **设定保存功能的实现**:
+  - 彩色背景项目在下次启动时自动恢复
+  - 手动保存选项：更改后可手动保存设定
+  - 自动保存选项：生成开始时自动保存设定（可选）
+  - 与现有功能兼容：与段落批量上传、图像队列、LoRA预设管理器兼容使用
+- **警报功能的添加**:
+  - Windows支持：生成完成时系统音通知
+  - ON/OFF设定：根据用户喜好控制警报功能
+  - 效率提升：长时间生成作业时的便利性提升
+- **张量处理功能强化**:
+  - 新模块添加：`tensor_processing.py`、`tensor_tool.py`、`tensor_tool_f1.py`
+  - 结合模式管理：通过`combine_mode.py`统一张量结合处理
+  - 处理能力提升：支持更高级的张量操作
+- **日志管理系统导入**:
+  - 文件输出：标准输出也重定向到文件
+  - 时间戳功能：自动为日志条目添加时间戳
+  - 调试支持：高效的问题识别和解决
+
 ### 2025-05-15: 版本1.9.3
 - **提示词队列和图像队列**：
   - 从文本文件加载多个提示词并按顺序处理
@@ -657,6 +714,25 @@
 - 添加关键帧指南功能
 
 ## Русский
+
+### 2025-05-22: Версия 1.9.4 ※Официальный релиз
+- **Реализация функции сохранения настроек**:
+  - Элементы с цветным фоном автоматически восстанавливаются при следующем запуске
+  - Опция ручного сохранения: Настройки можно сохранить вручную после изменений
+  - Опция автоматического сохранения: Настройки автоматически сохраняются при начале генерации (выборочно)
+  - Совместимость с существующими функциями: Работает с массовой загрузкой секций, очередью изображений, менеджером пресетов LoRA
+- **Добавление функции уведомления**:
+  - Поддержка Windows: Системное звуковое уведомление о завершении генерации
+  - Настройка ВКЛ/ВЫКЛ: Функция уведомления управляется в соответствии с предпочтениями пользователя
+  - Повышение эффективности: Улучшенное удобство для длительной работы по генерации
+- **Усиление обработки тензоров**:
+  - Добавление новых модулей: `tensor_processing.py`, `tensor_tool.py`, `tensor_tool_f1.py`
+  - Управление режимом объединения: Унифицированная обработка объединения тензоров через `combine_mode.py`
+  - Улучшение возможностей обработки: Поддержка более продвинутых тензорных операций
+- **Введение системы управления логами**:
+  - Файловый вывод: Стандартный вывод также перенаправляется в файлы
+  - Функция временных меток: Автоматическое добавление временных меток к записям лога
+  - Поддержка отладки: Эффективная идентификация и решение проблем
 
 ### 2025-05-15: Версия 1.9.3
 - **Очередь промптов и очередь изображений**:

@@ -662,6 +662,8 @@ Enter a number as shown above, and FramePack-eichi will start with the correspon
 - **Generation Mode Selection**:
   - **Normal Mode**: General video generation
   - **Loop Mode**: Generate cyclic videos where the final frame returns to the first frame
+    - **Note**: Current loop functionality may have difficulty creating perfectly seamless loops due to technical constraints
+    - **Recommended Alternative**: For high-quality loops, we recommend using [FramePackLooP](https://github.com/red-polo/FramePackLoop)
 
 - **All-Padding Selection**: (Added in v1.4, smaller values result in more intense movement in a session)
   - **All-Padding**: Use the same padding value for all sections

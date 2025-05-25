@@ -85,6 +85,21 @@ To use the Standard version, run one of the following batch files:
 
 ### 3. Advanced Usage
 
+#### Loop Function Usage and Limitations
+
+The standard version of FramePack-eichi includes "Loop Mode", but it has the following limitations:
+
+##### Loop Function Limitations
+- **Technical Constraints**: Due to the characteristics of AI video generation models, creating perfectly seamless loops is technically challenging
+- **Micro-variations Between Frames**: Subtle differences in AI-generated frames may cause unnaturalness at loop joints
+- **Temporal Consistency Limitations**: The underlying Hunyuan Video model has limitations in temporal consistency
+
+##### Recommended Alternative Solution
+For high-quality and precise loops, we recommend using **[FramePackLooP](https://github.com/red-polo/FramePackLoop)**, which is specifically designed for loop generation.
+
+##### Future Improvement Plans
+We are researching improvements through tensor concatenation tools and investigating whether these technologies can be utilized for loop functionality in future releases.
+
 #### Bulk Section Information Addition
 
 - You can set multiple section information at once using a zip file
