@@ -210,7 +210,10 @@ def get_default_app_settings_f1(current_lang="ja"):
         
         # 自動保存・アラーム設定
         "save_settings_on_start": False,
-        "alarm_on_completion": True
+        "alarm_on_completion": True,
+        
+        # CONFIG QUEUE設定 - NEW SECTION
+        "add_timestamp_to_config": True  # Default to True to maintain current behavior
     }
 
 def get_default_app_settings_oichi():
@@ -335,7 +338,8 @@ def save_app_settings_f1(app_settings):
         'resolution', 'mp4_crf', 'steps', 'cfg', 'use_teacache',
         'gpu_memory_preservation', 'gs', 'image_strength',
         'keep_section_videos', 'save_section_frames', 'save_tensor_data',
-        'frame_save_mode', 'save_settings_on_start', 'alarm_on_completion'
+        'frame_save_mode', 'save_settings_on_start', 'alarm_on_completion',
+        'add_timestamp_to_config'  # ADD THIS NEW KEY
     ]
     
     filtered_settings = {k: v for k, v in app_settings.items() 
