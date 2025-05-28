@@ -669,17 +669,18 @@ def stop_queue_processing_handler_fixed():
     - Resets both global and manager processing flags
     - Clears current config reference
     - Provides appropriate user feedback
+    - Restores UI component visibility
     
     RETURNS:
     Tuple of (message, status_update)
     """
-    global queue_processing_active  # DECLARE GLOBAL ONLY ONCE AT THE TOP
+    global queue_processing_active
 
     if config_queue_manager is None:
-        return "❌ Error: Config queue manager not initialized", gr.update()
+        return "❌ Error: Config queue manager not initialized", gr.update(), gr.update(visible=True), gr.update(visible=True)
     
     if not queue_processing_active and not config_queue_manager.is_processing:
-        return "❌ Queue processing is not running", gr.update()
+        return "❌ Queue processing is not running", gr.update(), gr.update(visible=True), gr.update(visible=True)
     
     print("🛑 Stopping queue processing...")
     
@@ -695,7 +696,8 @@ def stop_queue_processing_handler_fixed():
     queue_status = config_queue_manager.get_queue_status()
     status_text = format_queue_status_with_batch_progress(queue_status)
     
-    return message, gr.update(value=status_text)
+    # Return with visibility restored
+    return message, gr.update(value=status_text), gr.update(visible=True), gr.update(visible=True)
 
 def clear_queue_handler():
     """
@@ -1478,7 +1480,9 @@ def setup_enhanced_config_queue_events(components, ui_components):
         inputs=[],
         outputs=[
             components['config_message'],
-            components['queue_status_display']
+            components['queue_status_display'],
+            ui_components['preview_image'],
+            ui_components['result_video'] 
         ]
     )
     
@@ -2069,8 +2073,8 @@ def start_queue_processing_with_current_ui_values(
                     gr.update(value=format_queue_status_with_batch_progress(status)),  # 2. textbox (queue_status_display)
                     "All queue items and batches have been processed",  # 3. markdown (progress_desc)
                     '<div style="color: green; font-weight: bold;">✅ Queue processing completed</div>',  # 4. html (progress_bar)
-                    gr.update(visible=False),                # 5. image (preview_image) - KEEP HIDDEN
-                    gr.update(visible=False),                # 6. video (result_video) - KEEP HIDDEN
+                    gr.update(visible=True),  # preview_image - RESTORE VISIBILITY
+                    gr.update(visible=True),  # result_video - RESTORE VISIBILITY
                     gr.update(interactive=True, value=translate("Start Generation")),  # 7. button (manual start_button) - RE-ENABLE
                     gr.update(interactive=False)             # 8. button (manual end_button)
                 )
