@@ -4802,6 +4802,13 @@ with block:
                         get_image_queue_files()
                         return [gr.update(visible=False), gr.update(visible=True)]
 
+                # Config Queue Systemの表示/非表示を制御する関数
+                def toggle_config_queue(use_config_queue_val):
+                    """Config Queue Systemの表示/非表示を切り替える"""
+                    is_enabled = bool(use_config_queue_val)
+                    print(f"Config Queue System 表示設定: {is_enabled}")
+                    return gr.update(visible=is_enabled)
+
                 # ファイルアップロード処理関数
                 def handle_file_upload(file_obj):
                     global prompt_queue_file_path
@@ -4909,8 +4916,17 @@ with block:
                     info=translate("チェックをオンにするとプロンプトまたは画像の連続処理ができます。")
                 )
 
-                config_queue_components = create_enhanced_config_queue_ui()
-                queue_start_button = config_queue_components['enhanced_start_queue_btn']  
+                # Config Queue System制御用のチェックボックス
+                use_config_queue = gr.Checkbox(
+                    label=translate("Config Queue System を使用（実験的機能）"),
+                    value=False,
+                    info=translate("チェックをオンにすると新しいConfig Queue Systemが利用できます。")
+                )
+
+                # Config Queue Systemをグループで囲んで表示制御
+                with gr.Group(visible=False) as config_queue_group:
+                    config_queue_components = create_enhanced_config_queue_ui()
+                    queue_start_button = config_queue_components['enhanced_start_queue_btn']  
 
                 # キュータイプの選択
                 queue_type_selector = gr.Radio(
@@ -4947,6 +4963,13 @@ with block:
                     fn=toggle_queue_settings,
                     inputs=[use_queue],
                     outputs=[queue_type_selector, prompt_queue_group, image_queue_group]
+                )
+
+                # Config Queue Systemの表示切り替えイベント
+                use_config_queue.change(
+                    fn=toggle_config_queue,
+                    inputs=[use_config_queue],
+                    outputs=[config_queue_group]
                 )
 
                 # キュータイプの選択イベントに関数を紐づけ
