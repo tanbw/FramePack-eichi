@@ -867,7 +867,25 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
             print(f"✅ Config saved successfully: '{actual_config_name}' (from message: '{message}')")
             
             current_loaded_config = actual_config_name
+            
+            # CRITICAL FIX: Always refresh the available configs list after saving
+            # This ensures the dropdown includes any newly created configs (including case variations)
             available_configs = config_queue_manager.get_available_configs()
+            
+            # CASE-SENSITIVE CHECK: Ensure the actual_config_name exists in the choices
+            # This handles case-sensitive file systems where "abc" and "ABC" are different
+            if actual_config_name not in available_configs:
+                print(f"⚠️ Warning: Saved config '{actual_config_name}' not found in available configs")
+                print(f"   Available configs: {available_configs[:10]}...")  # Show first 10 for debugging
+                
+                # Try case-insensitive search as fallback
+                for config in available_configs:
+                    if config.lower() == actual_config_name.lower():
+                        print(f"   Found case-insensitive match: '{config}'")
+                        actual_config_name = config
+                        current_loaded_config = config
+                        break
+            
             queue_status = config_queue_manager.get_queue_status()
             status_text = format_queue_status_with_batch_progress(queue_status)
             
@@ -881,7 +899,6 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
                 user_message = f"✅ {translate('Config saved with auto-generated name')}: {actual_config_name}.json"
             
             # Add LoRA conversion notification if applicable (but separate from config name)
-            # Check if files were auto-converted by looking at the lora_settings
             if lora_settings.get("lora_mode_key") == LORA_MODE_DIRECTORY and lora_settings.get("lora_files"):
                 # If we have LoRA files, show what was configured
                 lora_files_list = lora_settings.get("lora_files", [])
@@ -891,7 +908,7 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
             
             return (
                 user_message,
-                gr.update(choices=available_configs, value=actual_config_name),  # Use CLEAN config name
+                gr.update(choices=available_configs, value=actual_config_name),  # Use CLEAN config name with refreshed choices
                 gr.update(value=status_text),
                 gr.update(visible=False),  # Hide confirmation group
                 None  # Clear operation data
@@ -2485,14 +2502,15 @@ def confirm_operation_handler_fixed(operation_data):
                 status_text = format_queue_status_with_batch_progress(queue_status)
                 
                 return (
-                    f"✅ Config overwritten in queue: {config_name}",
-                    gr.update(value=status_text),
-                    gr.update(visible=False),  # Hide confirmation group
-                    None,  # Clear operation data
-                    gr.update()  # Don't change config name input for queue operations
+                    f"✅ Config overwritten in queue: {config_name}",  # config_message
+                    gr.update(),  # config_dropdown (no change)
+                    gr.update(value=status_text),  # queue_status_display
+                    gr.update(visible=False),  # confirmation_group
+                    None,  # pending_operation
+                    gr.update()  # config_name_input (6th output - MISSING IN ORIGINAL)
                 )
             else:
-                return f"❌ {message}", gr.update(), gr.update(visible=False), None, gr.update()
+                return f"❌ {message}", gr.update(), gr.update(), gr.update(visible=False), None, gr.update()
         
         elif operation_data['type'] == 'delete':
             # DELETE OPERATION - CLEAR CONFIG NAME INPUT
