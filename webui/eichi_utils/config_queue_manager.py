@@ -866,9 +866,9 @@ class ConfigQueueManager:
                     final_config_name = self.generate_config_name(config_name)
                 else:
                     final_config_name = config_name
-                    config_file = os.path.join(self.configs_dir, f"{final_config_name}.json")
-                    if os.path.exists(config_file):
-                        print(f"⚠️ Config will overwrite existing: {final_config_name}")
+                    
+                    # CASE-SENSITIVITY FIX: Use generic helper
+                    self._remove_file_case_insensitive(self.configs_dir, final_config_name)
             
             # IMPROVED IMAGE STORAGE
             final_image_path = image_path
@@ -907,14 +907,57 @@ class ConfigQueueManager:
             with open(config_file, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, indent=2, ensure_ascii=False)
             
+            # Verify the file was created with correct casing
+            if os.path.exists(config_file):
+                # Double-check the actual filename on disk
+                actual_files = os.listdir(self.configs_dir)
+                for actual in actual_files:
+                    if actual.lower() == f"{final_config_name.lower()}.json":
+                        if actual == f"{final_config_name}.json":
+                            print(f"✅ Config saved with correct casing: {final_config_name}")
+                        else:
+                            print(f"⚠️ File system preserved different casing: {actual[:-5]} (requested: {final_config_name})")
+                        break
+            
             # CRITICAL FIX: Return ONLY the clean config name
-            # System messages like image storage notes should be logged, not returned in the message
-            # that gets parsed for the config name
             return True, f"Config saved: {final_config_name}"
             
         except Exception as e:
             return False, f"Error saving config: {str(e)}"
 
+    def _remove_file_case_insensitive(self, directory: str, filename: str) -> bool:
+        """
+        UTILITY: Remove file handling case-insensitive file systems
+        
+        PURPOSE:
+        Generic method to remove files with different casing before creating
+        new ones with the desired casing. Works for any directory.
+        
+        PARAMETERS:
+        directory: Directory path to search in
+        filename: Filename to remove (without .json extension)
+        
+        RETURNS:
+        bool: True if any file was removed
+        """
+        removed = False
+        try:
+            if os.path.exists(directory):
+                for existing in os.listdir(directory):
+                    if existing.lower() == f"{filename.lower()}.json":
+                        existing_name = existing[:-5]  # Remove .json
+                        if existing_name != filename:
+                            # Different casing detected
+                            print(f"🔄 Detected case difference: '{existing_name}' vs '{filename}'")
+                        file_path = os.path.join(directory, existing)
+                        os.remove(file_path)
+                        print(f"🗑️ Removed file: {existing}")
+                        removed = True
+            return removed
+        except Exception as e:
+            print(f"❌ Error removing file: {e}")
+            return False
+        
     def load_config_for_editing(self, config_name: str) -> Tuple[bool, Dict, str]:
         """
         CONFIG LOADING: Load config for UI editing with image recovery
@@ -1098,12 +1141,15 @@ class ConfigQueueManager:
         - Validates JSON format of each file
         - Skips corrupted files with warning
         - Returns sorted list for consistent ordering
+        - Handles case-sensitive file systems properly
         
         RETURNS:
         List[str]: List of valid config names (without .json extension)
         """
         try:
             configs = []
+            seen_lowercase = {}  # Track lowercase versions for duplicate detection
+            
             if os.path.exists(self.configs_dir):
                 # Always do a fresh directory scan
                 for file in sorted(os.listdir(self.configs_dir)):
@@ -1114,6 +1160,14 @@ class ConfigQueueManager:
                         try:
                             with open(config_file, 'r', encoding='utf-8') as f:
                                 json.load(f)  # Basic JSON validation
+                            
+                            # Check for case-insensitive duplicates on Windows
+                            lowercase_name = config_name.lower()
+                            if lowercase_name in seen_lowercase:
+                                print(f"⚠️ Warning: Case-sensitive duplicate found: '{config_name}' vs '{seen_lowercase[lowercase_name]}'")
+                            else:
+                                seen_lowercase[lowercase_name] = config_name
+                            
                             configs.append(config_name)
                         except:
                             # Skip corrupted files
@@ -1122,7 +1176,7 @@ class ConfigQueueManager:
         except Exception as e:
             print(f"Error getting available configs: {e}")
             return []
-                        
+    
     # ==============================================================================
     # QUEUE MANAGEMENT OPERATIONS
     # ==============================================================================
@@ -1150,9 +1204,9 @@ class ConfigQueueManager:
             
             if not os.path.exists(source_file):
                 return False, f"Config file not found: {config_name}"
-                
-            if os.path.exists(dest_file):
-                return False, f"Config already in queue: {config_name}"
+            
+            # CASE-SENSITIVITY FIX: Use generic helper
+            self._remove_file_case_insensitive(self.queue_dir, config_name)
                 
             shutil.copy2(source_file, dest_file)
             return True, f"Config queued: {config_name}"
