@@ -92,7 +92,7 @@ oichiでは、target_index、history_index、latent_indexの3つのパラメー�
 ---
 #### 💡 「で、結局何にすればいいの？」
 
-「clean latentsと各indexに何を渡すか」を適当に操作して望みの結果を得る、というシンプルな考え方がいいらしいよ。
+「各indexと後述のclean latentsに何を渡すか」を意識し、適当に操作して望みの結果を得る、というシンプルな考え方がいいらしいよ。
 
 **なんとなくの目安**:
 - **target_index=1**: ほとんど変わらない（ちょっと物足りない）
@@ -448,7 +448,7 @@ oichiでは、clean Latentsの全段階（2x、4x、post）を有効にするこ
 - **post**: 最終段階での品質調整とノイズ除去
 
 **🎯 1フレーム推論での重要性**:
-1フレーム推論では常にsample_num_frames=1で単一フレームのみを処理するため、clean Latentsの役割は時系列品質劣化防止ではなく、空間的な品質向上に特化しています。全段階を有効にすることで、特に着せ替え（kisekaeichi）処理での細部品質が大幅に向上します♪
+1フレーム推論では常にsample_num_frames=1で単一フレームのみを処理するため、clean Latentsの役割は時系列品質劣化防止ではなく、空間的な品質向上に特化しています。ただし、**LoRAによって最適設定が異なる**ため、使用するLoRAの推奨設定に従う必要があります♪
 
 ---
 
@@ -636,6 +636,119 @@ kisekaeichi（着せ替え）特化のLoRA学習での設定例として、以�
 コミュニティ全体で知見を共有し、より良い手法を模索している状況です。
 
 ---
+
+## その4：実際のLoRAサンプル - 使ってみよう編
+
+### 🎭 LoRAって結局何？どこで手に入るの？
+
+**LoRAサンプル集**:
+
+#### 📁 **1. kisekaeichi専用LoRA（着せ替え特化）**
+
+**配布場所**: [kohya-ss/misc-models](https://huggingface.co/kohya-ss/misc-models)
+
+**おすすめモデル**:
+- **fp-1f-kisekae-1024-v4-2.safetensors**: 着せ替え実験版
+  - **推奨設定**: target_index=5, 解像度1024x1024
+  - **プロンプト例**: "The girl stays in the same pose, but her outfit changes"
+  - **用途**: 服装だけを変更、ポーズ・背景維持
+
+- **fp-1f-chibi-1024.safetensors**: アニメキャラ変換版
+  - **推奨設定**: target_index=9, 解像度1024x1024
+  - **プロンプト例**: "An anime character transforms: her head grows larger, body becomes shorter"
+  - **注意**: 効果が強すぎる場合は強度を0.8以下に調整
+
+#### 📁 **2. CH4NG3CH4R.safetensors（着せ替えLoRA）**
+
+**配布場所**: [MEGA Download Link](https://mega.nz/file/6Z1UwJKD#Q8a7YjkPXNIhXSUFNRiXOC1PEYNOi5L2VoFPB3YNRSA)
+
+**実証済み設定例**:
+```yaml
+通常設定:
+  Image: 服を着せたい人物の画像（全裸推奨）
+  解像度: 640
+  プロンプト: "The character's clothes change to a different outfit. Their pose and the background remain the same."
+
+Kisekaeichi設定:
+  参照画像: 服の画像
+  入力画像マスクと参照画像マスク: 不要（空のままでOK）
+  ターゲットインデックス: 4
+  履歴インデックス: 10
+
+詳細設定（重要！）:
+  clean_latents_2xを使用: オフ
+  clean_latents_4xを使用: オフ
+  clean_latents_postを使用: オフ
+
+LoRA設定:
+  LoRA1: CH4NG3CH4R.safetensors
+  LoRA適用強度: 1.0
+```
+
+**🎯 重要ポイント**: このLoRAではclean_latents機能を**すべてオフ**にするのが推奨設定ですわ！
+
+#### 📁 **3. tori29umai氏提供のLoRA各種**
+
+**配布場所**: [tori29umai/FramePack_LoRA](https://huggingface.co/tori29umai/FramePack_LoRA) (HuggingFace)
+
+**利用可能なLoRAモデル**:
+- **photo2line_V2_dim4.safetensors**: 写真を線画に変換
+- **photo2chara_V6/V9**: 実写人物をアニメキャラ風に変換
+- **Apose_V8_dim4.safetensors**: 様々なポーズをA-pose（立ち姿）に変換
+- **カメラ回転系**: 時計回り、反時計回り、ローアングル、ハイアングル変換
+- **body2img_V7_kisekaeichi_dim4**: ポーズ・表情参照画像からキャラデザイン生成
+
+**関連アプリ・環境**:
+- **「Framepack_imgGEN」**: 1フレーム推論専用アプリ
+- **ComfyUI対応**: カスタムノード提供
+- **推奨環境**: CUDA対応GPU 12GB以上、メモリ32GB以上
+
+**学習環境**:
+- **Musubi Tuner**: FramePack専用ブランチ対応
+- **Vast.AI**: クラウド学習環境での利用可能
+- **詳細記事**: [Musubi TunerでFramePackのLoRA学習](https://note.com/tori29umai/n/n0be15a6f1832)
+
+### 💡 LoRA使用時の重要な教訓
+
+#### 🚨 **設定値の違いに注意！**
+
+**パターン1: clean_latents全有効** (基本設定)
+```
+use_clean_latents_2x: オン
+use_clean_latents_4x: オン
+use_clean_latents_post: オン
+```
+
+**パターン2: clean_latents全無効** (CH4NG3CH4R.safetensors等)
+```
+use_clean_latents_2x: オフ
+use_clean_latents_4x: オフ
+use_clean_latents_post: オフ
+```
+
+**🎯 使い分けの原則**:
+- **LoRAの推奨設定を最優先**に従う
+- **学習時と推論時の設定一致**が重要
+- **実験的LoRA**では特殊設定が必要な場合が多い
+
+#### 📋 **LoRA選択の指針**
+
+**用途別選択**:
+- **着せ替え重視**: fp-1f-kisekae系、CH4NG3CH4R
+- **キャラ変換**: fp-1f-chibi系
+- **ComfyUI環境**: tori29umai氏提供LoRA
+
+**設定調整の基本**:
+1. LoRA配布元の推奨設定を確認
+2. target_index、history_indexを指定値に設定
+3. clean_latents設定を推奨通りに設定
+4. テスト生成で効果を確認
+5. 必要に応じて強度調整（0.8-1.2範囲）
+
+**⚠️ 現在の開発状況**:
+FramePack用LoRAは現在も有識者の方々が研究・実験を重ねている段階です。最適な設定はまだ確立途中ですので、コミュニティでの情報共有と実験が重要です。
+
+---
 つまり、LoRAには「取扱説明書」が付いていて、作った人が「この設定で使ってね」と指定しているということですね。
 
 ### かんわきゅうだい：動画作るのAIは大変だった
@@ -787,7 +900,7 @@ graph TD
 
 </div>
 
-#### oichiのおすすめ設定
+#### oichiのおすすめ設定（基本）
 
 ```
 target_index: 4      ← ちょうどいい変化量
@@ -798,6 +911,8 @@ use_clean_latents_2x: ON  ← お掃除機能その1
 use_clean_latents_4x: ON  ← お掃除機能その2
 use_clean_latents_post: ON ← 最後の仕上げお掃除
 ```
+
+**⚠️ 重要**: LoRAを使用する場合、上記設定は参考値です。使用するLoRAの推奨設定を最優先してくださいね。
 
 **ちょっと詳しい話**:
 - **oichiは1フレーム推論専用**なので、動画生成とは根本的に異なる仕組みです
