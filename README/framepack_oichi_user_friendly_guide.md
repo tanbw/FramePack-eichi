@@ -12,6 +12,16 @@ FramePack-oichiを使おうとすると、なんか色々な設定があるよ�
 
 まあ、細かいことはよくわからないけど、とりあえず**1フレーム推論と着せ替えができればいいよね**という感じで、ゆる～く理解していきましょう♪
 
+## 📚 技術的根拠と出典
+
+このガイドは以下の先駆者様の情報を参考にしています：
+- **Kohya氏記事**: "[FramePackの推論と1フレーム推論、kisekaeichi、1f-mcを何となく理解する](https://note.com/kohya_ss/n/nbd94d074ddef)" (2025年6月7日)
+- **furusu氏**: kisekaeichi手法の提案者
+- **mattyamonaca氏**: 1f-mc手法の提案者  
+- **FramePack-eichi実装**: 実際のコード検証済み
+
+**⚠️ 重要な更新情報**: Kohya氏の記事公開により、本ガイドの技術的記述を一部修正しました。特に「clean latents = お掃除機能」から「clean latents = 参照画像システム」への修正、およびパラメータ推奨値の実証的裏付けを追加しています。
+
 
 ## その1：なんか色々あるパラメータたち
 
@@ -24,6 +34,9 @@ FramePack-oichiを使おうとすると、なんか色々な設定があるよ�
 
 **🎯 1フレーム推論での特別な意味**:
 1フレーム推論では、target_indexは潜在空間（AI内部の数字世界）での「位置指定」として機能するんだ。動画推論とは根本的に異なり、単一画像の品質制御に特化した役割を果たしているよ。
+
+**🎯 Kohya氏の記事による正確な定義**:
+Kohya氏の解説によると、target_indexは「生成するフレームのindex」を指定します。FramePack-eichiでは`latent_indices`に設定され、**Kohya記事の図解でlatent_indices=5**の実例があります。これは当ガイドの推奨値4-6と一致していますね
 
 **フレーム進行と target_index の関係**:
 
@@ -80,8 +93,8 @@ target_indexは、oneframe_ichi.py:1233-1235の実装で、latent_indices配列�
 - **1フレーム推論**: 単一画像の品質制御、着せ替え機能（kisekaeichi）に特化
 - **制御範囲**: 1フレーム推論では0-8（latent_window_size=9時）に制限
 
-**5. 実証値4-6の経験的根拠**
-コミュニティでの経験的な使用により「target_index=1はあまり良くない」「target_index=4-6が良好」という傾向が報告されています。これらは実際の使用に基づく経験値です。
+**5. 実証値4-6の経験的根拠とKohya記事による裏付け**
+コミュニティでの経験的な使用により「target_index=1はあまり良くない」「target_index=4-6が良好」という傾向が報告されており、**Kohya記事のkisekaeichi図解でlatent_indices=5の実例**が示され、この経験値について触れられています。
 
 **6. FramePack(HunyuanVideo)の末尾フレーム特殊処理との関係**
 FramePackの基盤となるHunyuanVideoでは末尾フレームが特殊な1倍展開処理（他は4倍展開）を受けるため、target_indexの位置により異なる圧縮特性の影響を受ける可能性があります。
@@ -153,15 +166,18 @@ graph LR
 
 history_indexは、FramePack(HunyuanVideo)のAnti-drifting sampling（※品質劣化防止技術）機構において、参照フレーム制御を担うパラメータです：
 
-**1. Anti-drifting Samplingでの役割**
-history_indexは、Anti-drifting sampling機構において参照範囲を制御するパラメータです。従来の因果的サンプリングと比較して品質劣化を抑制する効果があります。
+**1. Kohya氏の記事による定義**
+Kohya氏の解説によると、history_indexは「clean latent indices」の2番目の値に対応します。FramePack-eichiの実装では以下のように設定されます：
+```python
+clean_latent_indices[:, 1] = history_index  # 実装コードより
+```
 
-**2. Causal制約下での最適化**
-history_indexは、target_indexとの関係で制約を受けます：
-```
-target_index ≤ history_index  # Causal制約
-history_index ≤ RoPE値 (latent_window_size)  # メモリ制約
-```
+**2. Kohya氏の記事図解での実例**
+- **1フレーム推論**: clean_latent_indices `[0, 10]`
+- **kisekaeichi**: clean_latent_indices `[0, 10]`  
+- **1f-mc**: clean_latent_indices `[0, 1]` ← 特殊な値
+
+つまり、history_indexは参照画像が「動画のどの位置にあるか」を示す位置情報です。
 
 **3. 13という推奨値の経験的背景**
 history_index=13という値は、コミュニティでの実際の使用において、メモリ効率と品質のバランスが良好とされる経験値です。詳細な理論的根拠については、実装からは確認できていません。まだまだ経験則がとても貴重で大切な段階です。
@@ -352,83 +368,82 @@ latent_indexは、effective_window_size以下の値である必要があり、ta
 **なんとなくの答え**:
 ほとんどの場合は**0**で大丈夫です。特別な理由がない限り、変更する必要はありません♪
 
-### clean Latents（クリーン…なんとかさん…）
+### clean latents（参照画像システム）
 
-#### 🤔 「掃除？何をキレイにするの？」
+#### 🤔 「参照画像って何のこと？」
 
 **ふんわり説明**:
-AIが絵を描く時に、あのLatent（AIの頭の中の数字）がちょっとずつズレちゃうらしいんです。それを直してくれる「お掃除機能」みたいなもの。
+FramePackがフレーム生成時に参照する画像のことです。Kohya氏の解説によると、「モデルが動画を生成するときに参考にする画像」として機能します。
 
-**例え話**:
+**⚠️ 重要**: 以前は「お掃除機能」として説明していましたが、Kohya氏の技術解説により、正確には「参照画像配列」であることが判明しました。
+
+**Kohya氏の記事図解との対応**:
 
 <div style="width: 100%; overflow-x: auto; margin: 1em 0;">
 
 ```mermaid
 graph LR
-    A[AIの頭の中<br/>キレイな数字] --> B[だんだんズレる] --> C[お掃除] --> D[またキレイに]
+    A[1フレーム推論] --> B[初期画像, ゼロ値]
+    C[kisekaeichi] --> D[初期画像, 参照画像]  
+    E[1f-mc] --> F[背景画像, キャラクター画像]
     
     style A fill:#e8f5e8
-    style B fill:#ffecb3
-    style C fill:#e1f5fe
-    style D fill:#e8f5e8
+    style B fill:#e1f5fe
+    style C fill:#fff3e0
+    style D fill:#ffecb3
+    style E fill:#f8bbd9
+    style F fill:#dda0dd
 ```
 
 </div>
 
-お部屋の掃除みたいに、AIの頭の中もお掃除が必要なんですね。
+つまり、clean latentsは「AIが参考にする画像の組み合わせ」ということですね。
 
-**clean Latents お掃除プロセス**:
+**参照画像処理の流れ**:
 
 <div style="width: 100%; overflow-x: auto; margin: 1em 0;">
 
 ```mermaid
 graph LR
-    A[元画像] --> B[キレイなLatent]
-    B --> C[生成処理]
-    C --> D[少し汚れたLatent]
+    A[初期画像] --> C[clean latents配列]
+    B[参照画像<br/>（kisekaeichi時）] --> C
     
-    D --> E[clean Latents 2x<br/>中程度清掃]
-    E --> F[clean Latents 4x<br/>細部清掃]
-    F --> G[clean Latents Post<br/>最終清掃]
-    
-    G --> H[またキレイに]
-    H --> I[完成画像]
+    C --> D[FramePack処理]
+    D --> E[参照画像を考慮した生成]
+    E --> F[完成画像]
     
     style A fill:#e3f2fd
-    style B fill:#e8f5e8
-    style C fill:#fff3e0
-    style D fill:#ffcdd2
+    style B fill:#fff3e0
+    style C fill:#c8e6c9
+    style D fill:#ffecb3
     style E fill:#e1f5fe
-    style F fill:#e1f5fe
-    style G fill:#e1f5fe
-    style H fill:#e8f5e8
-    style I fill:#c8e6c9
+    style F fill:#a5d6a7
 ```
 
 </div>
 
 **ちょっと詳しい話**:
-3段階でお掃除してくれるシステムがあるそうです。細かい仕組みはよくわからないけど、とにかくキレイになります。
+FramePackは参照画像を使って「こんな感じの画像を作って」という指示を出すシステムです。clean latentsの2x、4xは縮小版の参照画像で、メモリを節約しながら多くの情報を参照できる工夫です。
 
 ---
 
-### 🔬 技術者向け詳細解説：clean Latentsの技術的役割
+### 🔬 技術者向け詳細解説：clean latentsの技術的役割
 
-#### 多段階品質制御システム
+#### 参照画像システムの核心（Kohya氏の記事準拠）
 
-clean Latentsは、FramePackの品質保持システムであり、multi-scale処理による階層的制御を行います：
+clean latentsは、Kohya氏の解説によると「モデルが動画を生成するときに参考にする画像」です。従来の「品質保持システム」という理解は不正確でした：
 
-**1. 1フレーム推論での特化処理構造**
-clean Latentsは、1フレーム推論（oichi）では動画推論とは異なる役割を果たします：
+**1. Kohya氏の記事による定義**
+clean latentsは以下の情報を含む参照画像配列です：
 
-**重要な違い**：
-- **動画推論**: `effective_window_size × 4 - 3`による複数フレーム処理
-- **1フレーム推論**: `sample_num_frames = 1`固定、常に単一フレームのみ
+**各手法での構成**（Kohya氏の記事図解より）：
+- **1フレーム推論**: `[初期画像, ゼロ値]` + clean_latent_indices `[0, 10]`
+- **kisekaeichi**: `[初期画像, 参照画像]` + clean_latent_indices `[0, 10]`
+- **1f-mc**: `[背景画像, キャラクター画像]` + clean_latent_indices `[0, 1]`
 
-**1フレーム推論でのclean Latentsの役割**：
-- **空間的品質向上**: 時系列の品質劣化がないため、空間的な細部品質に特化
-- **着せ替え品質制御**: kisekaeichi処理での参照画像との融合品質向上
-- **ノイズ除去と細部調整**: 単一フレーム内での精密な品質管理
+**FramePack-eichiでの実装対応**：
+- `history_index` → `clean_latent_indices`の2番目の値に設定される
+- マスク処理により、不要な部分（服、顔など）を選択的に無視
 
 **処理段階の種類**：
 - **2x**: 中解像度でのlatent品質制御
@@ -450,13 +465,13 @@ oichiでは、clean Latentsの全段階（2x、4x、post）を有効にするこ
 ---
 #### 💡 「2x、4x、postって何？」
 
-**お掃除の種類**:
-- **2x**: 中解像度でのlatent品質制御（768トークン相当）
-- **4x**: 高解像度でのlatent品質制御（384トークン相当）  
+**縮小版参照画像の種類**:
+- **2x**: 中解像度での参照画像（768トークン相当、縦横1/2縮小）
+- **4x**: 高解像度での参照画像（384トークン相当、縦横1/4縮小）  
 - **post**: 最終段階での品質調整とノイズ除去
 
-**🎯 1フレーム推論での重要性**:
-1フレーム推論では常にsample_num_frames=1で単一フレームのみを処理するため、clean Latentsの役割は時系列品質劣化防止ではなく、空間的な品質向上に特化しています。
+**🎯 メモリ効率化の工夫**:
+Kohya氏の記事によると、clean latents 2x, 4xは「小さく縮小して渡すことでメモリ使用量を増やすことなく多数の画像を参照できる」という仕組みです。ただし実際の効果については「あまり効いてない」との記述もあります。
 
 **⚠️ LoRA使用時の最重要注意**:
 clean Latentsの設定（2x、4x、post）は**LoRAによって大きく異なります**！
@@ -491,6 +506,18 @@ clean Latentsの設定（2x、4x、post）は**LoRAによって大きく異な�
 - 複数LoRAの組み合わせ（強度0.0-2.0）
 
 これらの発展により、FramePackは動画生成から画像編集まで幅広い用途に対応する技術として成長を続けています。
+
+## 🔧 実装間の用語対応表
+
+**重要**: FramePackの各実装では同じ概念に対して異なる用語が使用されています。以下の対応表を参考にしてください：
+
+| 概念 | Kohya氏の記事 | Musubi Tuner | FramePack-eichi | 説明 |
+|------|-----------|--------------|-----------------|------|
+| 生成フレーム位置 | latent index | target_index | target_index | 生成するフレームの位置指定 |
+| 参照フレーム位置 | clean index | control_index | history_index | 参照画像の位置指定 |
+| 参照画像配列 | clean latents | clean latents | clean latents | モデルが参照する画像群 |
+
+**⚠️ 注意**: Kohya氏も過去に「history index」という用語を使用されていたと記述されており、用語の揺れは自然な現象です。重要なのは概念の理解です。
 
 ---
 ## その2：なんでこんなに複雑なの？
