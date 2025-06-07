@@ -1033,5 +1033,6 @@
   "  - High-VRAM mode: {0}": "  - High-VRAM mode: {0}",
   "プロンプトキュー無効: チェックボックスがオフです": "Prompt queue disabled: Checkbox is off",
   "プロンプトキュー無効: ファイルが正しくアップロードされていません": "Prompt queue disabled: File not uploaded correctly",
-  "プロンプトキューファイルに有効なプロンプトがありません": "No valid prompts in prompt queue file"
+  "プロンプトキューファイルに有効なプロンプトがありません": "No valid prompts in prompt queue file",
+  "【初回実行について】初回は Anti-drifting Sampling の履歴データがないため、ノイズが入る場合があります": "[First Run Info] Initial runs may contain noise due to lack of Anti-drifting Sampling history data"
 }

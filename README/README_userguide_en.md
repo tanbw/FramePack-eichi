@@ -240,6 +240,15 @@ To use the oichi version, run one of the following batch files:
    - Click the "Generate" button
    - The next frame will be generated
 
+### 5. First Run Considerations
+
+The oichi version uses **Anti-drifting Sampling** technology to improve image quality, but please note the following for first-time execution:
+
+- **First Run Quality**: Initial generation may have lower quality than subsequent runs due to lack of Anti-drifting Sampling history data
+- **Quality Improvement Tip**: For important generations, we recommend running twice with the same settings. Second and subsequent runs will produce higher quality results
+- **History Data Accumulation**: Running multiple times with the same settings improves the effectiveness of Anti-drifting Sampling
+- **History Data Reset**: If significant noise persists in subsequent runs, the history data from the first run may be causing adverse effects. In such cases, restarting the application and starting over from the first run may resolve the noise issues
+
 ### 4. kisekaeichi Function Details
 
 - **Reference Image Setup**: Set a reference image for the style or costume you want to change

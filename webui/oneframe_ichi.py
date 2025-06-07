@@ -1436,6 +1436,10 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     actual_width = width
                     actual_height = height
                 
+                # 初回実行時の品質について説明
+                if not use_cache:
+                    print(translate("【初回実行について】初回は Anti-drifting Sampling の履歴データがないため、ノイズが入る場合があります"))
+                
                 generated_latents = sample_hunyuan(
                     transformer=transformer,
                     sampler='unipc',
