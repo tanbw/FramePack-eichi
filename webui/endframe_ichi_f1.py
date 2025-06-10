@@ -171,30 +171,7 @@ text_encoder_manager = TextEncoderManager(device=gpu, high_vram_mode=high_vram)
 # ==============================================================================
 # CONFIG QUEUE SYSTEM - MAIN INTEGRATION
 # ==============================================================================
-"""
-CONFIG QUEUE SYSTEM OVERVIEW:
-This system allows users to save UI configurations as JSON files and process
-them automatically in sequence. Key components:
 
-1. CONFIG FILE MANAGEMENT: Save/load UI states (image, prompt, LoRA settings)
-2. QUEUE PROCESSING: Automatic sequential processing of multiple configs
-3. UI INTEGRATION: Seamless integration with existing manual generation system
-4. BATCH SUPPORT: Each config can generate multiple videos with seed incrementation
-
-ARCHITECTURE:
-- ConfigQueueManager: Handles file operations and queue state management
-- UI Event Handlers: Bridge between Gradio UI and queue manager
-- Processing Integration: Captures UI settings and applies to queue processing
-- Status Monitoring: Real-time feedback and progress tracking
-
-GLOBAL STATE VARIABLES:
-- config_queue_manager: Main queue manager instance
-- current_loaded_config: Currently loaded config name for UI
-- queue_processing_active: Global flag for queue processing state
-- current_processing_config_name: Config being processed (used for video naming)
-- current_batch_progress: Tracks batch progress within current config
-- queue_ui_settings: Captured UI settings for queue processing
-"""
 
 # Queue processing state tracking
 config_queue_manager = None  # Initialized later in main code
@@ -203,6 +180,7 @@ queue_processing_active = False  # Global processing state flag
 current_processing_config_name = None  # For video file naming
 current_batch_progress = {"current": 0, "total": 0}  # Batch progress tracking
 queue_ui_settings = None  # Captured UI settings for queue processing
+pending_lora_config_data = None  # For delayed LoRA configuration loading
 
 # Configuration constants for queue display
 CONST_queued_shown_count = 5  # Number of queued items shown in status
@@ -321,35 +299,7 @@ os.makedirs(outputs_folder, exist_ok=True)
 # ==============================================================================
 
 def get_current_ui_settings_for_queue():
-    """
-    CRITICAL FUNCTION: Captures comprehensive UI state for queue processing
-    
-    PURPOSE:
-    When queue processing starts, this function takes a snapshot of ALL current
-    UI settings and stores them globally. These settings are then applied to
-    every config in the queue, ensuring consistent quality/duration parameters.
-    
-    ARCHITECTURE DECISION:
-    - UI settings (quality/duration) come from current UI state
-    - Config-specific settings (image/prompt/LoRA) come from individual config files
-    - This separation allows batch processing with consistent technical parameters
-    
-    PARAMETERS CAPTURED:
-    - Duration: total_second_length (prioritized over radio button)
-    - Quality: steps, CFG, resolution, CRF
-    - Generation: seed, random seed, TeaCache, FP8 optimization
-    - System: GPU memory preservation
-    - Output: save options, directories, alarms
-    - F1 Mode: image strength, padding settings
-    
-    RETURNS:
-    dict: Complete settings dictionary for queue processing
-    
-    MODIFICATION NOTES:
-    - Add new UI parameters here when extending the system
-    - Ensure type conversion safety (int/float/bool validation)
-    - Update corresponding process() function parameters when adding settings
-    """
+
     global current_ui_components
     
     try:
@@ -361,7 +311,7 @@ def get_current_ui_settings_for_queue():
                 component = current_ui_components[component_name]
                 if hasattr(component, 'value'):
                     value = component.value
-                    print(f"🔍 Getting {component_name}: {value} (type: {type(value)})")
+                    print(translate("🔍 Getting {0}: {1} (type: {2})").format(component_name, value, type(value)))
                     # Type conversion if specified
                     if value_type == bool:
                         return bool(value)
@@ -369,21 +319,21 @@ def get_current_ui_settings_for_queue():
                         try:
                             return int(float(value)) if value is not None else default_value
                         except (ValueError, TypeError):
-                            print(f"⚠️ Error converting {component_name} to int: {value}, using default: {default_value}")
+                            print(translate("⚠️ Error converting {0} to int: {1}, using default: {2}").format(component_name, value, default_value))
                             return default_value
                     elif value_type == float:
                         try:
                             return float(value) if value is not None else default_value
                         except (ValueError, TypeError):
-                            print(f"⚠️ Error converting {component_name} to float: {value}, using default: {default_value}")
+                            print(translate("⚠️ Error converting {0} to float: {1}, using default: {2}").format(component_name, value, default_value))
                             return default_value
                     else:
                         return value if value is not None else default_value
                 else:
-                    print(f"⚠️ Component {component_name} has no value attribute")
+                    print(translate("⚠️ Component {0} has no value attribute").format(component_name))
                     return default_value
             else:
-                print(f"⚠️ Component {component_name} not found in registered components")
+                print(translate("⚠️ Component {0} not found in registered components").format(component_name))
                 return default_value
         
         # ===== DURATION SETTINGS - DETAILED LOGGING =====
@@ -395,9 +345,9 @@ def get_current_ui_settings_for_queue():
         # Get radio value for comparison
         length_radio_value = get_component_value('length_radio', translate("1秒"))
         
-        print(f"🕒 Duration settings for queue:")
-        print(f"   length_radio: '{length_radio_value}' (for reference only)")
-        print(f"   total_second_length slider: {total_second_length_value}s → final: {settings['total_second_length']}s")
+        print(translate("🕒 Duration settings for queue:"))
+        print(translate("   length_radio: '{0}' (for reference only)").format(length_radio_value))
+        print(translate("   total_second_length slider: {0}s → final: {1}s").format(total_second_length_value, settings['total_second_length']))
         
         # Determine duration source for logging
         duration_source = "total_second_length"  # Since we're prioritizing the slider
@@ -412,7 +362,7 @@ def get_current_ui_settings_for_queue():
         else:
             settings['latent_window_size'] = 9
         
-        print(f"🎬 Frame settings: {frame_size_setting} → latent_window_size={settings['latent_window_size']}")
+        print(translate("🎬 Frame settings: {0} → latent_window_size={1}").format(frame_size_setting, settings['latent_window_size']))
         
         # ===== QUALITY SETTINGS =====
         settings['steps'] = get_component_value('steps', 25, int)
@@ -429,7 +379,7 @@ def get_current_ui_settings_for_queue():
         if use_random_seed:
             import random
             settings['seed'] = random.randint(0, 2**32 - 1)
-            print(f"🎲 Generated new random seed for queue item: {settings['seed']}")
+            print(translate("🎲 Generated new random seed for queue item: {0}").format(settings['seed']))
         else:
             settings['seed'] = base_seed
             
@@ -444,7 +394,7 @@ def get_current_ui_settings_for_queue():
         batch_count_final = max(1, min(int(batch_count_raw), 100))
         settings['batch_count'] = batch_count_final
         
-        print(f"🔢 Batch count processing: raw={batch_count_raw} (type: {type(batch_count_raw)}) → final={batch_count_final} (type: {type(batch_count_final)})")
+        print(translate("🔢 Batch count processing: raw={0} (type: {1}) → final={2} (type: {3})").format(batch_count_raw, type(batch_count_raw), batch_count_final, type(batch_count_final)))
         
         
         # ===== SYSTEM SETTINGS =====
@@ -470,17 +420,17 @@ def get_current_ui_settings_for_queue():
         settings['batch_count'] = 1
         settings['save_settings_on_start'] = False
         
-        print(f"📋 Queue settings summary:")
-        print(f"   Duration: {settings['total_second_length']}s ({duration_source}), Frames: {frame_size_setting}")
-        print(f"   Quality: steps={settings['steps']}, CFG={settings['cfg']}, Distilled={settings['gs']}")
-        print(f"   Output: resolution={settings['resolution']}, CRF={settings['mp4_crf']}")
-        print(f"   Generation: seed={settings['seed']} (random: {use_random_seed})")
-        print(f"   Performance: TeaCache={settings['use_teacache']}, FP8={settings['fp8_optimization']}")
+        print(translate("📋 Queue settings summary:"))
+        print(translate("   Duration: {0}s ({1}), Frames: {2}").format(settings['total_second_length'], duration_source, frame_size_setting))
+        print(translate("   Quality: steps={0}, CFG={1}, Distilled={2}").format(settings['steps'], settings['cfg'], settings['gs']))
+        print(translate("   Output: resolution={0}, CRF={1}").format(settings['resolution'], settings['mp4_crf']))
+        print(translate("   Generation: seed={0} (random: {1})").format(settings['seed'], use_random_seed))
+        print(translate("   Performance: TeaCache={0}, FP8={1}").format(settings['use_teacache'], settings['fp8_optimization']))
         
         return settings
         
     except Exception as e:
-        print(f"❌ Error getting current UI settings: {e}")
+        print(translate("❌ Error getting current UI settings: {0}").format(e))
         import traceback
         traceback.print_exc()
         
@@ -518,11 +468,6 @@ def get_current_ui_settings_for_queue():
         }
 
 def cancel_operation_handler():
-    """
-    CANCELLATION HANDLER: Handles cancellation of pending operations
-    
-    SIMPLE FUNCTION: Clears confirmation dialog and operation data without performing any actions.
-    """
     return (
         "❌ " + translate("Operation cancelled"),
         gr.update(),  # Don't change config dropdown
@@ -532,24 +477,9 @@ def cancel_operation_handler():
     )
 
 def merged_refresh_handler_standardized():
-    """
-    REFRESH HANDLER: Updates both config list and queue status with auto-correction
-    
-    AUTO-CORRECTION FEATURES:
-    - Detects stuck queue states (processing flag set but no actual work)
-    - Corrects inconsistent processing states between global and manager flags
-    - Provides diagnostic logging for troubleshooting
-    
-    DUAL REFRESH:
-    - Available configs: Fresh filesystem scan
-    - Queue status: Current processing state with validation
-    
-    RETURNS:
-    Tuple of (message, config_dropdown_update, queue_status_update)
-    """
     try:
         if config_queue_manager is None:
-            return "❌ Config queue manager not initialized", gr.update(), gr.update()
+            return translate("❌ Config queue manager not initialized"), gr.update(), gr.update()
         
         # Refresh config list
         available_configs = config_queue_manager.get_available_configs()
@@ -566,14 +496,14 @@ def merged_refresh_handler_standardized():
         needs_correction = False
         
         if manager_processing and not has_current_work and not has_queued_items:
-            print("🔧 Merged refresh: Manager processing but no work - correcting")
+            print(translate("🔧 Merged refresh: Manager processing but no work - correcting"))
             config_queue_manager.is_processing = False
             config_queue_manager.current_config = None
             queue_processing_active = False
             needs_correction = True
         
         if queue_processing_active and not manager_processing:
-            print("🔧 Merged refresh: Global active but manager idle - syncing")
+            print(translate("🔧 Merged refresh: Global active but manager idle - syncing"))
             queue_processing_active = False
             needs_correction = True
         
@@ -588,32 +518,23 @@ def merged_refresh_handler_standardized():
             status_text += "\n🔧 Auto-corrected processing state"
         
         queue_count = queue_status['queue_count']
-        print(f"🔄 Merged refresh completed: {len(available_configs)} configs, {queue_count} queued")
+        print(translate("🔄 Merged refresh completed: {0} configs, {1} queued").format(len(available_configs), queue_count))
         
         return (
-            f"✅ Refreshed: {len(available_configs)} configs, {queue_count} queued",
+            translate("✅ Refreshed: {0} configs, {1} queued").format(len(available_configs), queue_count),
             gr.update(choices=available_configs),
             gr.update(value=status_text)
         )
         
     except Exception as e:
-        return f"❌ Error during refresh: {str(e)}", gr.update(), gr.update()
+        return translate("❌ Error during refresh: {0}").format(str(e)), gr.update(), gr.update()
 
 # ==============================================================================
 # QUEUE CONTROL HANDLERS
 # ==============================================================================
 
 def queue_config_handler_with_confirmation(config_dropdown):
-    """
-    QUEUE HANDLER: Adds config to queue with overwrite confirmation
-    
-    CONFIRMATION SYSTEM:
-    If config already exists in queue, shows confirmation dialog before overwriting.
-    Otherwise, proceeds directly with queueing.
-    
-    RETURNS:
-    Tuple of UI updates for message, status, confirmation, operation_data
-    """
+
     global current_loaded_config
     
     config_name = current_loaded_config or config_dropdown
@@ -621,7 +542,7 @@ def queue_config_handler_with_confirmation(config_dropdown):
         return "❌ Error: No config loaded", gr.update(), gr.update(visible=False), None
     
     if config_queue_manager is None:
-        return "❌ Error: Config queue manager not initialized", gr.update(), gr.update(visible=False), None
+        return translate("❌ Error: Config queue manager not initialized"), gr.update(), gr.update(visible=False), None
 
     # Check if already in queue
     queue_file = os.path.join(config_queue_manager.queue_dir, f"{config_name}.json")
@@ -662,27 +583,16 @@ def queue_config_handler_with_confirmation(config_dropdown):
             return f"❌ {message}", gr.update(), gr.update(visible=False), None
   
 def stop_queue_processing_handler_fixed():
-    """
-    STOP HANDLER: Stops queue processing with proper state management
-    
-    STATE CLEANUP:
-    - Resets both global and manager processing flags
-    - Clears current config reference
-    - Provides appropriate user feedback
-    - Restores UI component visibility
-    
-    RETURNS:
-    Tuple of (message, status_update)
-    """
+
     global queue_processing_active
 
     if config_queue_manager is None:
-        return "❌ Error: Config queue manager not initialized", gr.update(), gr.update(visible=True), gr.update(visible=True)
+        return translate("❌ Error: Config queue manager not initialized"), gr.update(), gr.update(visible=True), gr.update(visible=True)
     
     if not queue_processing_active and not config_queue_manager.is_processing:
-        return "❌ Queue processing is not running", gr.update(), gr.update(visible=True), gr.update(visible=True)
+        return translate("❌ Queue processing is not running"), gr.update(), gr.update(visible=True), gr.update(visible=True)
     
-    print("🛑 Stopping queue processing...")
+    print(translate("🛑 Stopping queue processing..."))
     
     success, message = config_queue_manager.stop_queue_processing()
     
@@ -691,7 +601,7 @@ def stop_queue_processing_handler_fixed():
         queue_processing_active = False
         config_queue_manager.is_processing = False
         config_queue_manager.current_config = None
-        print("✅ Queue processing stopped and flags reset")
+        print(translate("✅ Queue processing stopped and flags reset"))
         
     queue_status = config_queue_manager.get_queue_status()
     status_text = format_queue_status_with_batch_progress(queue_status)
@@ -700,16 +610,9 @@ def stop_queue_processing_handler_fixed():
     return message, gr.update(value=status_text), gr.update(visible=True), gr.update(visible=True)
 
 def clear_queue_handler():
-    """
-    CLEAR HANDLER: Removes all items from queue
-    
-    SAFETY: Only works when queue is not actively processing.
-    
-    RETURNS:
-    Tuple of (message, status_update)
-    """
+
     if config_queue_manager is None:  # ← Add this line
-        return "Error: Config queue manager not initialized/clear_queue_handler", gr.update(), gr.update()    
+        return translate("Error: Config queue manager not initialized/clear_queue_handler"), gr.update(), gr.update()    
     
     success, message = config_queue_manager.clear_queue()
     
@@ -725,31 +628,19 @@ def clear_queue_handler():
 def save_current_config_handler_v3(config_name_input, add_timestamp, input_image, prompt, use_lora, lora_mode, 
                                   lora_dropdown1, lora_dropdown2, lora_dropdown3, lora_files, 
                                   lora_files2, lora_files3, lora_scales_text):
-    """
-    PRIMARY SAVE HANDLER: Manages config saving with overwrite detection
-    
-    FLOW:
-    1. Validate inputs (image, prompt)
-    2. Check for existing config (if timestamp disabled)
-    3. Show confirmation dialog for overwrites
-    4. Store operation data for confirmation system
-    5. Call perform_save_operation_v3() for actual saving
-    
-    RETURNS:
-    Tuple of UI updates for message, dropdown, status, confirmation, operation_data
-    """
+
     global current_loaded_config
     
     try:
         # Validate inputs
         if not input_image:
-            return "❌ Error: No image selected", gr.update(), gr.update(), gr.update(visible=False), None
+            return translate("❌ Error: No image selected"), gr.update(), gr.update(), gr.update(visible=False), None
             
         if not prompt or not prompt.strip():
-            return "❌ Error: No prompt entered", gr.update(), gr.update(), gr.update(visible=False), None
+            return translate("❌ Error: No prompt entered"), gr.update(), gr.update(), gr.update(visible=False), None
         
         if config_queue_manager is None:
-            return "❌ Error: Config queue manager not initialized", gr.update(), gr.update(), gr.update(visible=False), None
+            return translate("❌ Error: Config queue manager not initialized"), gr.update(), gr.update(), gr.update(visible=False), None
         
         # Get the config name to use
         config_name_to_use = config_name_input.strip() if config_name_input and config_name_input.strip() else ""
@@ -811,21 +702,7 @@ def save_current_config_handler_v3(config_name_input, add_timestamp, input_image
 def perform_save_operation_v3(config_name_input, add_timestamp, input_image, prompt, use_lora, lora_mode,
                             lora_dropdown1, lora_dropdown2, lora_dropdown3, lora_files,
                             lora_files2, lora_files3, lora_scales_text):
-    """
-    ACTUAL SAVE OPERATION: Performs the config file saving
-    
-    CRITICAL FUNCTION: This is where actual config data is assembled and saved
-    
-    PROCESS:
-    1. Assemble LoRA settings using get_current_lora_settings()
-    2. Call ConfigQueueManager.save_config_with_timestamp_option()
-    3. Parse returned config name (removing system messages)
-    4. Update UI with new config and status
-    
-    CONFIG NAME PARSING:
-    The function carefully extracts ONLY the config name from success messages,
-    filtering out system messages like "(copied file)" to prevent UI contamination.
-    """
+
     global current_loaded_config
 
     try:
@@ -860,11 +737,11 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
             
             # VALIDATION: Ensure the config name is clean and doesn't contain system messages
             if "(" in actual_config_name or ")" in actual_config_name:
-                print(f"⚠️ Warning: Config name contains parentheses, cleaning: '{actual_config_name}'")
+                print(translate(f"⚠️ Warning: Config name contains parentheses, cleaning: '{actual_config_name}'"))
                 # Remove everything from the first parenthesis onwards
                 actual_config_name = actual_config_name.split("(")[0].strip()
             
-            print(f"✅ Config saved successfully: '{actual_config_name}' (from message: '{message}')")
+            print(translate("✅ Config saved successfully: '{0}' (from message: '{1}')").format(actual_config_name, message))
             
             current_loaded_config = actual_config_name
             
@@ -875,8 +752,8 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
             # CASE-SENSITIVE CHECK: Ensure the actual_config_name exists in the choices
             # This handles case-sensitive file systems where "abc" and "ABC" are different
             if actual_config_name not in available_configs:
-                print(f"⚠️ Warning: Saved config '{actual_config_name}' not found in available configs")
-                print(f"   Available configs: {available_configs[:10]}...")  # Show first 10 for debugging
+                print(translate("⚠️ Warning: Saved config '{0}' not found in available configs").format(actual_config_name))
+                print(translate("   Available configs: {0}...").format(available_configs[:10]))  # Show first 10 for debugging
                 
                 # Try case-insensitive search as fallback
                 for config in available_configs:
@@ -904,7 +781,7 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
                 lora_files_list = lora_settings.get("lora_files", [])
                 if lora_files_list:
                     filenames = [os.path.basename(path) for path in lora_files_list]
-                    user_message += f"\n📦 LoRA files configured: {', '.join(filenames)}"
+                    user_message += translate("\n📦 LoRA files configured: {0}").format(', '.join(filenames))
             
             return (
                 user_message,
@@ -914,40 +791,18 @@ def perform_save_operation_v3(config_name_input, add_timestamp, input_image, pro
                 None  # Clear operation data
             )
         else:
-            return f"❌ {message}", gr.update(), gr.update(), gr.update(visible=False), None
+            return translate("❌ {0}").format(message), gr.update(), gr.update(), gr.update(visible=False), None
             
     except Exception as e:
-        return f"❌ Error saving config: {str(e)}", gr.update(), gr.update(), gr.update(visible=False), None
+        return translate("❌ Error saving config: {0}").format(str(e)), gr.update(), gr.update(), gr.update(visible=False), None
 
 def load_config_with_delayed_lora_application_fixed(config_name):
-    """
-    COMPLEX LOAD HANDLER: Loads config and applies LoRA settings immediately
-    
-    ADVANCED FEATURES:
-    - Automatic image recovery from multiple locations
-    - LoRA configuration restoration with validation
-    - Language-independent config format handling
-    - Graceful handling of missing files
-    
-    IMAGE RECOVERY PROCESS:
-    1. Try original image path
-    2. Try alternative paths stored in config
-    3. Search by original filename in config_images/
-    4. Allow loading even if image missing (for editing)
-    
-    LORA RESTORATION:
-    - Handles both old and new config formats
-    - Validates file existence before applying
-    - Uses safe fallbacks for missing files
-    
-    RETURNS:
-    List of UI updates for all relevant components
-    """
+
     global pending_lora_config_data, current_loaded_config
     
     if not config_name or config_queue_manager is None:
         return [
-            "Error: Config queue manager not initialized",
+            translate("Error: Config queue manager not initialized"),
             gr.update(), gr.update(), gr.update(), gr.update(), 
             gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
         ]
@@ -971,31 +826,32 @@ def load_config_with_delayed_lora_application_fixed(config_name):
             # Fallback: try to convert old language-dependent format
             old_lora_mode = lora_settings.get('lora_mode', translate("ディレクトリから選択"))
             lora_mode = translate("ディレクトリから選択")  # Safe default
-            print(f"📦 Config uses old language-dependent format, using default: {lora_mode}")
+            print(translate("📦 Config uses old language-dependent format, using default: {0}").format(lora_mode))
         
-        print(f"📂 Loading config: {config_name}")
-        print(f"    use_lora: {use_lora}, lora_mode: {lora_mode}")
+        print(translate("📂 Loading config: {0}").format(config_name))
+        print(translate("    use_lora: {0}, lora_mode: {1}").format(use_lora, lora_mode))
         
         # Handle LoRA configuration (now always directory mode due to auto-conversion)
         if use_lora and lora_mode == translate("ディレクトリから選択"):
             # FIXED: Always scan directory first to ensure we have current choices
             choices = scan_lora_directory()
-            print(f"📦 Scanned LoRA directory, found {len(choices)} choices")
+            print(translate("📦 Scanned LoRA directory, found {0} choices").format(len(choices)))
             
             # Try new format first (language-independent)
             lora_dropdown_files = lora_settings.get('lora_dropdown_files')
             if lora_dropdown_files:
-                print(f"📦 Using language-independent format")
+                print(translate("📦 Using language-independent format"))
                 lora_dropdown_values = []
                 
                 for dropdown_file in lora_dropdown_files[:3]:
                     if dropdown_file == LORA_NONE_OPTION:
+                        # FIXED: Handle both constants and string literals
                         lora_dropdown_values.append(translate("なし"))
                     elif dropdown_file in choices:
                         lora_dropdown_values.append(dropdown_file)
                     else:
                         # FIXED: If file not found, use "none" instead of the missing file
-                        print(f"⚠️ LoRA file not found in directory: {dropdown_file}, using 'none'")
+                        print(translate("⚠️ LoRA file not found in directory: {0}, using 'none'").format(dropdown_file))
                         lora_dropdown_values.append(translate("なし"))
                 
                 # Pad with "none" if needed
@@ -1006,7 +862,7 @@ def load_config_with_delayed_lora_application_fixed(config_name):
                 
             else:
                 # Fallback: use old format (file paths)
-                print(f"📦 Using fallback file path method")
+                print(translate("📦 Using fallback file path method"))
                 lora_files = lora_settings.get('lora_files', [])
                 if lora_files:
                     # FIXED: Use enhanced validation in apply_lora_config_to_dropdowns
@@ -1016,7 +872,7 @@ def load_config_with_delayed_lora_application_fixed(config_name):
                     applied_files = []
             
             if applied_files:
-                print(f"✅ Applied LoRA files: {applied_files}")
+                print(translate("✅ Applied LoRA files: {0}").format(applied_files))
                 
                 # Store for potential reuse
                 pending_lora_config_data = {
@@ -1029,7 +885,7 @@ def load_config_with_delayed_lora_application_fixed(config_name):
                 
                 # FIXED: Return with proper choices and values, ensuring all values are in choices
                 return [
-                    f"✅ Loaded config: {config_name} (LoRA: {', '.join(applied_files)}, Str: {lora_settings.get('lora_scales')})",
+                    translate("✅ Loaded config: {0} (LoRA: {1}, Str: {2})").format(config_name, ', '.join(applied_files), lora_settings.get('lora_scales')),
                     gr.update(value=image_path if image_path and os.path.exists(image_path) else None),
                     gr.update(value=prompt),
                     gr.update(value=use_lora),
@@ -1041,11 +897,11 @@ def load_config_with_delayed_lora_application_fixed(config_name):
                     gr.update(value=config_name)
                 ]
             else:
-                print(f"📦 Config has LoRA enabled but no files")
+                print(translate("📦 Config has LoRA enabled but no files"))
                 pending_lora_config_data = None
                 # FIXED: Still return proper choices to avoid warnings
                 return [
-                    f"✅ Loaded config: {config_name}",
+                    translate("✅ Loaded config: {0}").format(config_name),
                     gr.update(value=image_path if image_path and os.path.exists(image_path) else None),
                     gr.update(value=prompt),
                     gr.update(value=use_lora),
@@ -1057,12 +913,12 @@ def load_config_with_delayed_lora_application_fixed(config_name):
                     gr.update(value=config_name)
                 ]
         else:
-            print(f"📦 No LoRA configuration needed")
+            print(translate("📦 No LoRA configuration needed"))
             pending_lora_config_data = None
 
         # Default return for non-LoRA configs
         return [
-            f"✅ Loaded config: {config_name}",
+            translate("✅ Loaded config: {0}").format(config_name),
             gr.update(value=image_path if image_path and os.path.exists(image_path) else None),
             gr.update(value=prompt),
             gr.update(value=use_lora),
@@ -1074,28 +930,17 @@ def load_config_with_delayed_lora_application_fixed(config_name):
     else:
         pending_lora_config_data = None
         return [
-            f"❌ {message}", gr.update(), gr.update(), gr.update(), gr.update(),
+            translate("❌ {0}").format(message), gr.update(), gr.update(), gr.update(), gr.update(),
             gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
         ]
 
 def delete_config_handler_v2(config_dropdown):
-    """
-    DELETE HANDLER: Deletes config with confirmation system
-    
-    CONFIRMATION SYSTEM:
-    Shows confirmation dialog before deletion to prevent accidental loss.
-    
-    VALIDATION:
-    Checks file existence and refreshes list if file not found.
-    
-    RETURNS:
-    Tuple of UI updates for message, dropdown, status, confirmation, operation_data
-    """
+
     if not config_dropdown:
-        return "❌ No config selected for deletion", gr.update(), gr.update(), gr.update(visible=False), None
+        return translate("❌ No config selected for deletion"), gr.update(), gr.update(), gr.update(visible=False), None
     
     if config_queue_manager is None:
-        return "❌ Config queue manager not initialized", gr.update(), gr.update(), gr.update(visible=False), None
+        return translate("❌ Config queue manager not initialized"), gr.update(), gr.update(), gr.update(visible=False), None
     
     # Check if file actually exists
     if not config_queue_manager.config_exists(config_dropdown):
@@ -1141,21 +986,7 @@ def delete_config_handler_v2(config_dropdown):
 # ==============================================================================
 
 def validate_and_process_with_queue_check(*args):
-    """
-    INTEGRATION BRIDGE: Modified validate_and_process with queue processing check
-    
-    MUTUAL EXCLUSION:
-    Prevents manual generation when queue is processing, and vice versa.
-    This ensures GPU resources are not conflicted between manual and queue processing.
-    
-    UI STATE MANAGEMENT:
-    - Updates button states based on processing status
-    - Provides clear feedback about why generation is blocked
-    - Maintains consistent UI behavior
-    
-    YIELDS:
-    Generator of UI updates matching manual generation output format
-    """
+
     global queue_processing_active
     
     # Check if queue processing is active
@@ -1195,15 +1026,7 @@ def validate_and_process_with_queue_check(*args):
             yield result + (gr.update(),) * (8 - len(result))
 
 def end_process_enhanced():
-    """
-    ENHANCED END HANDLER: Stops manual process with button state management
-    
-    BUTTON STATE COORDINATION:
-    Updates both manual and queue button states appropriately when stopping manual generation.
-    
-    RETURNS:
-    Tuple of button state updates
-    """
+
     global stream
     global batch_stopped
 
@@ -1222,18 +1045,6 @@ def end_process_enhanced():
 # ==============================================================================
 
 def create_enhanced_config_queue_ui():
-    """
-    UI BUILDER: Creates complete config queue UI with all components
-    
-    ARCHITECTURE:
-    - Config management section (save, load, delete)
-    - Queue control section (queue, start, stop, clear)
-    - Status display with real-time updates
-    - Confirmation system for destructive operations
-    
-    RETURNS:
-    Dictionary of all UI components for event handler registration
-    """
     
     with gr.Group():
         gr.Markdown(f"### " + translate("Config Queue System"))
@@ -1345,24 +1156,6 @@ def create_enhanced_config_queue_ui():
     }
 
 def setup_enhanced_config_queue_events(components, ui_components):
-    """
-    EVENT REGISTRATION: Sets up all event handlers for config queue system
-    
-    COMPREHENSIVE EVENT HANDLING:
-    - Config management events (save, load, delete)
-    - Queue control events (start, stop, clear, queue)
-    - Confirmation system events (confirm, cancel)
-    - Refresh and status update events
-    
-    PARAMETERS:
-    components: Dict of config queue UI components
-    ui_components: Dict of main UI components for integration
-    
-    MODIFICATION NOTES:
-    - Add new event handlers here when extending functionality
-    - Maintain consistent parameter passing between handlers
-    - Ensure proper error handling in all event handlers
-    """
     
     # Config management events (unchanged)
     components['load_config_btn'].click(
@@ -1524,21 +1317,7 @@ def setup_enhanced_config_queue_events(components, ui_components):
     )
 
 def setup_periodic_queue_status_check():
-    """
-    MONITORING SYSTEM: Periodic status checking with automatic state correction
-    
-    PURPOSE:
-    Runs background thread to monitor queue state and automatically correct
-    inconsistencies that may occur due to errors or unexpected conditions.
-    
-    AUTO-CORRECTION FEATURES:
-    - Detects stuck processing states
-    - Resets inconsistent flags
-    - Logs corrections for debugging
-    
-    THREAD SAFETY:
-    Uses daemon thread to avoid blocking application shutdown.
-    """
+
     import threading
     import time
     
@@ -1556,70 +1335,29 @@ def setup_periodic_queue_status_check():
                         not status.get('current_config') and
                         not status.get('processing')):
                         
-                        print("🔧 Periodic check: Detected stuck queue state - auto-correcting")
+                        print(translate("🔧 Periodic check: Detected stuck queue state - auto-correcting"))
                         globals()['queue_processing_active'] = False
                         config_queue_manager.is_processing = False
                         config_queue_manager.current_config = None
                         
                         # Log the correction for debugging
-                        print(f"🔧 Periodic correction applied at {time.strftime('%H:%M:%S')}")
+                        print(translate("🔧 Periodic correction applied at {0}").format(time.strftime('%H:%M:%S')))
                         
             except Exception as e:
-                print(f"Periodic queue check error: {e}")
+                print(translate("Periodic queue check error: {0}").format(e))
     
     # Start the periodic check thread
     check_thread = threading.Thread(target=periodic_check, daemon=True)
     check_thread.start()
-    print("🔧 Started periodic queue status checker (10s intervals)")
+    print(translate("🔧 Started periodic queue status checker (10s intervals)"))
 
-def setup_auto_refresh_timer(components):
-    """
-    AUTO-REFRESH SYSTEM: Setup automatic refresh timer for queue status during processing
-    
-    NOTE: Currently implemented as placeholder for potential future enhancement.
-    Real-time UI updates are handled through the monitoring loop in queue processing.
-    
-    POTENTIAL ENHANCEMENT:
-    Could be extended to provide automatic UI updates during queue processing
-    without user interaction, but Gradio limitations make this challenging.
-    """
-    import threading
-    import time
-    
-    def auto_refresh_worker():
-        while True:
-            try:
-                time.sleep(5)  # Refresh every 5 seconds during processing
-                
-                if config_queue_manager and config_queue_manager.is_processing:
-                    # Queue is active - trigger refresh
-                    status = config_queue_manager.get_queue_status()
-                        
-            except Exception as e:
-                print(f"Auto-refresh error: {e}")
-    
-    # Start auto-refresh thread
-    refresh_thread = threading.Thread(target=auto_refresh_worker, daemon=True)
-    refresh_thread.start()
-    print("🔄 Started auto-refresh timer (5s intervals during processing)")
 
 # ==============================================================================
 # UTILITY FUNCTIONS
 # ==============================================================================
 
 def get_lora_mode_text(lora_mode_key):
-    """
-    UTILITY: Convert language-independent key to current localized text
-    
-    LANGUAGE INDEPENDENCE:
-    Converts internal storage keys to current UI language for proper display.
-    
-    PARAMETERS:
-    lora_mode_key: Language-independent key (LORA_MODE_DIRECTORY, LORA_MODE_UPLOAD, etc.)
-    
-    RETURNS:
-    Localized text for current language
-    """
+
     if lora_mode_key == LORA_MODE_DIRECTORY:
         return translate("ディレクトリから選択")
     elif lora_mode_key == LORA_MODE_UPLOAD:
@@ -1629,32 +1367,7 @@ def get_lora_mode_text(lora_mode_key):
 
 def get_current_lora_settings(use_lora, lora_mode, lora_dropdown1, lora_dropdown2, lora_dropdown3, 
                              lora_files, lora_files2, lora_files3, lora_scales_text):
-    """
-    ADVANCED FUNCTION: LoRA Configuration Processing for Config Files
-    
-    PURPOSE:
-    Processes LoRA settings from UI and converts them to a standardized format
-    for config file storage. Handles both directory selection and file upload modes.
-    
-    ARCHITECTURE DECISION:
-    - All config files use directory mode internally (language-independent)
-    - File upload mode auto-converts to directory mode upon saving
-    - Uses language-independent keys to avoid localization issues
-    
-    AUTO-CONVERSION PROCESS (File Upload → Directory Mode):
-    1. Detect uploaded files
-    2. Copy files to lora/ directory with deduplication
-    3. Store as directory mode format in config
-    4. Log conversion for user feedback
-    
-    RETURNS:
-    dict: Standardized LoRA settings for config storage
-    
-    MODIFICATION NOTES:
-    - When adding new LoRA parameters, update this function
-    - Maintain language independence in stored keys
-    - Handle file system operations safely (existence checks, permissions)
-    """
+
     lora_settings = {
         "use_lora": use_lora,
         "lora_scales": lora_scales_text
@@ -1667,7 +1380,7 @@ def get_current_lora_settings(use_lora, lora_mode, lora_dropdown1, lora_dropdown
     
     if lora_mode == translate("ディレクトリから選択"):
         # Directory selection mode - handle normally
-        print("📁 Saving config: Directory selection mode")
+        print(translate("📁 Saving config: Directory selection mode"))
         lora_settings["lora_mode_key"] = LORA_MODE_DIRECTORY
         
         lora_paths = []
@@ -1689,7 +1402,7 @@ def get_current_lora_settings(use_lora, lora_mode, lora_dropdown1, lora_dropdown
         lora_settings["lora_dropdown_files"] = lora_dropdown_files
         
     else:  # File upload mode - AUTO-CONVERT to directory mode
-        print("📁 Saving config: Converting file uploads to directory mode")
+        print(translate("📁 Saving config: Converting file uploads to directory mode"))
         
         import shutil
         lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
@@ -1709,7 +1422,7 @@ def get_current_lora_settings(use_lora, lora_mode, lora_dropdown1, lora_dropdown
                     # Handle filename conflicts
                     if os.path.exists(dest_path):
                         if os.path.getsize(src_path) == os.path.getsize(dest_path):
-                            print(f"   📄 File already exists (same size): {original_filename}")
+                            print(translate("   📄 File already exists (same size): {0}").format(original_filename))
                         else:
                             name, ext = os.path.splitext(original_filename)
                             counter = 1
@@ -1718,21 +1431,21 @@ def get_current_lora_settings(use_lora, lora_mode, lora_dropdown1, lora_dropdown
                                 dest_path = os.path.join(lora_dir, new_filename)
                                 counter += 1
                             original_filename = os.path.basename(dest_path)
-                            print(f"   📄 Renamed to avoid conflict: {original_filename}")
+                            print(translate("   📄 Renamed to avoid conflict: {0}").format(original_filename))
                     
                     if not os.path.exists(dest_path):
                         shutil.copy2(src_path, dest_path)
-                        print(f"   ✅ Copied LoRA file: {original_filename}")
+                        print(translate("   ✅ Copied LoRA file: {0}").format(original_filename))
                         copied_files.append(original_filename)
                     else:
-                        print(f"   ✅ Using existing file: {original_filename}")
+                        print(translate("   ✅ Using existing file: {0}").format(original_filename))
                         copied_files.append(original_filename)
                     
                     lora_paths.append(dest_path)
                     lora_dropdown_files.append(original_filename)
                     
                 except Exception as e:
-                    print(f"   ❌ Error copying LoRA file {lora_file.name}: {e}")
+                    print(translate("   ❌ Error copying LoRA file {0}: {1}").format(lora_file.name, e))
                     continue
         
         while len(lora_dropdown_files) < 3:
@@ -1744,35 +1457,19 @@ def get_current_lora_settings(use_lora, lora_mode, lora_dropdown1, lora_dropdown
         # REMOVED: Don't store conversion info in lora_settings to avoid message contamination
         
         if copied_files:
-            print(f"   📦 Auto-converted file uploads: {', '.join(copied_files)}")
+            print(translate("   📦 Auto-converted file uploads: {0}").format(', '.join(copied_files)))
     
     return lora_settings
 
 def apply_lora_config_to_dropdowns_safe(lora_files, existing_choices=None):
-    """
-    UTILITY: Apply LoRA file configuration to dropdowns with validation
-    
-    SAFETY FEATURES:
-    - Validates file existence before applying
-    - Handles missing files gracefully
-    - Ensures all dropdown values are valid choices
-    - Provides detailed logging for troubleshooting
-    
-    PARAMETERS:
-    lora_files: List of LoRA file paths
-    existing_choices: Pre-scanned directory choices (optional)
-    
-    RETURNS:
-    Tuple of (choices, dropdown_values, applied_files)
-    """
     
     # Use provided choices or scan fresh
     if existing_choices is None:
         choices = scan_lora_directory()
-        print(f"🔄 Fresh scan found {len(choices)} choices: {choices[:5]}...")
+        print(translate("🔄 Fresh scan found {0} choices: {1}...").format(len(choices), choices[:5]))
     else:
         choices = existing_choices
-        print(f"🔄 Using provided choices: {len(choices)} choices")
+        print(translate("🔄 Using provided choices: {0} choices").format(len(choices)))
     
     # Initialize dropdown values
     lora_dropdown_values = [translate("なし"), translate("なし"), translate("なし")]
@@ -1787,36 +1484,24 @@ def apply_lora_config_to_dropdowns_safe(lora_files, existing_choices=None):
             if lora_filename in choices:
                 lora_dropdown_values[i] = lora_filename
                 applied_files.append(lora_filename)
-                print(f"  ✅ Applied LoRA {i+1}: {lora_filename}")
+                print(translate("  ✅ Applied LoRA {0}: {1}").format(i+1, lora_filename))
             else:
-                print(f"  ❌ LoRA file not found in directory: {lora_filename}")
-                print(f"      Available choices: {choices[:10]}...")  # Show first 10 for debugging
+                print(translate("  ❌ LoRA file not found in directory: {0}").format(lora_filename))
+                print(translate("      Available choices: {0}...").format(choices[:10]))  # Show first 10 for debugging
                 # Keep default "なし" value instead of setting invalid value
         else:
-            print(f"  ⚠️ LoRA {i+1} file not found or invalid: {lora_path}")
+            print(translate("  ⚠️ LoRA {0} file not found or invalid: {1}").format(i+1, lora_path))
     
     # Validate all values are in choices before returning
     for i, value in enumerate(lora_dropdown_values):
         if value not in choices:
-            print(f"  🔧 Correcting invalid dropdown value: {value} -> {choices[0]}")
+            print(translate("  🔧 Correcting invalid dropdown value: {0} -> {1}").format(value, choices[0]))
             lora_dropdown_values[i] = choices[0] if choices else translate("なし")
     
     return choices, lora_dropdown_values, applied_files
 
 def scan_lora_directory():
-    """
-    UTILITY: Scan ./lora directory for LoRA model files with enhanced validation
-    
-    FEATURES:
-    - Creates directory if not exists
-    - Validates file readability
-    - Sorts results for consistent ordering
-    - Ensures string type safety
-    - Always includes "none" option
-    
-    RETURNS:
-    List of valid LoRA filenames with "none" option first
-    """
+
     lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
     choices = []
     
@@ -1834,7 +1519,7 @@ def scan_lora_directory():
                 if os.path.isfile(file_path) and os.access(file_path, os.R_OK):
                     choices.append(filename)
     except Exception as e:
-        print(f"Error scanning LoRA directory: {e}")
+        print(translate("Error scanning LoRA directory: {0}").format(e))
     
     # 空の選択肢がある場合は"なし"を追加
     choices = sorted(choices)
@@ -1850,13 +1535,13 @@ def scan_lora_directory():
         if isinstance(choice, str) and choice.strip():
             validated_choices.append(choice)
         else:
-            print(f"⚠️ Skipping invalid choice: {choice} (type: {type(choice)})")
+            print(translate("⚠️ Skipping invalid choice: {0} (type: {1})").format(choice,type(choice)))
     
     # Ensure we always have at least the "none" option
     if not validated_choices:
         validated_choices = [translate("なし")]
     
-    print(f"🔍 Scanned LoRA directory: found {len(validated_choices)-1} files + none option")
+    print(translate("🔍 Scanned LoRA directory: found {0} files + none option").format(len(validated_choices)-1))
     return validated_choices
 
 # ==============================================================================
@@ -1866,9 +1551,9 @@ def scan_lora_directory():
 # Initialize config queue manager with error handling
 try:
     config_queue_manager = ConfigQueueManager(os.path.dirname(os.path.abspath(__file__)))
-    print("Config queue manager initialized successfully")
+    print(translate("Config queue manager initialized successfully"))
 except Exception as e:
-    print(f"Error initializing config queue manager: {e}")
+    print(translate("Error initializing config queue manager: {0}").format(e))
     config_queue_manager = None
 # Setup monitoring systems if manager available
 if config_queue_manager is not None:
@@ -1897,42 +1582,10 @@ def start_queue_processing_with_current_ui_values(
     # Batch count parameter
     batch_count
 ):
-    """
-        QUEUE PROCESSING ENTRY POINT: Initiates queue processing with UI settings capture
-        
-        CRITICAL ARCHITECTURE:
-        This function is the bridge between the UI and queue processing system.
-        It captures ALL current UI settings and stores them globally for queue processing.
-        
-        PROCESSING FLOW:
-        1. Validate queue has items
-        2. Capture UI settings snapshot (get_current_ui_settings_for_queue)
-        3. Store settings globally for queue worker access
-        4. Start queue processing thread
-        5. Monitor progress with periodic status updates
-        
-        UI SETTINGS CAPTURE:
-        - Quality/Duration settings from UI → Applied to ALL queue items
-        - Image/Prompt/LoRA settings from configs → Per-config basis
-        
-        MONITORING SYSTEM:
-        - Real-time status updates every 3 seconds
-        - Batch progress tracking within each config
-        - Automatic completion detection
-        - Error handling and recovery
-        
-        YIELDS:
-        Generator of UI updates for real-time feedback during processing
-        
-        MODIFICATION NOTES:
-        - Add new UI parameters to function signature AND get_current_ui_settings_for_queue()
-        - Maintain parameter order consistency with UI component arrangement
-        - Update monitoring logic when adding new status information
-        """
     
     if config_queue_manager is None:
         yield (
-            "❌ Config queue manager not initialized",  # 1. markdown (config_message)
+            translate("❌ Config queue manager not initialized"),  # 1. markdown (config_message)
             gr.update(),                                 # 2. textbox (queue_status_display)
             gr.update(),                                 # 3. markdown (progress_desc)
             gr.update(),                                 # 4. html (progress_bar)
@@ -1996,14 +1649,14 @@ def start_queue_processing_with_current_ui_values(
     }
     
     total_expected_videos = queue_status['queue_count'] * queue_ui_settings['batch_count']
-    print(f"📋 Queue starting: {queue_status['queue_count']} configs × {queue_ui_settings['batch_count']} batches = {total_expected_videos} total videos")
+    print(translate("📋 Queue starting: {0} configs × {1} batches = {2} total videos").format(queue_status['queue_count'], queue_ui_settings['batch_count'], total_expected_videos))
     
     # Start processing with batch-aware processor
     success, message = config_queue_manager.start_queue_processing(process_config_item_with_batch_support)
     
     if not success:
         yield (
-            f"❌ Failed to start: {message}",            # 1. markdown (config_message)
+            translate("❌ Failed to start: {0}").format(message),            # 1. markdown (config_message)
             gr.update(),                                 # 2. textbox (queue_status_display)
             gr.update(),                                 # 3. markdown (progress_desc)
             gr.update(),                                 # 4. html (progress_bar)
@@ -2020,10 +1673,10 @@ def start_queue_processing_with_current_ui_values(
     
     # Return initial status with queue processing UI
     yield (
-        f"✅ Queue started ({queue_status['queue_count']} configs × {queue_ui_settings['batch_count']} batches = {total_expected_videos} videos)",  # 1. markdown (config_message)
+        translate("✅ Queue started ({0} configs × {1} batches = {2} videos)").format(queue_status['queue_count'], queue_ui_settings['batch_count'], total_expected_videos),  # 1. markdown (config_message)
         gr.update(value=format_queue_status_with_batch_progress(queue_status)),  # 2. textbox (queue_status_display)
-        f"Queue processing started: {total_expected_videos} total videos to generate...",  # 3. markdown (progress_desc)
-        '<div style="color: blue; font-weight: bold;">📋 Queue processing active - Progress UI disabled. Check console for details.</div>',  # 4. html (progress_bar)
+        translate("Queue processing started: {0} total videos to generate...").format(total_expected_videos),  # 3. markdown (progress_desc)
+        f'<div style="color: blue; font-weight: bold;">{translate("📋 Queue processing active - Progress UI disabled. Check console for details.")}</div>',  # 4. html (progress_bar)
         gr.update(visible=False),                        # 5. image (preview_image) - HIDE
         gr.update(visible=False),                        # 6. video (result_video) - HIDE
         gr.update(interactive=False, value=translate("队列处理中...")),  # 7. button (manual start_button)
@@ -2059,21 +1712,21 @@ def start_queue_processing_with_current_ui_values(
                 
                 if current_config:
                     if batch_progress['total'] > 0:
-                        batch_info = f"Batch {batch_progress['current']}/{batch_progress['total']}"
-                        status_msg = f"📋 Processing: {current_config} ({batch_info}) - {remaining_videos} videos remaining"
-                        desc_msg = f"Processing {current_config} - {batch_info} - {remaining_videos} videos remaining"
+                        batch_info = translate("Batch {0}/{1}").format(batch_progress['current'], batch_progress['total'])
+                        status_msg = translate("📋 Processing: {0} ({1}) - {2} videos remaining").format(current_config, batch_info, remaining_videos)
+                        desc_msg = translate("Processing {0} - {1} - {2} videos remaining").format(current_config, batch_info, remaining_videos)
                     else:
-                        status_msg = f"📋 Processing: {current_config} - {remaining_videos} videos remaining"
-                        desc_msg = f"Processing {current_config} - {remaining_videos} videos remaining"
+                        status_msg = translate("📋 Processing: {0} - {1} videos remaining").format(current_config, remaining_videos)
+                        desc_msg = translate("Processing {0} - {1} videos remaining").format(current_config, remaining_videos)
                 else:
-                    status_msg = f"📋 Queue: {remaining_videos} videos remaining"
-                    desc_msg = f"Queue processing... {remaining_videos} videos remaining"
+                    status_msg = translate("📋 Queue: {0} videos remaining").format(remaining_videos)
+                    desc_msg = translate("Queue processing... {0} videos remaining").format(remaining_videos)
                 
                 yield (
                     status_msg,                              # 1. markdown (config_message)
                     gr.update(value=format_queue_status_with_batch_progress(status)),  # 2. textbox (queue_status_display)
                     desc_msg,                                # 3. markdown (progress_desc)
-                    '<div style="color: blue; font-weight: bold;">📋 Queue processing active - Progress UI disabled. Check console for details.</div>',  # 4. html (progress_bar)
+                    f'<div style="color: blue; font-weight: bold;">📋 {translate("Queue processing active - Progress UI disabled. Check console for details.")}</div>',  # 4. html (progress_bar)
                     gr.update(visible=False),                # 5. image (preview_image) - HIDE
                     gr.update(visible=False),                # 6. video (result_video) - HIDE
                     gr.update(interactive=False, value=translate("队列处理中...")),  # 7. button (manual start_button)
@@ -2084,9 +1737,9 @@ def start_queue_processing_with_current_ui_values(
                 last_current_config = current_config
             
             if not is_processing and current_count == 0:
-                print("✅ Queue processing completed")
+                print(translate("✅ Queue processing completed"))
                 yield (
-                    f"✅ Queue completed - All {total_expected_videos} videos processed successfully",  # 1. markdown (config_message)
+                    translate("✅ Queue completed - All {0} videos processed successfully").format(total_expected_videos),  # 1. markdown (config_message)
                     gr.update(value=format_queue_status_with_batch_progress(status)),  # 2. textbox (queue_status_display)
                     "All queue items and batches have been processed",  # 3. markdown (progress_desc)
                     '<div style="color: green; font-weight: bold;">✅ Queue processing completed</div>',  # 4. html (progress_bar)
@@ -2098,99 +1751,284 @@ def start_queue_processing_with_current_ui_values(
                 break
                 
         except Exception as e:
-            print(f"❌ Queue monitoring error: {e}")
+            print(translate("❌ Queue monitoring error: {0}").format(e))
             continue
     
     queue_processing_active = False
-    print("🏁 Queue processing monitor finished")
+    print(translate("🏁 Queue processing monitor finished"))
+
+# def process_config_item_with_batch_support(config_data):
+
+#     global queue_ui_settings, current_processing_config_name, current_batch_progress
+    
+#     try:
+#         config_name = config_data.get('config_name', 'unknown_config')
+#         print(translate("🎬 Processing config: {0}").format(config_name))
+        
+#         # Validate that image exists for generation
+#         image_path = config_data.get('image_path')
+#         if not image_path or not os.path.exists(image_path):
+#             print(translate("❌ Cannot generate video: Image missing for config {0}").format(config_name))
+#             print(translate("    Expected path: {0}").format(image_path))
+#             return False
+        
+#         print(translate("✅ Image validated: {0}").format(os.path.basename(image_path)))
+            
+#         # Get batch count from UI settings with debug logging
+#         batch_count_raw = queue_ui_settings.get('batch_count', 1)
+        
+#         # Ensure batch_count is definitely an integer
+#         if isinstance(batch_count_raw, bool):
+#             print(translate("⚠️ Warning: batch_count is boolean ({0}), converting to integer").format(batch_count_raw))
+#             batch_count = 1 if batch_count_raw else 1
+#         else:
+#             try:
+#                 batch_count = int(batch_count_raw)
+#             except (ValueError, TypeError):
+#                 print(translate("⚠️ Warning: Could not convert batch_count to int: {0} (type: {1})").format(batch_count_raw, type(batch_count_raw)))
+#                 batch_count = 1
+        
+#         batch_count = max(1, min(batch_count, 100))  # Ensure valid range
+        
+        
+#         # Set the current config name for worker function to use
+#         current_processing_config_name = config_name
+        
+#         # Initialize batch progress with validated integer
+#         current_batch_progress = {"current": 0, "total": batch_count}
+#         print(translate("📊 Initialized batch progress: {0}").format(current_batch_progress))
+        
+#         # Use the stored UI settings
+#         if queue_ui_settings is None:
+#             print(translate("❌ No UI settings available - using defaults"))
+#             queue_ui_settings = get_current_ui_settings_for_queue()
+        
+#         current_ui_settings = queue_ui_settings
+        
+#         print(translate("🕒 Using duration from UI: {0}s").format(current_ui_settings['total_second_length']))
+        
+#         # Extract config data
+#         image_path = config_data['image_path']
+#         prompt = config_data['prompt']
+#         lora_settings = config_data['lora_settings']
+        
+#         # Handle LoRA configuration (existing code...)
+#         use_lora = lora_settings.get('use_lora', False)
+#         lora_mode_key = lora_settings.get('lora_mode_key')
+#         if lora_mode_key:
+#             lora_mode = get_lora_mode_text(lora_mode_key)
+#         else:
+#             old_lora_mode = lora_settings.get('lora_mode')
+#             if old_lora_mode:
+#                 if 'ディレクトリ' in old_lora_mode or 'directory' in old_lora_mode.lower() or '目錄' in old_lora_mode:
+#                     lora_mode = translate("ディレクトリから選択")
+#                 elif 'ファイル' in old_lora_mode or 'file' in old_lora_mode.lower() or '檔案' in old_lora_mode:
+#                     lora_mode = translate("ファイルアップロード")
+#                 else:
+#                     lora_mode = translate("ディレクトリから選択")
+#             else:
+#                 lora_mode = translate("ディレクトリから選択")
+            
+#         lora_scales_text = lora_settings.get('lora_scales', '0.8,0.8,0.8')
+        
+#         # Initialize LoRA parameters (existing code...)
+#         lora_files_obj = None
+#         lora_files2_obj = None
+#         lora_files3_obj = None
+#         lora_dropdown1_val = None
+#         lora_dropdown2_val = None
+#         lora_dropdown3_val = None
+        
+#         if use_lora:
+#             lora_files_list = lora_settings.get('lora_files', [])
+            
+#             if lora_mode == translate("ディレクトリから選択"):
+#                 lora_dropdown_files = lora_settings.get('lora_dropdown_files')
+#                 if lora_dropdown_files:
+#                     lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
+                    
+#                     for i, dropdown_file in enumerate(lora_dropdown_files[:3]):
+#                         if dropdown_file != "none_option":
+#                             lora_file_path = os.path.join(lora_dir, dropdown_file)
+#                             if os.path.exists(lora_file_path):
+#                                 if i == 0:
+#                                     lora_dropdown1_val = dropdown_file
+#                                 elif i == 1:
+#                                     lora_dropdown2_val = dropdown_file
+#                                 elif i == 2:
+#                                     lora_dropdown3_val = dropdown_file
+#                 else:
+#                     if lora_files_list:
+#                         if len(lora_files_list) > 0 and lora_files_list[0] and os.path.exists(lora_files_list[0]):
+#                             lora_dropdown1_val = os.path.basename(lora_files_list[0])
+#                         if len(lora_files_list) > 1 and lora_files_list[1] and os.path.exists(lora_files_list[1]):
+#                             lora_dropdown2_val = os.path.basename(lora_files_list[1])
+#                         if len(lora_files_list) > 2 and lora_files_list[2] and os.path.exists(lora_files_list[2]):
+#                             lora_dropdown3_val = os.path.basename(lora_files_list[2])
+#             else:
+#                 if lora_files_list:
+#                     if len(lora_files_list) > 0 and os.path.exists(lora_files_list[0]):
+#                         lora_files_obj = type('MockFile', (), {'name': lora_files_list[0]})()
+#                     if len(lora_files_list) > 1 and os.path.exists(lora_files_list[1]):
+#                         lora_files2_obj = type('MockFile', (), {'name': lora_files_list[1]})()
+#                     if len(lora_files_list) > 2 and os.path.exists(lora_files_list[2]):
+#                         lora_files3_obj = type('MockFile', (), {'name': lora_files_list[2]})()
+        
+#         print(translate("🎯 Calling process() with config: {0}, batch_count: {1}, duration: {2}s").format(config_name, batch_count, current_ui_settings['total_second_length']))
+        
+#         def process_with_batch_tracking(*args):
+#             """Simplified wrapper - let process() handle its own batch logic"""
+#             print(translate("📊 Starting video generation for config: {0}").format(config_name))
+            
+#             # Initialize batch progress - we're starting the entire config processing
+#             update_batch_progress(0, batch_count)
+            
+#             # Just consume the process generator without trying to intercept individual results
+#             for result in process(*args):
+#                 # Don't try to detect "batch completion" here - process() handles batch logic internally
+#                 yield result
+            
+#             # When the generator is fully consumed, the entire config (all batches) is complete
+#             update_batch_progress(batch_count, batch_count)
+#             print(translate("✅ All {0} batch(es) completed for config: {1}").format(batch_count, config_name))
+        
+#         # Call the enhanced process function with batch tracking
+#         result_generator = process_with_batch_tracking(
+#             image_path,  # input_image
+#             prompt,  # prompt
+#             current_ui_settings['n_prompt'],  # n_prompt
+#             current_ui_settings['seed'],  # seed
+#             current_ui_settings['total_second_length'],  # total_second_length
+#             current_ui_settings['latent_window_size'],  # latent_window_size
+#             current_ui_settings['steps'],  # steps
+#             current_ui_settings['cfg'],  # cfg
+#             current_ui_settings['gs'],  # gs
+#             current_ui_settings['rs'],  # rs
+#             current_ui_settings['gpu_memory_preservation'],  # gpu_memory_preservation
+#             current_ui_settings['use_teacache'],  # use_teacache
+#             current_ui_settings['use_random_seed'],  # use_random_seed
+#             current_ui_settings['mp4_crf'],  # mp4_crf
+#             current_ui_settings['all_padding_value'],  # all_padding_value
+#             current_ui_settings['image_strength'],  # image_strength
+#             current_ui_settings['frame_size_setting'],  # frame_size_setting
+#             current_ui_settings['keep_section_videos'],  # keep_section_videos
+#             lora_files_obj,  # lora_files
+#             lora_files2_obj,  # lora_files2
+#             lora_files3_obj,  # lora_files3
+#             lora_scales_text,  # lora_scales_text
+#             current_ui_settings['output_dir'],  # output_dir
+#             current_ui_settings['save_section_frames'],  # save_section_frames
+#             current_ui_settings['use_all_padding'],  # use_all_padding
+#             use_lora,  # use_lora
+#             lora_mode,  # lora_mode
+#             lora_dropdown1_val,  # lora_dropdown1
+#             lora_dropdown2_val,  # lora_dropdown2
+#             lora_dropdown3_val,  # lora_dropdown3
+#             current_ui_settings['save_tensor_data'],  # save_tensor_data
+#             [[None, None, ""] for _ in range(50)],  # section_settings (F1 specific)
+#             current_ui_settings['tensor_data_input'],  # tensor_data_input
+#             current_ui_settings['fp8_optimization'],  # fp8_optimization
+#             current_ui_settings['resolution'],  # resolution
+#             batch_count,  # USE VALIDATED batch_count DIRECTLY
+#             current_ui_settings['frame_save_mode'],  # frame_save_mode
+#             current_ui_settings['use_queue'],  # use_queue
+#             current_ui_settings['prompt_queue_file'],  # prompt_queue_file
+#             current_ui_settings['save_settings_on_start'],  # save_settings_on_start
+#             current_ui_settings['alarm_on_completion']  # alarm_on_completion
+#         )
+        
+#         # Consume the generator - RESTORED
+#         step_count = 0
+#         for result in result_generator:
+#             step_count += 1
+        
+#         # Reset batch progress when done
+#         current_batch_progress = {"current": 0, "total": 0}
+        
+#         return True
+        
+#     except Exception as e:
+#         print(translate("❌ Config processing error: {0}").format(e))
+#         import traceback
+#         traceback.print_exc()
+#         return False
+#     finally:
+#         # Clear the config name when done
+#         current_processing_config_name = None
+#         current_batch_progress = {"current": 0, "total": 0}
+#         return True
 
 def process_config_item_with_batch_support(config_data):
-    """
-    ADVANCED QUEUE PROCESSOR: Processes individual config with full batch support
-    
-    ARCHITECTURE:
-    This function is called by ConfigQueueManager for each queued config.
-    It bridges between the queue system and the main video generation process.
-    
-    BATCH PROCESSING INTEGRATION:
-    - Extracts batch_count from globally stored UI settings
-    - Calls main process() function with config-specific parameters
-    - Tracks batch progress for real-time UI updates
-    - Handles seed incrementation per batch
-    
-    CONFIG DATA PROCESSING:
-    - Image path validation and handling
-    - LoRA settings reconstruction for both directory and upload modes
-    - Prompt and other parameter extraction
-    - Error handling for missing files
-    
-    VIDEO NAMING INTEGRATION:
-    Sets global current_processing_config_name for video file naming in worker() function.
-    
-    RETURNS:
-    bool: True if processing succeeded, False otherwise
-    
-    MODIFICATION NOTES:
-    - When adding new config parameters, update config data extraction
-    - Maintain batch progress tracking for UI feedback
-    - Handle new parameter types in the process() function call
-    """
     global queue_ui_settings, current_processing_config_name, current_batch_progress
     
     try:
         config_name = config_data.get('config_name', 'unknown_config')
-        print(f"🎬 Processing config: {config_name}")
+        print(translate("🎬 Processing config: {0}").format(config_name))
         
-        # Validate that image exists for generation
+        # FIXED: Use ConfigQueueManager's load_config_for_generation method
+        # This method handles path resolution for both images and LoRA files
+        if config_queue_manager is None:
+            print(translate("❌ Config queue manager not available"))
+            return False
+            
+        # Load config with proper path resolution
+        success, resolved_config_data, message = config_queue_manager.load_config_for_generation(config_name)
+        
+        if not success:
+            print(translate("❌ Cannot load config for generation: {0}").format(config_name))
+            print(translate("    Error: {0}").format(message))
+            return False
+            
+        # Use the resolved config data instead of the original
+        config_data = resolved_config_data
+        
+        # Validate that image exists for generation (now with resolved path)
         image_path = config_data.get('image_path')
         if not image_path or not os.path.exists(image_path):
-            print(f"❌ Cannot generate video: Image missing for config {config_name}")
-            print(f"    Expected path: {image_path}")
+            print(translate("❌ Cannot generate video: Image missing for config {0}").format(config_name))
+            print(translate("    Expected path: {0}").format(image_path))
             return False
         
-        print(f"✅ Image validated: {os.path.basename(image_path)}")
+        print(translate("✅ Image validated: {0}").format(os.path.basename(image_path)))
             
         # Get batch count from UI settings with debug logging
         batch_count_raw = queue_ui_settings.get('batch_count', 1)
         
         # Ensure batch_count is definitely an integer
         if isinstance(batch_count_raw, bool):
-            print(f"⚠️ Warning: batch_count is boolean ({batch_count_raw}), converting to integer")
+            print(translate("⚠️ Warning: batch_count is boolean ({0}), converting to integer").format(batch_count_raw))
             batch_count = 1 if batch_count_raw else 1
         else:
             try:
                 batch_count = int(batch_count_raw)
             except (ValueError, TypeError):
-                print(f"⚠️ Warning: Could not convert batch_count to int: {batch_count_raw} (type: {type(batch_count_raw)})")
+                print(translate("⚠️ Warning: Could not convert batch_count to int: {0} (type: {1})").format(batch_count_raw, type(batch_count_raw)))
                 batch_count = 1
         
         batch_count = max(1, min(batch_count, 100))  # Ensure valid range
-        
-        # print(f"🔢 Batch count validation: raw={batch_count_raw} (type: {type(batch_count_raw)}) → final={batch_count} (type: {type(batch_count)})")
-
         
         # Set the current config name for worker function to use
         current_processing_config_name = config_name
         
         # Initialize batch progress with validated integer
         current_batch_progress = {"current": 0, "total": batch_count}
-        print(f"📊 Initialized batch progress: {current_batch_progress}")
+        print(translate("📊 Initialized batch progress: {0}").format(current_batch_progress))
         
         # Use the stored UI settings
         if queue_ui_settings is None:
-            print("❌ No UI settings available - using defaults")
+            print(translate("❌ No UI settings available - using defaults"))
             queue_ui_settings = get_current_ui_settings_for_queue()
         
         current_ui_settings = queue_ui_settings
         
-        print(f"🕒 Using duration from UI: {current_ui_settings['total_second_length']}s")
+        print(translate("🕒 Using duration from UI: {0}s").format(current_ui_settings['total_second_length']))
         
-        # Extract config data
-        image_path = config_data['image_path']
+        # Extract config data (now using resolved paths)
+        image_path = config_data['image_path']  # Already resolved
         prompt = config_data['prompt']
         lora_settings = config_data['lora_settings']
         
-        # Handle LoRA configuration (existing code...)
+        # Handle LoRA configuration with resolved paths
         use_lora = lora_settings.get('use_lora', False)
         lora_mode_key = lora_settings.get('lora_mode_key')
         if lora_mode_key:
@@ -2209,7 +2047,7 @@ def process_config_item_with_batch_support(config_data):
             
         lora_scales_text = lora_settings.get('lora_scales', '0.8,0.8,0.8')
         
-        # Initialize LoRA parameters (existing code...)
+        # Initialize LoRA parameters
         lora_files_obj = None
         lora_files2_obj = None
         lora_files3_obj = None
@@ -2218,24 +2056,24 @@ def process_config_item_with_batch_support(config_data):
         lora_dropdown3_val = None
         
         if use_lora:
+            # LoRA files are now resolved to absolute paths by load_config_for_generation
             lora_files_list = lora_settings.get('lora_files', [])
             
             if lora_mode == translate("ディレクトリから選択"):
                 lora_dropdown_files = lora_settings.get('lora_dropdown_files')
                 if lora_dropdown_files:
-                    lora_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lora')
-                    
-                    for i, dropdown_file in enumerate(lora_dropdown_files[:3]):
-                        if dropdown_file != "none_option":
-                            lora_file_path = os.path.join(lora_dir, dropdown_file)
-                            if os.path.exists(lora_file_path):
-                                if i == 0:
-                                    lora_dropdown1_val = dropdown_file
-                                elif i == 1:
-                                    lora_dropdown2_val = dropdown_file
-                                elif i == 2:
-                                    lora_dropdown3_val = dropdown_file
+                    # Use the resolved absolute paths, but extract filenames for dropdown values
+                    for i, lora_file_path in enumerate(lora_files_list[:3]):
+                        if lora_file_path and os.path.exists(lora_file_path):
+                            filename = os.path.basename(lora_file_path)
+                            if i == 0:
+                                lora_dropdown1_val = filename
+                            elif i == 1:
+                                lora_dropdown2_val = filename
+                            elif i == 2:
+                                lora_dropdown3_val = filename
                 else:
+                    # Fallback: extract filenames from resolved paths
                     if lora_files_list:
                         if len(lora_files_list) > 0 and lora_files_list[0] and os.path.exists(lora_files_list[0]):
                             lora_dropdown1_val = os.path.basename(lora_files_list[0])
@@ -2244,6 +2082,7 @@ def process_config_item_with_batch_support(config_data):
                         if len(lora_files_list) > 2 and lora_files_list[2] and os.path.exists(lora_files_list[2]):
                             lora_dropdown3_val = os.path.basename(lora_files_list[2])
             else:
+                # File upload mode - create mock file objects from resolved paths
                 if lora_files_list:
                     if len(lora_files_list) > 0 and os.path.exists(lora_files_list[0]):
                         lora_files_obj = type('MockFile', (), {'name': lora_files_list[0]})()
@@ -2252,11 +2091,11 @@ def process_config_item_with_batch_support(config_data):
                     if len(lora_files_list) > 2 and os.path.exists(lora_files_list[2]):
                         lora_files3_obj = type('MockFile', (), {'name': lora_files_list[2]})()
         
-        print(f"🎯 Calling process() with config: {config_name}, batch_count: {batch_count}, duration: {current_ui_settings['total_second_length']}s")
+        print(translate("🎯 Calling process() with config: {0}, batch_count: {1}, duration: {2}s").format(config_name, batch_count, current_ui_settings['total_second_length']))
         
         def process_with_batch_tracking(*args):
             """Simplified wrapper - let process() handle its own batch logic"""
-            print(f"📊 Starting video generation for config: {config_name}")
+            print(translate("📊 Starting video generation for config: {0}").format(config_name))
             
             # Initialize batch progress - we're starting the entire config processing
             update_batch_progress(0, batch_count)
@@ -2268,11 +2107,11 @@ def process_config_item_with_batch_support(config_data):
             
             # When the generator is fully consumed, the entire config (all batches) is complete
             update_batch_progress(batch_count, batch_count)
-            print(f"✅ All {batch_count} batch(es) completed for config: {config_name}")
+            print(translate("✅ All {0} batch(es) completed for config: {1}").format(batch_count, config_name))
         
         # Call the enhanced process function with batch tracking
         result_generator = process_with_batch_tracking(
-            image_path,  # input_image
+            image_path,  # input_image (now resolved)
             prompt,  # prompt
             current_ui_settings['n_prompt'],  # n_prompt
             current_ui_settings['seed'],  # seed
@@ -2315,14 +2154,10 @@ def process_config_item_with_batch_support(config_data):
             current_ui_settings['alarm_on_completion']  # alarm_on_completion
         )
         
-        # Consume the generator - RESTORED
+        # Consume the generator
         step_count = 0
         for result in result_generator:
             step_count += 1
-        #     if step_count % 20 == 0:
-        #         print(f"   Generator step {step_count}...")
-        
-        # print(f"✅ Config processing completed after {step_count} steps ({batch_count} videos generated)")
         
         # Reset batch progress when done
         current_batch_progress = {"current": 0, "total": 0}
@@ -2330,7 +2165,7 @@ def process_config_item_with_batch_support(config_data):
         return True
         
     except Exception as e:
-        print(f"❌ Config processing error: {e}")
+        print(translate("❌ Config processing error: {0}").format(e))
         import traceback
         traceback.print_exc()
         return False
@@ -2345,26 +2180,7 @@ def process_config_item_with_batch_support(config_data):
 # ==============================================================================
 
 def format_queue_status_with_batch_progress(status):
-    """
-    STATUS FORMATTER: Enhanced queue status display with batch progress
-    
-    PURPOSE:
-    Formats queue status information for UI display, including:
-    - Processing state and current config
-    - Batch progress within current config
-    - Queue count and pending items
-    - Recently completed items (newest first)
-    - Available configs count
-    - Timestamp for updates
-    
-    BATCH PROGRESS INTEGRATION:
-    Shows current batch within config processing for better user feedback.
-    
-    MODIFICATION NOTES:
-    - Adjust CONST_queued_shown_count/CONST_latest_finish_count for display limits
-    - Add new status fields as needed
-    - Maintain readable formatting for different screen sizes
-    """
+
     if "error" in status:
         return f"❌ Error: {status['error']}"
    
@@ -2372,94 +2188,69 @@ def format_queue_status_with_batch_progress(status):
    
     # Processing status with batch information
     if status['is_processing']:
-        lines.append("🔄 Status: PROCESSING")
+        lines.append(translate("🔄 Status: PROCESSING"))
        
         current_config = status.get('current_config')
         batch_progress = status.get('batch_progress', {"current": 0, "total": 0})
-        configs_remaining = status.get('configs_remaining', 0)
+        configs_remaining = status.get('configs_remaining', 0)  # Use the field from status
        
         if current_config:
             if batch_progress['total'] > 0:
-                batch_info = f"Batch ({batch_progress['current']}/{batch_progress['total']})"
-                queue_info = f"{configs_remaining} file(s) in queue"
-                lines.append(f"📹 Processing: {current_config}, {batch_info}, {queue_info}")
+                batch_info = translate("Batch ({0}/{1})").format(batch_progress['current'], batch_progress['total'])
+                queue_info = translate("{0} file(s) in queue").format(configs_remaining)
+                lines.append(translate("📹 Processing: {0}, {1}, {2}").format(current_config, batch_info, queue_info))
             else:
-                lines.append(f"📹 Processing: {current_config}, {configs_remaining} file(s) in queue")
+                lines.append(translate("📹 Processing: {0}, {1} file(s) in queue").format(current_config, configs_remaining))
         elif status.get('processing'):
-            lines.append(f"📹 Current: {status['processing']}")
+            lines.append(translate("📹 Current: {0}").format(status['processing']))
     else:
-        lines.append("⏸️ Status: IDLE")
+        lines.append(translate("⏸️ Status: IDLE"))
    
     # Queue information
     queue_count = status['queue_count']
-    lines.append(f"📋 Queue: {queue_count} items")
+    lines.append(translate("📋 Queue: {0} items").format(queue_count))
    
     # Available configs count
     try:
         if config_queue_manager:
             available_configs = config_queue_manager.get_available_configs()
-            lines.append(f"📁 Configs: {len(available_configs)} available")
+            lines.append(translate("📁 Configs: {0} available").format(len(available_configs)))
     except:
         pass
    
     # Pending items (limited display)
     if status['queued']:
-        lines.append("⏳ Pending:")
+        lines.append(translate("⏳ Pending:"))
         for i, config in enumerate(status['queued'][:CONST_queued_shown_count]):
             lines.append(f"   {i+1}. {config}")
         if len(status['queued']) > CONST_queued_shown_count:
-            lines.append(f"   ... and {len(status['queued']) - CONST_queued_shown_count} more")
+            lines.append(translate("   ... and {0} more").format(len(status['queued']) - CONST_queued_shown_count))
    
     # Recently completed (newest first)
     if status['completed']:
-        lines.append(f"✅ Recently completed: {len(status['completed'])} (newest first)")
+        lines.append(translate("✅ Recently completed: {0} (newest first)").format(len(status['completed'])))
         for config in status['completed'][:CONST_latest_finish_count]:
             lines.append(f"   ✓ {config}")
    
     # Timestamp
     from datetime import datetime
     timestamp = datetime.now().strftime("%H:%M:%S")
-    lines.append(f"🕒 Last updated: {timestamp}")
+    lines.append(translate("🕒 Last updated: {0}").format(timestamp))
    
     return "\n".join(lines)
 
 def update_batch_progress(current_batch, total_batches):
-    """
-    BATCH PROGRESS TRACKER: Updates global batch progress state
-    
-    PURPOSE:
-    Maintains real-time batch progress information for UI display during queue processing.
-    
-    GLOBAL STATE UPDATE:
-    Updates current_batch_progress dictionary used by status formatting and monitoring.
-    
-    PARAMETERS:
-    current_batch (int): Current batch number (0-based)
-    total_batches (int): Total number of batches for current config
-    """
+
     global current_batch_progress
     current_batch_progress = {"current": current_batch, "total": total_batches}
-    print(f"📊 Batch progress updated: {current_batch}/{total_batches}")
+    print(translate("📊 Batch progress updated: {0}/{1}").format(current_batch, total_batches))
 
 # ==============================================================================
 # CONFIRMATION SYSTEM AND UI EVENT HANDLERS
 # ==============================================================================
 
 def confirm_operation_handler_fixed(operation_data):
-    """
-    CONFIRMATION HANDLER: Processes confirmed operations with enhanced delete handling
-    
-    SUPPORTED OPERATIONS:
-    - overwrite_exact: Config file overwriting
-    - queue_overwrite: Queue item replacement
-    - delete: Config file deletion (with name input clearing)
-    
-    DELETE ENHANCEMENT:
-    Clears config name input field after successful deletion to prevent confusion.
-    
-    RETURNS:
-    Tuple of UI updates for all relevant components
-    """
+
     if not operation_data:
         return "❌ No pending operation", gr.update(), gr.update(), gr.update(visible=False), None, gr.update()
     
@@ -2492,7 +2283,7 @@ def confirm_operation_handler_fixed(operation_data):
             queue_file = os.path.join(config_queue_manager.queue_dir, f"{config_name}.json")
             if os.path.exists(queue_file):
                 os.remove(queue_file)
-                print(f"🔄 Removed existing queued config: {config_name}")
+                print(translate("🔄 Removed existing queued config: {0}").format(config_name))
             
             # Queue the config using existing method
             success, message = config_queue_manager.queue_config(config_name)
@@ -2541,53 +2332,10 @@ def confirm_operation_handler_fixed(operation_data):
         return f"❌ Error confirming operation: {str(e)}", gr.update(), gr.update(), gr.update(visible=False), None, gr.update()
 
 def toggle_lora_full_update(use_lora_val):
-    """
-    ADVANCED LORA UI HANDLER: Enhanced LoRA toggle with config loading support
-    
-    PROBLEM SOLVED:
-    Original toggle_lora_settings() function was inline in gr.Blocks and had issues:
-    1. When loading configs with LoRA settings, UI wouldn't display correctly
-    2. Pending LoRA config data wasn't being applied properly
-    3. Dropdown choices weren't being refreshed when needed
-    4. State inconsistencies between LoRA mode and dropdown values
-    
-    SOLUTION ARCHITECTURE:
-    This enhanced function provides:
-    1. PENDING CONFIG SUPPORT: Handles LoRA settings from loaded configs
-    2. SMART STATE MANAGEMENT: Remembers previous LoRA mode when toggling
-    3. FRESH DROPDOWN SCANNING: Ensures dropdown choices are current
-    4. VALIDATION: Ensures all dropdown values are valid choices
-    
-    INTEGRATION WITH CONFIG SYSTEM:
-    - Checks for pending_lora_config_data (set by config loading)
-    - Reapplies stored LoRA settings when toggle is re-enabled
-    - Maintains consistency between config loading and manual LoRA setup
-    
-    PARAMETERS:
-    use_lora_val (bool): Whether LoRA is enabled
-    
-    RETURNS:
-    List of Gradio updates for all LoRA-related components:
-    [lora_mode, lora_upload_group, lora_dropdown_group, lora_scales_text,
-     lora_dropdown1, lora_dropdown2, lora_dropdown3]
-    
-    WORKFLOW:
-    1. Get basic visibility from original toggle_lora_settings()
-    2. If LoRA disabled: Clear pending data, hide components
-    3. If LoRA enabled: Check for pending config data
-    4. If pending data exists: Reapply stored config settings
-    5. If no pending data: Use previous mode or default to directory mode
-    6. Refresh dropdown choices and validate values
-    
-    MODIFICATION NOTES:
-    - Global variable 'pending_lora_config_data' stores config loading state
-    - Global variable 'previous_lora_mode' remembers user's last choice
-    - Always call scan_lora_directory() for fresh choices
-    - Ensure all returned dropdown values exist in choices list
-    """
+
     global previous_lora_mode, pending_lora_config_data
 
-    print(f"🔄 toggle_lora_full_update called: use_lora={use_lora_val}")
+    print(translate("🔄 toggle_lora_full_update called: use_lora={0}").format(use_lora_val))
     
     # Get basic visibility settings
     settings_updates = toggle_lora_settings(use_lora_val)
@@ -2598,22 +2346,22 @@ def toggle_lora_full_update(use_lora_val):
         if current_mode:
             previous_lora_mode = current_mode
         pending_lora_config_data = None
-        print("    LoRA disabled, cleared pending data")
+        print(translate("    LoRA disabled, cleared pending data"))
         return settings_updates + [gr.update(), gr.update(), gr.update()]
     
     # LoRA enabled
-    print("    LoRA enabled...")
+    print(translate("    LoRA enabled..."))
     
     # Check for pending configuration
     if pending_lora_config_data is not None:
-        print(f"    Found pending LoRA config for: {pending_lora_config_data.get('config_name', 'unknown')}")
+        print(translate("    Found pending LoRA config for: {0}").format(pending_lora_config_data.get('config_name')))
         
         # Use the already-applied values from the config loading
         if 'applied_values' in pending_lora_config_data:
             lora_dropdown_values = pending_lora_config_data['applied_values']
             choices = scan_lora_directory()  # Fresh scan
             
-            print(f"    Reapplying stored values: {lora_dropdown_values}")
+            print(translate("    Reapplying stored values: {0}").format(lora_dropdown_values))
             
             # Set directory mode with stored values
             settings_updates[0] = gr.update(visible=True, value=translate("ディレクトリから選択"))
@@ -2645,7 +2393,7 @@ def toggle_lora_full_update(use_lora_val):
             return settings_updates + dropdown_updates
     
     # No pending config - use default behavior
-    print("    No pending config, using default behavior")
+    print(translate("    No pending config, using default behavior"))
     
     if previous_lora_mode == translate("ファイルアップロード"):
         settings_updates[0] = gr.update(visible=True, value=translate("ファイルアップロード"))
@@ -2668,38 +2416,6 @@ def toggle_lora_full_update(use_lora_val):
         return settings_updates + dropdown_updates
 
 def fix_prompt_preset_dropdown_initialization():
-    """
-    DROPDOWN INITIALIZATION FIX: Ensures prompt preset dropdown has valid default value
-    
-    PROBLEM SOLVED:
-    When the prompt preset dropdown was created, Gradio would sometimes:
-    1. Have choices list but no valid default value selected
-    2. Show empty dropdown even when presets were available
-    3. Throw warnings about value not being in choices
-    4. Default preset "起動時デフォルト" not being found in choices
-    
-    ROOT CAUSE:
-    The preset system creates choices dynamically, and there was a timing issue
-    where the dropdown was created before the choices were properly populated,
-    or the default value wasn't included in the choices list.
-    
-    SOLUTION:
-    This function ensures:
-    1. Choices are properly loaded from preset system
-    2. Default presets and user presets are separated and sorted
-    3. "起動時デフォルト" (startup default) is always available
-    4. Valid default value is returned for dropdown initialization
-    
-    USAGE:
-    Called during UI setup to get proper choices and default value:
-    ```python
-    sorted_choices, default_value = fix_prompt_preset_dropdown_initialization()
-    preset_dropdown = gr.Dropdown(
-        choices=sorted_choices,
-        value=default_value,  # Guaranteed to be valid
-        ...
-    )
-    """
     
     # This should be called during UI setup to fix the choices
     try:
@@ -2730,15 +2446,8 @@ def fix_prompt_preset_dropdown_initialization():
         return sorted_choices, startup_default
         
     except Exception as e:
-        print(f"Error fixing prompt preset dropdown: {e}")
+        print(translate("Error fixing prompt preset dropdown: {0}").format(e))
         return [], ""
-
-# ==============================================================================
-# DOCUMENTATION NOTES FOR FUTURE DEVELOPERS
-# ==============================================================================
-
-
-
 
 # イメージキューのための画像ファイルリストを取得する関数（グローバル関数）
 def get_image_queue_files():
@@ -2881,11 +2590,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # Queue processing - use config name + timestamp
             timestamp = generate_timestamp()
             job_id = f"{current_processing_config_name}_{timestamp}{batch_suffix}"
-            print(f"📁 Queue video naming: {job_id}")
+            print(translate("📁 Queue video naming: {0}").format(job_id))
         else:
             # Manual processing - use original naming
             job_id = generate_timestamp() + batch_suffix
-            print(f"📁 Manual video naming: {job_id}")
+            print(translate("📁 Manual video naming: {0}").format(job_id))
         
         return job_id
 
@@ -4062,17 +3771,17 @@ def validate_images(input_image, section_settings, length_radio=None, frame_size
                 slider_component = current_ui_components['total_second_length']
                 if hasattr(slider_component, 'value'):
                     seconds = slider_component.value
-                    print(f"🎯 validate_images using SLIDER value: {seconds}s")
+                    print(translate("🎯 validate_images using SLIDER value: {0}s").format(seconds))
             
             # Fallback to radio if slider not available
             if seconds is None and length_radio is not None:
                 seconds = get_video_seconds(length_radio.value)
-                print(f"🔄 validate_images fallback to RADIO value: {seconds}s")
+                print(translate("🔄 validate_images fallback to RADIO value: {0}s").format(seconds))
             
             # Default fallback
             if seconds is None:
                 seconds = 1
-                print(f"⚠️ validate_images using DEFAULT value: {seconds}s")
+                print(translate("⚠️ validate_images using DEFAULT value: {0}s").format(seconds))
 
             # フレームサイズ設定からlatent_window_sizeを計算
             latent_window_size = 4.5 if frame_size_radio.value == translate("0.5秒 (17フレーム)") else 9
@@ -4159,7 +3868,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
     # Check if we're in queue processing mode and should track batch progress
     is_queue_processing = (current_processing_config_name is not None)
     if is_queue_processing:
-        print(f"📊 Queue processing detected - initializing batch progress tracking for {batch_count} batches")
+        print(translate("📊 Queue processing detected - initializing batch progress tracking for {0} batches").format(batch_count))
         update_batch_progress(0, batch_count)  # Initialize progress
 
 
@@ -4630,7 +4339,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
                 # ADDED: Log batch completion for queue processing
                 if is_queue_processing:
-                    print(f"📊 Batch {batch_index + 1}/{batch_count} completed for queue processing")
+                    print(translate("📊 Batch {0}/{1} completed for queue processing").format(batch_index + 1, batch_count))
 
                 # このバッチの処理が終了
                 if batch_index == batch_count - 1 or batch_stopped:
@@ -4644,7 +4353,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
 
                     # ADDED: Reset batch progress when all batches complete (for queue processing)
                     if is_queue_processing:
-                        print(f"📊 All batches completed - resetting batch progress")
+                        print(translate("📊 All batches completed - resetting batch progress"))
                         # Don't reset here, let the queue manager handle it when config is fully done
 
                     yield (
@@ -4828,7 +4537,7 @@ with block:
                 def toggle_config_queue(use_config_queue_val):
                     """Config Queue Systemの表示/非表示を切り替える"""
                     is_enabled = bool(use_config_queue_val)
-                    print(f"Config Queue System 表示設定: {is_enabled}")
+                    print(translate("Config Queue System 表示設定: {0}").format(is_enabled))
                     return gr.update(visible=is_enabled)
 
                 # ファイルアップロード処理関数
@@ -4846,7 +4555,7 @@ with block:
                             print(translate("アップロードファイルデータ保存: {0}").format(file_obj))
                     else:
                         prompt_queue_file_path = None
-                        print("ファイルアップロード解除")
+                        print(translate("ファイルアップロード解除"))
 
                     return file_obj
 
@@ -5148,7 +4857,7 @@ with block:
                             if filename.endswith(('.safetensors', '.pt', '.bin')):
                                 choices.append(filename)
                     except Exception as e:
-                        print(f"Error scanning LoRA directory: {e}")
+                        print(translate("Error scanning LoRA directory: {0}").format(e))
                     
                     # 空の選択肢がある場合は"なし"を追加
                     choices = sorted(choices)
@@ -5162,7 +4871,7 @@ with block:
                         if not isinstance(choice, str):
                             choices[i] = str(choice)
                     
-                    print(f"🔍 Scanned LoRA directory: found {len(choices)-1} files")
+                    print(translate("🔍 Scanned LoRA directory: found {0} files").format(len(choices)-1))
                     return choices
                 
                 # LoRAの読み込み方式を選択するラジオボタン
@@ -5853,7 +5562,8 @@ with block:
                         translate("全フレーム画像保存"),
                         translate("最終セクションのみ全フレーム画像保存")
                     ],
-                    value=saved_app_settings.get("frame_save_mode", translate("保存しない")) if saved_app_settings else translate("保存しない"),
+                    # value=saved_app_settings.get("frame_save_mode", translate("保存しない")) if saved_app_settings else translate("保存しない"),
+                    value=translate(saved_app_settings.get("frame_save_mode", "保存しない") if saved_app_settings else "保存しない"),
                     info=translate("フレーム画像の保存方法を選択します。過去セクション分も含めて保存します。全セクションか最終セクションのみか選択できます。"),
                     elem_classes="saveable-setting"
                 )
@@ -6581,7 +6291,6 @@ with block:
     }
 
     setup_enhanced_config_queue_events(config_queue_components, ui_components)
-    setup_auto_refresh_timer(config_queue_components)
 
     apply_preset_btn.click(
         fn=apply_to_prompt,
