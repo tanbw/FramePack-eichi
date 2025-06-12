@@ -1147,21 +1147,9 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
                     
                     if stream.input_queue.top() == 'end':
-                        # グローバル変数を直接設定
-                        global batch_stopped, user_abort, user_abort_notified
-                        batch_stopped = True
-                        user_abort = True
-                        
-                        # 通知は一度だけ行うようにする - user_abort_notifiedが設定されていない場合のみ表示
-                        # 通常は既にend_process()内で設定済みなのでここでは表示されない
-                        if not user_abort_notified:
-                            user_abort_notified = True
-                        
-                        # 中断検出をoutput_queueに通知
+                        # KeyboardInterrupt方式による即座停止
                         stream.output_queue.push(('end', None))
-                        
-                        # 戻り値に特殊値を設定して上位処理で検知できるようにする
-                        return {'user_interrupt': True}
+                        raise KeyboardInterrupt('User ends the task.')
                     
                     current_step = d['i'] + 1
                     percentage = int(100.0 * current_step / steps)
@@ -1169,8 +1157,8 @@ def worker(input_image, prompt, n_prompt, seed, steps, cfg, gs, rs,
                     desc = translate('1フレームモード: サンプリング中...')
                     stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 except KeyboardInterrupt:
-                    # 例外を再スローしない - 戻り値で制御
-                    return {'user_interrupt': True}
+                    # KeyboardInterrupt例外を再スローして確実に停止
+                    raise
                 except Exception as e:
                     import traceback
             
@@ -2351,7 +2339,7 @@ def end_process():
         user_abort = True
         
         # 通知は一度だけ表示（ここで表示してフラグを設定）
-        print(translate("停止ボタンが押されました。開始前または現在の処理完了後に停止します..."))
+        print(translate("停止ボタンが押されました。処理を即座に中断します..."))
         user_abort_notified = True  # 通知フラグを設定
         
         # 現在実行中のバッチを停止
