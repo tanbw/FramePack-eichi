@@ -2322,15 +2322,26 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             if not high_vram:
                 unload_complete_models()
-    except:
-        traceback.print_exc()
+    except Exception as e:
+        try:
+            print(f"エラーが発生しました: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        except Exception as inner_e:
+            print(f"エラー処理中にさらにエラーが発生: {str(inner_e)}")
+            
+        try:
+            if not high_vram:
+                unload_complete_models(
+                    text_encoder, text_encoder_2, image_encoder, vae, transformer
+                )
+        except Exception as cleanup_e:
+            print(f"クリーンアップ中にエラーが発生: {str(cleanup_e)}")
 
-        if not high_vram:
-            unload_complete_models(
-                text_encoder, text_encoder_2, image_encoder, vae, transformer
-            )
-
-    stream.output_queue.push(('end', None))
+    try:
+        stream.output_queue.push(('end', None))
+    except Exception as stream_e:
+        print(f"ストリーム終了処理でエラーが発生: {str(stream_e)}")
     return
 
 # 画像のバリデーション関数
