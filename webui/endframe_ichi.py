@@ -17,6 +17,11 @@ vae_cache_enabled = False  # VAEキャッシュのチェックボックス状態
 current_prompt = None      # キューから読み込まれた現在のプロンプト
 current_seed = None        # キューから読み込まれた現在のシード値
 
+# 生成状態管理用グローバル変数
+generation_stopped = False      # 生成中断フラグ
+current_batch_data = None      # 現在のバッチデータ
+transformer_model = None       # Transformerモデルの参照
+
 import os
 import random
 import time
@@ -307,10 +312,77 @@ os.makedirs(input_dir, exist_ok=True)
 
 # キーフレーム処理関数は keyframe_handler.py に移動済み
 
+# ===== 生成状態管理関数 =====
+def reset_generation_state():
+    """生成状態の完全リセット"""
+    global generation_stopped, current_batch_data, transformer_model
+    
+    generation_stopped = False
+    current_batch_data = None
+    
+    # CUDA状態クリア
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+    
+    print(translate("生成状態をリセットしました"))
+
+def cleanup_generation_resources():
+    """リソースの完全クリーンアップ"""
+    global transformer_model, current_batch_data
+    import torch
+    import gc
+    
+    # バッチデータクリア
+    current_batch_data = None
+    
+    # モデルメモリ解放（存在する場合）
+    if transformer_model is not None:
+        try:
+            del transformer_model
+            transformer_model = None
+        except:
+            pass
+    
+    # CUDA メモリクリア
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+    
+    # Python ガベージコレクション
+    gc.collect()
+    
+    print(translate("生成リソースをクリーンアップしました"))
+
+def check_generation_interrupted():
+    """生成中断状態をチェック"""
+    global generation_stopped
+    return generation_stopped
+
+def set_generation_stopped(stopped=True):
+    """生成中断フラグを設定"""
+    global generation_stopped
+    generation_stopped = stopped
+    if stopped:
+        print(translate("生成中断フラグが設定されました"))
+
 @torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, frame_save_mode="保存しない", use_vae_cache=False, use_queue=False, prompt_queue_file=None, alarm_on_completion=False):
+def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf=16, all_padding_value=1.0, end_frame=None, end_frame_strength=1.0, frame_size_setting="1秒 (33フレーム)", keep_section_videos=False, lora_files=None, lora_files2=None, lora_files3=None, lora_scales_text="0.8,0.8,0.8", output_dir=None, save_section_frames=False, section_settings=None, use_all_padding=False, use_lora=False, lora_mode=None, lora_dropdown1=None, lora_dropdown2=None, lora_dropdown3=None, save_tensor_data=False, tensor_data_input=None, fp8_optimization=False, resolution=640, batch_index=None, frame_save_mode="保存しない", use_vae_cache=False, use_queue=False, prompt_queue_file=None, alarm_on_completion=False):
     # グローバル変数を使用
-    global vae_cache_enabled, current_prompt
+    global vae_cache_enabled, current_prompt, generation_stopped, current_batch_data, transformer_model
+    
+    # ===== 生成開始時の状態初期化 =====
+    print(translate("=== 生成状態を初期化開始 ==="))
+    # 前回状態の完全クリア
+    reset_generation_state()
+    
+    # 生成フラグ初期化
+    generation_stopped = False
+    current_batch_data = {"input_image": input_image, "prompt": prompt, "seed": seed}
+    
+    print(translate("=== 生成状態を初期化完了 ==="))
+    
     # パラメータ経由の値とグローバル変数の値を確認
     print(translate("worker関数でのVAEキャッシュ設定: パラメータ={0}, グローバル変数={1}").format(use_vae_cache, vae_cache_enabled))
 
@@ -1407,8 +1479,18 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 preview = (preview * 255.0).detach().cpu().numpy().clip(0, 255).astype(np.uint8)
                 preview = einops.rearrange(preview, 'b c t h w -> (b h) (t w) c')
 
+                # 中断要求の安全な処理
                 if stream.input_queue.top() == 'end':
+                    print(translate("ユーザーによる中断要求を検知しています..."))
+                    # 安全な状態保存とリソース準備
+                    current_step = d.get('i', 0) + 1
+                    print(translate("中断時点: ステップ {0}/{1}").format(current_step, steps))
+                    
+                    # 中断通知を先に送信
                     stream.output_queue.push(('end', None))
+                    
+                    # リソース状態をクリアしてから例外発生
+                    print(translate("中断処理を実行中..."))
                     raise KeyboardInterrupt('User ends the task.')
 
                 current_step = d['i'] + 1
@@ -1420,36 +1502,54 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
 
-            generated_latents = sample_hunyuan(
-                transformer=transformer,
-                sampler='unipc',
-                width=width,
-                height=height,
-                frames=num_frames,
-                real_guidance_scale=cfg,
-                distilled_guidance_scale=gs,
-                guidance_rescale=rs,
-                # shift=3.0,
-                num_inference_steps=steps,
-                generator=rnd,
-                prompt_embeds=current_llama_vec,  # セクションごとのプロンプトを使用
-                prompt_embeds_mask=current_llama_attention_mask,  # セクションごとのマスクを使用
-                prompt_poolers=current_clip_l_pooler,  # セクションごとのプロンプトを使用
-                negative_prompt_embeds=llama_vec_n,
-                negative_prompt_embeds_mask=llama_attention_mask_n,
-                negative_prompt_poolers=clip_l_pooler_n,
-                device=gpu,
-                dtype=torch.bfloat16,
-                image_embeddings=image_encoder_last_hidden_state,
-                latent_indices=latent_indices,
-                clean_latents=clean_latents,
-                clean_latent_indices=clean_latent_indices,
-                clean_latents_2x=clean_latents_2x,
-                clean_latent_2x_indices=clean_latent_2x_indices,
-                clean_latents_4x=clean_latents_4x,
-                clean_latent_4x_indices=clean_latent_4x_indices,
-                callback=callback,
-            )
+            try:
+                generated_latents = sample_hunyuan(
+                    transformer=transformer,
+                    sampler='unipc',
+                    width=width,
+                    height=height,
+                    frames=num_frames,
+                    real_guidance_scale=cfg,
+                    distilled_guidance_scale=gs,
+                    guidance_rescale=rs,
+                    # shift=3.0,
+                    num_inference_steps=steps,
+                    generator=rnd,
+                    prompt_embeds=current_llama_vec,  # セクションごとのプロンプトを使用
+                    prompt_embeds_mask=current_llama_attention_mask,  # セクションごとのマスクを使用
+                    prompt_poolers=current_clip_l_pooler,  # セクションごとのプロンプトを使用
+                    negative_prompt_embeds=llama_vec_n,
+                    negative_prompt_embeds_mask=llama_attention_mask_n,
+                    negative_prompt_poolers=clip_l_pooler_n,
+                    device=gpu,
+                    dtype=torch.bfloat16,
+                    image_embeddings=image_encoder_last_hidden_state,
+                    latent_indices=latent_indices,
+                    clean_latents=clean_latents,
+                    clean_latent_indices=clean_latent_indices,
+                    clean_latents_2x=clean_latents_2x,
+                    clean_latent_2x_indices=clean_latent_2x_indices,
+                    clean_latents_4x=clean_latents_4x,
+                    clean_latent_4x_indices=clean_latent_4x_indices,
+                    callback=callback,
+                )
+            except KeyboardInterrupt as e:
+                print(translate("生成中断を検知: {0}").format(e))
+                # 確実なリソース解放とCUDA状態クリア
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                print(translate("生成処理を正常に中断しました"))
+                # streamに終了通知を送信
+                stream.output_queue.push(('end', None))
+                return None
+            except Exception as e:
+                print(translate("予期しないエラーが発生: {0}").format(e))
+                # エラー発生時のリソース解放
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                # 元の例外を再発生
+                raise
 
             if is_first_section:
                 # 末尾から削除するフレームサイズを計算
@@ -2931,6 +3031,7 @@ def process(input_image, prompt, n_prompt, seed, total_second_length, latent_win
             all_padding_value,
             end_frame,
             end_frame_strength,
+            frame_size_setting,
             keep_section_videos,
             lora_files,
             lora_files2,
@@ -4266,7 +4367,7 @@ with block:
                     use_lora_value = getattr(use_lora, 'value', False)
                     lora_mode_value = getattr(lora_mode, 'value', translate("ディレクトリから選択"))
                     
-                    print(translate("LoRAモードを変更: {0}").format(mode_value))
+                    print(translate("LoRAモードを変更: {0}").format(lora_mode_value))
                     
                     # グローバル変数を更新
                     global previous_lora_mode
