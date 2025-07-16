@@ -592,6 +592,8 @@ On Linux, you can run it with the following steps:
 
 ## 🚀 How to Use
 
+※ If you encounter "localhost is not accessible" error during startup, refer to [Troubleshooting](#-troubleshooting)
+
 ### Multi-Language & Multi-Mode Integrated Launcher
 
 **Language_FramePack-eichi.bat** is an integrated launcher that allows you to start all FramePack-eichi variations from a single interface.
@@ -699,6 +701,70 @@ Enter a number as shown above, and FramePack-eichi will start with the correspon
    ```
 
 ## 🔧 Troubleshooting
+
+### Localhost Accessibility Error
+
+When starting FramePack-eichi, you may encounter the following error:
+
+```
+localhost is not accessible
+```
+
+**Cause**: Gradio performs a localhost accessibility check with a 3-second timeout during startup. FramePack-eichi, having more UI components than standard FramePack, may exceed this time limit.
+
+**Solutions**:
+
+#### 1. Extend Timeout Settings (Recommended)
+
+This method solves the problem at its root by changing the localhost check timeout from 3 seconds to 10 seconds.
+
+1. Open the file `[FramePackFolder]\system\python\Lib\site-packages\gradio\networking.py`
+2. Find line around 68 (look for `r = httpx.head(url, timeout=3, verify=False)`)
+3. Change `timeout=3` to `timeout=10`
+
+```python
+# Change line 68
+r = httpx.head(url, timeout=10, verify=False)
+```
+
+#### 2. VSCode Terminal Startup
+
+VSCode may start faster, potentially allowing the check to complete within the 3-second rule.
+
+1. Open VSCode
+2. Open the FramePack folder
+3. Open terminal (Ctrl+`)
+4. Run the startup command
+
+```bash
+run_endframe_ichi.bat
+```
+
+#### 3. Increase Virtual Memory
+
+Increasing virtual memory can improve response times and satisfy the 3-second rule.
+
+1. Control Panel → System → Advanced System Settings
+2. Under the "Advanced" tab, click "Settings" in the Performance section
+3. "Advanced" tab → "Change" in the Virtual Memory section
+4. Increase the paging file size (recommended: 2-3 times the RAM size)
+
+#### 4. Use --share Option (Temporary Solution)
+
+This method bypasses the localhost accessibility check but creates a public URL.
+
+1. Open the corresponding .bat file in a text editor
+2. Add `--share` to the command line
+
+```bash
+python webui/endframe_ichi.py --share
+```
+
+**Important Notes about --share**:
+- Creates a public URL accessible from the Internet (valid for 72 hours)
+- Recommended for use only in secure environments
+- Not recommended for long-term use due to security considerations
+- Use only as a temporary measure
 
 ### About h11 Errors
 

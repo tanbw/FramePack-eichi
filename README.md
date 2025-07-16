@@ -577,6 +577,8 @@ Please select language (number): 1
 ```
 上記のように番号を入力すると、対応するモードと言語でFramePack-eichiが起動します。
 
+**起動時に問題が発生した場合は、[トラブルシューティング](#-トラブルシューティング)をご確認ください。**
+
 ### モデル選択
 
 1. **使用目的に合わせたモデル選択**:
@@ -642,6 +644,68 @@ Please select language (number): 1
    ```
 
 ## 🔧 トラブルシューティング
+
+### localhost アクセス不可エラーについて
+
+一部のWindows環境で、起動時に以下のようなエラーが表示される場合があります：
+
+```
+ValueError: When localhost is not accessible, a shareable link must be created
+```
+
+このエラーは、FramePack-eichiで追加されたUIコンポーネントの増加により、Gradioの起動時のlocalhost可用性チェック（3秒のタイムアウト）に応答が間に合わないことが原因で発生します。
+
+**解決方法：**
+
+**方法1: タイムアウト拡張（推奨）**
+Gradioの3秒タイムアウトを拡張する根本的な解決方法です：
+
+`[FramePackフォルダ]\system\python\Lib\site-packages\gradio\networking.py`の68行目を編集：
+
+```python
+# 変更前
+r = httpx.head(url, timeout=3, verify=False)
+
+# 変更後
+r = httpx.head(url, timeout=10, verify=False)  # 3 → 10秒に変更
+```
+
+※この方法は根本的な解決になりますが、Gradioライブラリの直接編集が必要です。
+
+**方法2: VSCodeでのターミナル起動**
+VSCodeのターミナルから以下のコマンドで起動する方法もあります：
+
+```bash
+cd [FramePackのパス]
+[FramePackのパス]\run_endframe_ichi.bat
+```
+
+※動作が早いことにより3秒ルールを満たして成功する場合があります。
+
+**方法3: 仮想メモリの増加**
+仮想メモリを増加させることで、応答時間が改善し3秒ルールを満たす場合があります。
+
+**方法4: --shareオプションを追加**
+起動ファイル（例：`run_endframe_ichi.bat`）を編集し、`--share`オプションを追加してください：
+（このオプションによりlocalhost可用性チェックを回避し、gradio.liveサーバー経由のトンネリング接続を使用します）
+
+```batch
+# 変更前
+"%DIR%\python\python.exe" endframe_ichi.py --server 127.0.0.1 --inbrowser
+
+# 変更後
+"%DIR%\python\python.exe" endframe_ichi.py --server 127.0.0.1 --share --inbrowser
+```
+
+※--shareオプションを使用すると以下の特徴があります：
+- **メリット**: localhost接続の問題を回避し、簡単に共有可能
+- **デメリット**: 
+  - インターネット経由でアクセス可能なURLが生成される（URLを知っている人のみアクセス可能、URLを共有しなければ漏洩リスクは低い）
+  - 72時間でリンクが期限切れになる
+  - インターネット接続の品質に依存してパフォーマンスが変動する可能性
+- **仕組み**: gradio.liveサーバーを経由したトンネリング接続（計算はローカルで実行）
+
+**注意：** 公式のFramePackやF1版では正常に動作するため、この問題はFramePack-eichi特有の現象です。
 
 ### h11エラーについて
 
