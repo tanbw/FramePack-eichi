@@ -1,11 +1,20 @@
+from eichi_utils.spinner import spinner_while_running
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './submodules/FramePack'))))
+print(f"{os.path.basename(__file__)} : Starting....")
 
-# Windows環境で loop再生時に [WinError 10054] の warning が出るのを回避する設定
-import asyncio
-if sys.platform in ('win32', 'cygwin'):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+import importlib
+import sys
+import argparse
+
+spinner_while_running(
+    "Path: FramePack",
+    sys.path.append,
+    os.path.abspath(
+        os.path.realpath(
+            os.path.join(os.path.dirname(__file__), "./submodules/FramePack")
+        )
+    ),
+)
 
 # グローバル変数 - 停止フラグと通知状態管理
 user_abort = False
@@ -28,21 +37,9 @@ queue_type = "prompt"  # キューのタイプ（"prompt" または "image"）
 prompt_queue_file_path = None  # プロンプトキューファイルのパス
 image_queue_files = []  # イメージキューのファイルリスト
 
-from diffusers_helper.hf_login import login
 
-import os
-import random  # ランダムシード生成用
-import time
-import traceback  # ログ出力用
-import yaml
-import argparse
-import json
-import glob
-import subprocess  # フォルダを開くために必要
-from PIL import Image
 
 # PNGメタデータ処理モジュールのインポート
-import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from eichi_utils.png_metadata import (
     embed_metadata_to_png, extract_metadata_from_png,
@@ -57,9 +54,44 @@ parser.add_argument("--inbrowser", action='store_true')
 parser.add_argument("--lang", type=str, default='ja', help="Language: ja, zh-tw, en, ru")
 args = parser.parse_args()
 
-# Load translations from JSON files
-from locales.i18n_extended import (set_lang, translate)
+set_lang, translate = spinner_while_running(
+    "Load: i18n",
+    lambda: (
+        importlib.import_module("locales.i18n_extended").set_lang,
+        importlib.import_module("locales.i18n_extended").translate,
+    ),
+)
 set_lang(args.lang)
+
+(
+    asyncio,
+    login,
+    random,
+    time,
+    traceback,
+    yaml,
+    json,
+    glob,
+    subprocess,
+) = spinner_while_running(
+    "Load: System Libraries",
+    lambda: (
+        importlib.import_module("asyncio"),
+        importlib.import_module("diffusers_helper.hf_login").login,
+        importlib.import_module("random"),
+        importlib.import_module("time"),
+        importlib.import_module("traceback"),
+        importlib.import_module("yaml"),
+        importlib.import_module("json"),
+        importlib.import_module("glob"),
+        importlib.import_module("subprocess"),
+    ),
+)
+import shutil
+
+# Windows環境で loop再生時に [WinError 10054] の warning が出るのを回避する設定
+if sys.platform in ('win32', 'cygwin'):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # サーバーがすでに実行中かチェック
 import socket
@@ -85,7 +117,11 @@ if is_port_in_use(args.port):
     time.sleep(10) # 10秒待機して続行
 
 try:
-    import winsound
+    winsound = spinner_while_running(
+        "Load: winsound",
+        importlib.import_module,
+        "winsound",
+    )
     HAS_WINSOUND = True
 except ImportError:
     HAS_WINSOUND = False
@@ -100,8 +136,18 @@ else:
 has_lora_support = False
 has_fp8_support = False
 try:
-    import lora_utils
-    from lora_utils.fp8_optimization_utils import check_fp8_support, apply_fp8_monkey_patch
+    lora_utils = spinner_while_running(
+        "Load: lora_utils",
+        importlib.import_module,
+        "lora_utils",
+    )
+    check_fp8_support, apply_fp8_monkey_patch = spinner_while_running(
+        "Load: lora_utils.fp8_optimization_utils",
+        lambda: (
+            importlib.import_module("lora_utils.fp8_optimization_utils").check_fp8_support,
+            importlib.import_module("lora_utils.fp8_optimization_utils").apply_fp8_monkey_patch,
+        ),
+    )
     
     has_lora_support = True
     # FP8サポート確認
@@ -118,7 +164,7 @@ except ImportError:
     print(translate("LoRAサポートが無効です（lora_utilsモジュールがインストールされていません）"))
 
 # 設定管理モジュールをインポート
-from eichi_utils.settings_manager import (
+(
     get_settings_file_path,
     get_output_folder_path,
     initialize_settings,
@@ -126,39 +172,160 @@ from eichi_utils.settings_manager import (
     save_settings,
     open_output_folder,
     load_app_settings_oichi,
-    save_app_settings_oichi
+    save_app_settings_oichi,
+) = spinner_while_running(
+    "Load: eichi_utils.settings_manager",
+    lambda: (
+        importlib.import_module("eichi_utils.settings_manager").get_settings_file_path,
+        importlib.import_module("eichi_utils.settings_manager").get_output_folder_path,
+        importlib.import_module("eichi_utils.settings_manager").initialize_settings,
+        importlib.import_module("eichi_utils.settings_manager").load_settings,
+        importlib.import_module("eichi_utils.settings_manager").save_settings,
+        importlib.import_module("eichi_utils.settings_manager").open_output_folder,
+        importlib.import_module("eichi_utils.settings_manager").load_app_settings_oichi,
+        importlib.import_module("eichi_utils.settings_manager").save_app_settings_oichi,
+    ),
 )
 
 # ログ管理モジュールをインポート
-from eichi_utils.log_manager import (
-    enable_logging, disable_logging, is_logging_enabled, 
-    get_log_folder, set_log_folder, open_log_folder,
-    get_default_log_settings, load_log_settings, apply_log_settings
+(
+    enable_logging,
+    disable_logging,
+    is_logging_enabled,
+    get_log_folder,
+    set_log_folder,
+    open_log_folder,
+    get_default_log_settings,
+    load_log_settings,
+    apply_log_settings,
+) = spinner_while_running(
+    "Load: eichi_utils.log_manager",
+    lambda: (
+        importlib.import_module("eichi_utils.log_manager").enable_logging,
+        importlib.import_module("eichi_utils.log_manager").disable_logging,
+        importlib.import_module("eichi_utils.log_manager").is_logging_enabled,
+        importlib.import_module("eichi_utils.log_manager").get_log_folder,
+        importlib.import_module("eichi_utils.log_manager").set_log_folder,
+        importlib.import_module("eichi_utils.log_manager").open_log_folder,
+        importlib.import_module("eichi_utils.log_manager").get_default_log_settings,
+        importlib.import_module("eichi_utils.log_manager").load_log_settings,
+        importlib.import_module("eichi_utils.log_manager").apply_log_settings,
+    ),
 )
 
 # LoRAプリセット管理モジュールをインポート
-from eichi_utils.lora_preset_manager import (
+(
     initialize_lora_presets,
     load_lora_presets,
     save_lora_preset,
     load_lora_preset,
-    get_preset_names
+    get_preset_names,
+) = spinner_while_running(
+    "Load: eichi_utils.lora_preset_manager",
+    lambda: (
+        importlib.import_module("eichi_utils.lora_preset_manager").initialize_lora_presets,
+        importlib.import_module("eichi_utils.lora_preset_manager").load_lora_presets,
+        importlib.import_module("eichi_utils.lora_preset_manager").save_lora_preset,
+        importlib.import_module("eichi_utils.lora_preset_manager").load_lora_preset,
+        importlib.import_module("eichi_utils.lora_preset_manager").get_preset_names,
+    ),
 )
 
-import gradio as gr
-from eichi_utils.ui_styles import get_app_css
-import torch
-import einops
-import safetensors.torch as sf
-import numpy as np
-import math
+gr = spinner_while_running(
+    "Load: gradio",
+    importlib.import_module,
+    "gradio",
+)
+get_app_css = spinner_while_running(
+    "Load: eichi_utils.ui_styles",
+    lambda: importlib.import_module("eichi_utils.ui_styles").get_app_css,
+)
 
-from PIL import Image
-from diffusers import AutoencoderKLHunyuanVideo
-from transformers import LlamaModel, CLIPTextModel, LlamaTokenizerFast, CLIPTokenizer
-from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
-from diffusers_helper.utils import save_bcthw_as_mp4, crop_or_pad_yield_mask, soft_append_bcthw, resize_and_center_crop, state_dict_weighted_merge, state_dict_offset_merge, generate_timestamp
-from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModelPacked
+torch = spinner_while_running(
+    translate("Load_torch"),
+    importlib.import_module,
+    "torch",
+)
+
+einops = spinner_while_running(
+    translate("Load_einops"),
+    importlib.import_module,
+    "einops",
+)
+
+sf = spinner_while_running(
+    translate("Load_safetensors.torch"),
+    importlib.import_module,
+    "safetensors.torch",
+)
+
+np = spinner_while_running(
+    translate("Load_numpy"),
+    importlib.import_module,
+    "numpy",
+)
+
+math = spinner_while_running(
+    translate("Load_math"),
+    importlib.import_module,
+    "math",
+)
+
+Image = spinner_while_running(
+    translate("Load_PIL"),
+    lambda: importlib.import_module("PIL").Image,
+)
+
+AutoencoderKLHunyuanVideo = spinner_while_running(
+    translate("Load_diffusers"),
+    lambda: importlib.import_module("diffusers").AutoencoderKLHunyuanVideo,
+)
+
+LlamaModel, CLIPTextModel, LlamaTokenizerFast, CLIPTokenizer = spinner_while_running(
+    translate("Load_transformers"),
+    lambda: (
+        importlib.import_module("transformers").LlamaModel,
+        importlib.import_module("transformers").CLIPTextModel,
+        importlib.import_module("transformers").LlamaTokenizerFast,
+        importlib.import_module("transformers").CLIPTokenizer,
+    ),
+)
+
+encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake = spinner_while_running(
+    translate("Load_diffusers_helper.hunyuan"),
+    lambda: (
+        importlib.import_module("diffusers_helper.hunyuan").encode_prompt_conds,
+        importlib.import_module("diffusers_helper.hunyuan").vae_decode,
+        importlib.import_module("diffusers_helper.hunyuan").vae_encode,
+        importlib.import_module("diffusers_helper.hunyuan").vae_decode_fake,
+    ),
+)
+
+(
+    save_bcthw_as_mp4,
+    crop_or_pad_yield_mask,
+    soft_append_bcthw,
+    resize_and_center_crop,
+    state_dict_weighted_merge,
+    state_dict_offset_merge,
+    generate_timestamp,
+) = spinner_while_running(
+    translate("Load_diffusers_helper.utils"),
+    lambda: (
+        importlib.import_module("diffusers_helper.utils").save_bcthw_as_mp4,
+        importlib.import_module("diffusers_helper.utils").crop_or_pad_yield_mask,
+        importlib.import_module("diffusers_helper.utils").soft_append_bcthw,
+        importlib.import_module("diffusers_helper.utils").resize_and_center_crop,
+        importlib.import_module("diffusers_helper.utils").state_dict_weighted_merge,
+        importlib.import_module("diffusers_helper.utils").state_dict_offset_merge,
+        importlib.import_module("diffusers_helper.utils").generate_timestamp,
+    ),
+)
+
+HunyuanVideoTransformer3DModelPacked = spinner_while_running(
+    translate("Load_diffusers_helper.models.hunyuan_video_packed"),
+    lambda: importlib.import_module("diffusers_helper.models.hunyuan_video_packed").HunyuanVideoTransformer3DModelPacked,
+)
 
 # フォルダを開く関数
 def open_folder(folder_path):
@@ -180,17 +347,85 @@ def open_folder(folder_path):
     except Exception as e:
         print(translate("フォルダを開く際にエラーが発生しました: {0}").format(e))
         return False
-from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
-from diffusers_helper.memory import cpu, gpu, gpu_complete_modules, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation, fake_diffusers_current_device, DynamicSwapInstaller, unload_complete_models, load_model_as_complete
-from diffusers_helper.thread_utils import AsyncStream, async_run
-from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
-from eichi_utils.ui_styles import get_app_css
-from transformers import SiglipImageProcessor, SiglipVisionModel
-from diffusers_helper.clip_vision import hf_clip_vision_encode
-from diffusers_helper.bucket_tools import find_nearest_bucket
 
-from eichi_utils.transformer_manager import TransformerManager
-from eichi_utils.text_encoder_manager import TextEncoderManager
+sample_hunyuan = spinner_while_running(
+    translate("Load_diffusers_helper.pipelines.k_diffusion_hunyuan"),
+    lambda: importlib.import_module("diffusers_helper.pipelines.k_diffusion_hunyuan").sample_hunyuan,
+)
+
+(
+    cpu,
+    gpu,
+    gpu_complete_modules,
+    get_cuda_free_memory_gb,
+    move_model_to_device_with_memory_preservation,
+    offload_model_from_device_for_memory_preservation,
+    fake_diffusers_current_device,
+    DynamicSwapInstaller,
+    unload_complete_models,
+    load_model_as_complete,
+) = spinner_while_running(
+    translate("Load_diffusers_helper.memory"),
+    lambda: (
+        importlib.import_module("diffusers_helper.memory").cpu,
+        importlib.import_module("diffusers_helper.memory").gpu,
+        importlib.import_module("diffusers_helper.memory").gpu_complete_modules,
+        importlib.import_module("diffusers_helper.memory").get_cuda_free_memory_gb,
+        importlib.import_module("diffusers_helper.memory").move_model_to_device_with_memory_preservation,
+        importlib.import_module("diffusers_helper.memory").offload_model_from_device_for_memory_preservation,
+        importlib.import_module("diffusers_helper.memory").fake_diffusers_current_device,
+        importlib.import_module("diffusers_helper.memory").DynamicSwapInstaller,
+        importlib.import_module("diffusers_helper.memory").unload_complete_models,
+        importlib.import_module("diffusers_helper.memory").load_model_as_complete,
+    ),
+)
+
+AsyncStream, async_run = spinner_while_running(
+    translate("Load_diffusers_helper.thread_utils"),
+    lambda: (
+        importlib.import_module("diffusers_helper.thread_utils").AsyncStream,
+        importlib.import_module("diffusers_helper.thread_utils").async_run,
+    ),
+)
+
+make_progress_bar_css, make_progress_bar_html = spinner_while_running(
+    translate("Load_diffusers_helper.gradio.progress_bar"),
+    lambda: (
+        importlib.import_module("diffusers_helper.gradio.progress_bar").make_progress_bar_css,
+        importlib.import_module("diffusers_helper.gradio.progress_bar").make_progress_bar_html,
+    ),
+)
+
+SiglipImageProcessor, SiglipVisionModel = spinner_while_running(
+    translate("Load_transformers(Siglip)"),
+    lambda: (
+        importlib.import_module("transformers").SiglipImageProcessor,
+        importlib.import_module("transformers").SiglipVisionModel,
+    ),
+)
+
+hf_clip_vision_encode = spinner_while_running(
+    translate("Load_diffusers_helper.clip_vision"),
+    lambda: importlib.import_module("diffusers_helper.clip_vision").hf_clip_vision_encode,
+)
+
+find_nearest_bucket, SAFE_RESOLUTIONS = spinner_while_running(
+    translate("Load_diffusers_helper.bucket_tools"),
+    lambda: (
+        importlib.import_module("diffusers_helper.bucket_tools").find_nearest_bucket,
+        importlib.import_module("diffusers_helper.bucket_tools").SAFE_RESOLUTIONS,
+    ),
+)
+
+TransformerManager = spinner_while_running(
+    translate("Load_eichi_utils.transformer_manager"),
+    lambda: importlib.import_module("eichi_utils.transformer_manager").TransformerManager,
+)
+
+TextEncoderManager = spinner_while_running(
+    translate("Load_eichi_utils.text_encoder_manager"),
+    lambda: importlib.import_module("eichi_utils.text_encoder_manager").TextEncoderManager,
+)
 
 free_mem_gb = get_cuda_free_memory_gb(gpu)
 high_vram = free_mem_gb > 100
@@ -199,7 +434,10 @@ print(translate('Free VRAM {0} GB').format(free_mem_gb))
 print(translate('High-VRAM Mode: {0}').format(high_vram))
 
 # モデルを並列ダウンロードしておく
-from eichi_utils.model_downloader import ModelDownloader
+ModelDownloader = spinner_while_running(
+    translate("Load_eichi_utils.model_downloader"),
+    lambda: importlib.import_module("eichi_utils.model_downloader").ModelDownloader,
+)
 ModelDownloader().download_original()
 
 # グローバルなモデル状態管理インスタンスを作成（モデルは実際に使用するまでロードしない）
