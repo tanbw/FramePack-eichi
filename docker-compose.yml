@@ -4,22 +4,28 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - TZ=Europe/Brussels
+        - TZ=Asia/Shanghai
     ports:
-      - "7861:7861"
+      - "7862:7862"
     volumes:
       - ./data:/app/framepack/data
-      - ./models:/app/framepack/hf_download
+      - D:\home\models\hf_download:/app/framepack/hf_download
       - ./outputs:/app/framepack/outputs
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - http_proxy=http://192.168.1.5:10808
+      - https_proxy=http://192.168.1.5:10808
+    devices:
+      - nvidia.com/gpu=all
+    security_opt:
+       - label=disable
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
     restart: unless-stopped
-    command: ["--lang", "en"]  # Options: "en", "ja", "zh-tw"
+    command: ["--lang", "zh-tw"]  # Options: "en", "ja", "zh-tw"

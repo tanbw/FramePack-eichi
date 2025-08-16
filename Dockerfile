@@ -67,21 +67,15 @@ RUN cp -rf /tmp/framepack-eichi/webui/* /app/framepack/
 # Create a simple startup script with better error handling
 RUN echo '#!/bin/bash' > /app/start.sh && \
     echo 'cd /app/framepack' >> /app/start.sh && \
-    echo 'echo "Starting demo_gradio.py..."' >> /app/start.sh && \
-    echo 'python demo_gradio.py --server 0.0.0.0 --port 7860 &' >> /app/start.sh && \
-    echo 'SERVER_PID=$!' >> /app/start.sh && \
-    echo 'sleep 5' >> /app/start.sh && \
-    echo 'if [ -f "endframe_ichi.py" ]; then' >> /app/start.sh && \
-    echo '  echo "Starting endframe_ichi.py..."' >> /app/start.sh && \
-    echo '  python endframe_ichi.py --server 0.0.0.0 --port 7861 "$@"' >> /app/start.sh && \
-    echo 'fi' >> /app/start.sh && \
+    echo 'PORT=${GRADIO_SERVER_PORT:-7862}  # 默认7862，可被环境变量覆盖' >> /app/start.sh && \
+    echo 'python endframe_ichi.py --server 0.0.0.0 --port $PORT "$@"  # 主服务用PORT' >> /app/start.sh && \
     chmod +x /app/start.sh
 
 # Set working directory for when container starts
 WORKDIR /app/framepack
 
 # Command to run when container starts
-ENTRYPOINT ["/app/start.sh"]
+ENTRYPOINT ["python", "endframe_ichi.py", "--server", "0.0.0.0"]
 
 # Default arguments (can be overridden)
 CMD ["--lang", "en", "--listen"]
