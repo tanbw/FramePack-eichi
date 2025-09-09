@@ -3,23 +3,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - TZ=Asia/Shanghai
     ports:
       - "7862:7862"
+      - "8002:8002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # 使用 host-gateway
     volumes:
-      - ./data:/app/framepack/data
-      - D:\home\models\hf_download:/app/framepack/hf_download
-      - ./outputs:/app/framepack/outputs
+      - /home/program_data/framepack/data:/app/framepack/data
+      - /home/models/hf_download:/app/framepack/hf_download
+      - /home/program_data/framepack/outputs:/app/framepack/outputs
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - http_proxy=http://192.168.1.5:10808
-      - https_proxy=http://192.168.1.5:10808
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-       - label=disable
+      - HF_ENDPOINT=https://hf-mirror.com
+    # devices:
+    #   - nvidia.com/gpu=all
+    # security_opt:
+    #    - label=disable
     deploy:
       resources:
         reservations:
