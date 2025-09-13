@@ -15,7 +15,8 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - HF_ENDPOINT=https://hf-mirror.com
+      - http_proxy=http://host.docker.internal:10808
+      - https_proxy=http://host.docker.internal:10808
     # devices:
     #   - nvidia.com/gpu=all
     # security_opt:
